@@ -1,17 +1,15 @@
 const fs = require("fs");
 const path = require("path");
-
-function electron() {
-  return require("electron");
-}
+const { app, dialog, BrowserWindow } = require("electron");
 
 const CHECK_EVERY_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
-const DEFAULT_FEED =
-  process.env.ENVISION_MAIL_UPDATE_URL ||
-  "https://updates.envisiondms.com/envision-mail";
+const GITHUB_OWNER = process.env.ENVISION_MAIL_GH_OWNER || "lespaulporter-bit";
+const GITHUB_REPO = process.env.ENVISION_MAIL_GH_REPO || "Envision-Mail-Client";
+/** Optional generic feed override (Railway/CDN). Empty = GitHub Releases. */
+const DEFAULT_FEED = String(process.env.ENVISION_MAIL_UPDATE_URL || "").replace(/\/$/, "");
 
 function metaPath() {
-  return path.join(electron().app.getPath("userData"), "update-check.json");
+  return path.join(app.getPath("userData"), "update-check.json");
 }
 
 function readMeta() {
@@ -31,13 +29,29 @@ function writeMeta(patch) {
 
 function getUpdateFeedUrl() {
   const meta = readMeta();
-  return String(meta.feedUrl || DEFAULT_FEED).replace(/\/$/, "");
+  const custom = String(meta.feedUrl || DEFAULT_FEED || "").replace(/\/$/, "");
+  if (custom) return custom;
+  return `github:${GITHUB_OWNER}/${GITHUB_REPO}`;
 }
 
 function setUpdateFeedUrl(url) {
   const cleaned = String(url || "").trim().replace(/\/$/, "");
-  writeMeta({ feedUrl: cleaned || DEFAULT_FEED });
+  writeMeta({ feedUrl: cleaned });
   return getUpdateFeedUrl();
+}
+
+function applyUpdaterFeed(autoUpdater) {
+  const custom = String(readMeta().feedUrl || DEFAULT_FEED || "").replace(/\/$/, "");
+  if (custom && !custom.startsWith("github:")) {
+    autoUpdater.setFeedURL({ provider: "generic", url: custom });
+    return custom;
+  }
+  autoUpdater.setFeedURL({
+    provider: "github",
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+  });
+  return `github:${GITHUB_OWNER}/${GITHUB_REPO}`;
 }
 
 function dueForCheck(force = false) {
@@ -75,9 +89,10 @@ function getUpdateStatus() {
 /**
  * Packaged builds only. Checks at most once every 60 days (unless force),
  * auto-downloads updates, prompts to restart when ready.
+ * Updates never touch envision-mail-state.json or accounts on disk.
  */
 function setupAutoUpdate({ getMainWindow } = {}) {
-  if (!electron().app.isPackaged) {
+  if (!app.isPackaged) {
     return { enabled: false, reason: "dev" };
   }
 
@@ -92,12 +107,6 @@ function setupAutoUpdate({ getMainWindow } = {}) {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowDowngrade = false;
-
-  const applyFeed = () => {
-    const url = getUpdateFeedUrl();
-    autoUpdater.setFeedURL({ provider: "generic", url });
-    return url;
-  };
 
   autoUpdater.on("error", (err) => {
     console.warn("autoUpdater error", err);
@@ -114,7 +123,7 @@ function setupAutoUpdate({ getMainWindow } = {}) {
   autoUpdater.on("update-not-available", (info) => {
     writeMeta({
       lastResult: "up-to-date",
-      lastVersion: (info && info.version) || electron().app.getVersion(),
+      lastVersion: (info && info.version) || app.getVersion(),
     });
   });
 
@@ -124,7 +133,7 @@ function setupAutoUpdate({ getMainWindow } = {}) {
       lastVersion: info && info.version,
       downloadedAt: new Date().toISOString(),
     });
-    const win = typeof getMainWindow === "function" ? getMainWindow() : electron().BrowserWindow.getFocusedWindow();
+    const win = typeof getMainWindow === "function" ? getMainWindow() : BrowserWindow.getFocusedWindow();
     const ver = (info && info.version) || "the latest version";
     dialog
       .showMessageBox(win || undefined, {
@@ -134,7 +143,8 @@ function setupAutoUpdate({ getMainWindow } = {}) {
         cancelId: 1,
         title: "Envision Mail update ready",
         message: `Version ${ver} downloaded.`,
-        detail: "Restart Envision Mail to install the update. Your mail data stays on this Mac.",
+        detail:
+          "Restart Envision Mail to install the update. Your mail, accounts, and collections stay on this Mac — updates never overwrite Application Support data.",
       })
       .then(({ response }) => {
         if (response === 0) autoUpdater.quitAndInstall();
@@ -146,7 +156,7 @@ function setupAutoUpdate({ getMainWindow } = {}) {
     if (!dueForCheck(force)) {
       return { ok: true, skipped: true, status: getUpdateStatus() };
     }
-    const feedUrl = applyFeed();
+    const feedUrl = applyUpdaterFeed(autoUpdater);
     writeMeta({ lastCheckAt: new Date().toISOString(), lastResult: "checking", feedUrl });
     try {
       const result = await autoUpdater.checkForUpdates();
@@ -163,12 +173,10 @@ function setupAutoUpdate({ getMainWindow } = {}) {
     }
   };
 
-  // Startup: check if 60 days elapsed
   setTimeout(() => {
     runCheck(false).catch((e) => console.warn("update check", e));
   }, 12_000);
 
-  // While running, re-evaluate once a day in case the app stays open past 60 days
   setInterval(() => {
     runCheck(false).catch(() => {});
   }, 24 * 60 * 60 * 1000);
@@ -191,4 +199,6 @@ module.exports = {
   dueForCheck,
   CHECK_EVERY_MS,
   DEFAULT_FEED,
+  GITHUB_OWNER,
+  GITHUB_REPO,
 };

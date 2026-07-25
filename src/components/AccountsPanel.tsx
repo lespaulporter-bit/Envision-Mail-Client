@@ -373,11 +373,20 @@ export function AccountsPanel() {
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name || a.email} · {a.email}
-                    {a.lastError ? " (error)" : ""}
+                    {a.needsPassword || !a.hasPassword ? " (needs password)" : a.lastError ? " (error)" : ""}
                   </option>
                 ))}
               </select>
             </label>
+            {form.id && (accounts.find((a) => a.id === form.id)?.needsPassword || accounts.find((a) => a.id === form.id)?.hasPassword === false) ? (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                <p className="font-medium">Re-enter app password</p>
+                <p className="mt-1 text-xs opacity-90">
+                  The saved password can&apos;t be decrypted (common after moving from Les Mail). Paste a new app password
+                  below and Save — your mail data stays on this Mac.
+                </p>
+              </div>
+            ) : null}
             {form.id ? (
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="soft" disabled={!!busy} onClick={() => void syncOne(form.id)}>
@@ -414,7 +423,11 @@ export function AccountsPanel() {
                 <li key={a.id}>
                   {a.email}
                   {a.lastSyncAt ? ` · synced ${new Date(a.lastSyncAt).toLocaleString()}` : " · never synced"}
-                  {a.lastError ? ` · ${a.lastError}` : ""}
+                  {a.needsPassword || !a.hasPassword
+                    ? " · needs app password"
+                    : a.lastError
+                      ? ` · ${a.lastError}`
+                      : ""}
                 </li>
               ))}
             </ul>
@@ -547,17 +560,25 @@ export function AccountsPanel() {
             className="md:col-span-2"
             type="password"
             placeholder={
-              form.id
-                ? activePreset?.needsAppPassword
-                  ? "New app password (leave blank to keep)"
-                  : "Password (leave blank to keep)"
-                : activePreset?.needsAppPassword
-                  ? "App password (paste here)"
-                  : "Password / app password"
+              form.id &&
+              (accounts.find((a) => a.id === form.id)?.needsPassword ||
+                accounts.find((a) => a.id === form.id)?.hasPassword === false)
+                ? "Paste new app password (required)"
+                : form.id
+                  ? activePreset?.needsAppPassword
+                    ? "New app password (leave blank to keep)"
+                    : "Password (leave blank to keep)"
+                  : activePreset?.needsAppPassword
+                    ? "App password (paste here)"
+                    : "Password / app password"
             }
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required={!form.id}
+            required={
+              !form.id ||
+              Boolean(accounts.find((a) => a.id === form.id)?.needsPassword) ||
+              accounts.find((a) => a.id === form.id)?.hasPassword === false
+            }
             autoComplete="off"
           />
         </div>

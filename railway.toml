@@ -1,0 +1,13 @@
+# Envision Mail Client — Railway project config
+# Deploys the public status/release pointer only. Never hosts or migrates user mail data.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "node -e \"console.log('Envision Mail Client — update service (no Electron build)')\""
+
+[deploy]
+startCommand = "node update-service/server.mjs"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

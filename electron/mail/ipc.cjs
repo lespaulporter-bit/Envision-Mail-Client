@@ -165,8 +165,24 @@ function registerMailIpc() {
   ipcMain.handle("app:saveState", async (_e, payload) => appState.saveAppState(payload));
 
   ipcMain.handle("mail:send", async (_e, payload) => {
-    const account = accounts.getAccountSecret(payload.accountId);
+    let account;
+    try {
+      account = accounts.getAccountSecret(payload.accountId);
+    } catch (err) {
+      return {
+        ok: false,
+        error:
+          "Could not read the saved app password. Open Settings → Accounts and re-enter the app password, then Save.",
+      };
+    }
     if (!account) return { ok: false, error: "Account not found" };
+    if (!account.password) {
+      return {
+        ok: false,
+        error:
+          "App password missing or could not be decrypted. Open Settings → Accounts and paste a new app password for this account, then Save.",
+      };
+    }
     try {
       const result = await sendMail(account, payload);
       return result;

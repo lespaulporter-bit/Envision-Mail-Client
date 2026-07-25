@@ -116,7 +116,10 @@ async function sendMail(
     throw err;
   }
   if (!account.password) {
-    const err = new Error("Missing app password for this account");
+    const err = new Error(
+      "App password missing or could not be decrypted. Open Settings → Accounts and paste a new app password for this account, then Save.",
+    );
+    err.code = "ENEEDPASSWORD";
     throw err;
   }
   if (!to) {

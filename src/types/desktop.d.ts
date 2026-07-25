@@ -12,6 +12,8 @@ export interface DesktopAccount {
   username: string;
   enabled?: boolean;
   hasPassword?: boolean;
+  /** True when ciphertext can't be decrypted — user must paste a new app password */
+  needsPassword?: boolean;
   lastSyncAt?: string | null;
   lastError?: string | null;
   /** Hex color for letter avatar shown in outgoing mail */

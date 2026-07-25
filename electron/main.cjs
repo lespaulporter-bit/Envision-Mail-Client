@@ -272,6 +272,13 @@ if (!gotLock) {
     } catch (e) {
       console.warn("Les Mail migration:", e);
     }
+    try {
+      const { clearUndecryptablePasswords } = require("./mail/accounts-store.cjs");
+      const n = clearUndecryptablePasswords();
+      if (n) console.log(`Cleared ${n} undecryptable app password(s) — user must re-enter`);
+    } catch (e) {
+      console.warn("Password cleanup:", e);
+    }
     if (!registerMailIpc) return;
     registerMailIpc();
     buildMenu();

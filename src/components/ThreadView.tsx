@@ -514,8 +514,8 @@ export function ThreadView() {
                 if (!result.ok) {
                   const err = result.error || "SMTP send failed";
                   const authHint =
-                    /auth|password|credentials|login|535|534/i.test(err)
-                      ? " — re-enter your app password in Settings → Accounts"
+                    /auth|password|credentials|login|535|534|decrypt|safeStorage|re-enter/i.test(err)
+                      ? " — Settings → Accounts → paste a new app password → Save"
                       : "";
                   setToast(err + authHint);
                   return;

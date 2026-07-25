@@ -57,15 +57,41 @@ function encryptSecret(plain) {
   return { enc: "b64", value: Buffer.from(plain, "utf8").toString("base64") };
 }
 
+/**
+ * Decrypt a stored secret. Les Mail blobs often fail under Envision Mail's
+ * appId/keychain — never throw; return "" so SMTP/IMAP can ask for a new password.
+ */
 function decryptSecret(blob) {
   if (!blob || !blob.value) return "";
-  if (blob.enc === "safeStorage" && safeStorage.isEncryptionAvailable()) {
-    return safeStorage.decryptString(Buffer.from(blob.value, "base64"));
-  }
-  if (blob.enc === "b64") {
-    return Buffer.from(blob.value, "base64").toString("utf8");
+  try {
+    if (blob.enc === "safeStorage" && safeStorage.isEncryptionAvailable()) {
+      return safeStorage.decryptString(Buffer.from(blob.value, "base64"));
+    }
+    if (blob.enc === "b64") {
+      return Buffer.from(blob.value, "base64").toString("utf8");
+    }
+  } catch (err) {
+    console.warn("decryptSecret failed (re-enter app password)", err && err.message ? err.message : err);
   }
   return "";
+}
+
+/** Clear ciphertext that can no longer be decrypted (wrong app keychain). */
+function clearUndecryptablePasswords() {
+  const data = readRaw();
+  let changed = 0;
+  for (const account of data.accounts) {
+    if (!account.passwordEnc?.value) continue;
+    const plain = decryptSecret(account.passwordEnc);
+    if (plain) continue;
+    account.passwordEnc = null;
+    account.needsPassword = true;
+    account.lastError =
+      "App password needs to be re-entered (encrypted under a previous app identity).";
+    changed += 1;
+  }
+  if (changed) writeRaw(data);
+  return changed;
 }
 
 function defaultBrandLetter(email, name) {
@@ -86,9 +112,12 @@ function defaultBrandColor(email) {
 
 function publicAccount(account) {
   const { passwordEnc: _p, ...rest } = account;
+  const hasCipher = Boolean(_p?.value);
+  const canDecrypt = hasCipher ? Boolean(decryptSecret(_p)) : false;
   return {
     ...rest,
-    hasPassword: Boolean(_p?.value),
+    hasPassword: canDecrypt,
+    needsPassword: Boolean(account.needsPassword) || (hasCipher && !canDecrypt),
     brandColor: account.brandColor || defaultBrandColor(account.email),
     brandLetter: account.brandLetter || defaultBrandLetter(account.email, account.name),
     brandLogoDataUrl: account.brandLogoDataUrl || null,
@@ -96,15 +125,21 @@ function publicAccount(account) {
 }
 
 function listAccounts() {
+  clearUndecryptablePasswords();
   return readRaw().accounts.map(publicAccount);
 }
 
 function getAccountSecret(id) {
   const account = readRaw().accounts.find((a) => a.id === id);
   if (!account) return null;
+  const password = decryptSecret(account.passwordEnc);
+  if (account.passwordEnc?.value && !password) {
+    // One-shot cleanup so the next listAccounts shows needsPassword
+    clearUndecryptablePasswords();
+  }
   return {
     ...account,
-    password: decryptSecret(account.passwordEnc),
+    password,
   };
 }
 
@@ -159,6 +194,10 @@ function upsertAccount(input) {
 
   if (input.password) {
     account.passwordEnc = encryptSecret(input.password);
+    account.needsPassword = false;
+    if (account.lastError && /re-enter|app password|decrypt|safeStorage/i.test(account.lastError)) {
+      account.lastError = null;
+    }
   }
 
   writeRaw(data);
@@ -188,4 +227,5 @@ module.exports = {
   removeAccount,
   touchAccount,
   accountsPath,
+  clearUndecryptablePasswords,
 };

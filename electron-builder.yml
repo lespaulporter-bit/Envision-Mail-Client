@@ -7,10 +7,12 @@ asarUnpack:
 directories:
   output: release
   buildResources: build
-# Generic feed for electron-updater (host latest-mac.yml / latest.yml + artifacts here)
+# GitHub Releases for electron-updater (installers only — never user mail data)
 publish:
-  provider: generic
-  url: https://updates.envisiondms.com/envision-mail
+  provider: github
+  owner: lespaulporter-bit
+  repo: Envision-Mail-Client
+  releaseType: release
 # Do NOT exclude node_modules/**/src — packages like encoding-japanese require it.
 files:
   - electron/**/*
