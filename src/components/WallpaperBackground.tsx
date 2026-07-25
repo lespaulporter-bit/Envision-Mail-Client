@@ -1,12 +1,12 @@
 "use client";
 
 import { wallpaperPool, type WallpaperTheme } from "@/lib/wallpapers";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import { useEffect, useMemo, useState } from "react";
 
 export function WallpaperBackground() {
-  const wallpaper = useHeyStore((s) => s.settings.wallpaper || "none");
-  const rotateMinutes = useHeyStore((s) => s.settings.wallpaperRotateMinutes || 8);
+  const wallpaper = useMailStore((s) => s.settings.wallpaper || "none");
+  const rotateMinutes = useMailStore((s) => s.settings.wallpaperRotateMinutes || 8);
   const pool = useMemo(() => wallpaperPool(wallpaper as WallpaperTheme), [wallpaper]);
   const [index, setIndex] = useState(0);
 

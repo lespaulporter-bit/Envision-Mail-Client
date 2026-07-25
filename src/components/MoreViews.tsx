@@ -8,18 +8,18 @@ import { SignaturesPanel } from "@/components/SignaturesPanel";
 import { EmailTemplatesPanel } from "@/components/EmailTemplatesPanel";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { desktopApi } from "@/lib/desktop";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import { formatBytes, relativeTime } from "@/lib/utils";
 import { boxLabel } from "@/lib/types";
 import { useMemo, useState, useEffect } from "react";
 
 export function ContactsView() {
-  const contacts = useHeyStore((s) => s.contacts);
-  const updateContactNotes = useHeyStore((s) => s.updateContactNotes);
-  const updateContactNotify = useHeyStore((s) => s.updateContactNotify);
-  const openThread = useHeyStore((s) => s.openThread);
-  const threads = useHeyStore((s) => s.threads);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const contacts = useMailStore((s) => s.contacts);
+  const updateContactNotes = useMailStore((s) => s.updateContactNotes);
+  const updateContactNotify = useMailStore((s) => s.updateContactNotify);
+  const openThread = useMailStore((s) => s.openThread);
+  const threads = useMailStore((s) => s.threads);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const scopedThreads = useMemo(
     () => threads.filter((t) => !inboxAccountId || t.accountId === inboxAccountId),
     [threads, inboxAccountId],
@@ -44,7 +44,7 @@ export function ContactsView() {
         subtitle="People from this account only. Switch accounts in the sidebar to see another set."
       />
       {scopedContacts.length === 0 ? (
-        <EmptyState title="No contacts for this account" body="Sync mail or allow senders from Screener." />
+        <EmptyState title="No contacts for this account" body="Sync mail or allow senders from New Senders." />
       ) : (
       <div className="grid gap-4 md:grid-cols-[280px_1fr]">
         <div className="overflow-hidden rounded-2xl border border-line bg-white">
@@ -109,10 +109,10 @@ export function ContactsView() {
 }
 
 export function AttachmentsView() {
-  const getAttachments = useHeyStore((s) => s.getAttachments);
-  const openThread = useHeyStore((s) => s.openThread);
-  const threads = useHeyStore((s) => s.threads);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const getAttachments = useMailStore((s) => s.getAttachments);
+  const openThread = useMailStore((s) => s.openThread);
+  const threads = useMailStore((s) => s.threads);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const allowedThreadIds = useMemo(() => {
     if (!inboxAccountId) return null;
     return new Set(threads.filter((t) => t.accountId === inboxAccountId).map((t) => t.id));
@@ -148,13 +148,13 @@ export function AttachmentsView() {
 }
 
 export function ClipsView() {
-  const clips = useHeyStore((s) => s.clips);
-  const deleteClip = useHeyStore((s) => s.deleteClip);
-  const openThread = useHeyStore((s) => s.openThread);
+  const clips = useMailStore((s) => s.clips);
+  const deleteClip = useMailStore((s) => s.deleteClip);
+  const openThread = useMailStore((s) => s.openThread);
 
   return (
     <div className="px-4 py-6 md:px-8">
-      <SectionHeader title="Clips" subtitle="Phone numbers, links, confirmation codes — clipped for instant recall." />
+      <SectionHeader title="Highlights" subtitle="Phone numbers, links, confirmation codes — clipped for instant recall." />
       {clips.length === 0 ? (
         <EmptyState title="No clips yet" body="Select text in a thread and clip it." />
       ) : (
@@ -180,9 +180,9 @@ export function ClipsView() {
 }
 
 export function SnippetsView() {
-  const snippets = useHeyStore((s) => s.snippets);
-  const createSnippet = useHeyStore((s) => s.createSnippet);
-  const deleteSnippet = useHeyStore((s) => s.deleteSnippet);
+  const snippets = useMailStore((s) => s.snippets);
+  const createSnippet = useMailStore((s) => s.createSnippet);
+  const deleteSnippet = useMailStore((s) => s.deleteSnippet);
   const [name, setName] = useState("");
   const [body, setBody] = useState("");
 
@@ -222,10 +222,10 @@ export function SnippetsView() {
 }
 
 export function CollectionsView() {
-  const collections = useHeyStore((s) => s.collections);
-  const threads = useHeyStore((s) => s.threads);
-  const createCollection = useHeyStore((s) => s.createCollection);
-  const openThread = useHeyStore((s) => s.openThread);
+  const collections = useMailStore((s) => s.collections);
+  const threads = useMailStore((s) => s.threads);
+  const createCollection = useMailStore((s) => s.createCollection);
+  const openThread = useMailStore((s) => s.openThread);
   const [name, setName] = useState("");
 
   return (
@@ -275,10 +275,10 @@ export function CollectionsView() {
 }
 
 export function WorkflowsView() {
-  const workflows = useHeyStore((s) => s.workflows);
-  const threads = useHeyStore((s) => s.threads);
-  const createWorkflow = useHeyStore((s) => s.createWorkflow);
-  const openThread = useHeyStore((s) => s.openThread);
+  const workflows = useMailStore((s) => s.workflows);
+  const threads = useMailStore((s) => s.threads);
+  const createWorkflow = useMailStore((s) => s.createWorkflow);
+  const openThread = useMailStore((s) => s.openThread);
   const [name, setName] = useState("");
 
   return (
@@ -332,13 +332,13 @@ export function WorkflowsView() {
 }
 
 export function SettingsView() {
-  const settings = useHeyStore((s) => s.settings);
-  const updateSettings = useHeyStore((s) => s.updateSettings);
-  const resetDemo = useHeyStore((s) => s.resetDemo);
+  const settings = useMailStore((s) => s.settings);
+  const updateSettings = useMailStore((s) => s.updateSettings);
+  const resetDemo = useMailStore((s) => s.resetDemo);
   const [tab, setTab] = useState<"accounts" | "general" | "mail" | "appearance" | "templates" | "about">(
     "accounts",
   );
-  const [appVersion, setAppVersion] = useState("2.2.0");
+  const [appVersion, setAppVersion] = useState("2.3.0");
 
   useEffect(() => {
     const api = desktopApi();
@@ -451,7 +451,7 @@ export function SettingsView() {
         <section className="space-y-5 rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
           <div>
             <h3 className="font-display text-xl text-ink">Mail behavior</h3>
-            <p className="mt-1 text-sm text-muted">Sync, Screener, receipts, and cleanup.</p>
+            <p className="mt-1 text-sm text-muted">Sync, New Senders, receipts, and cleanup.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-medium">
@@ -503,7 +503,7 @@ export function SettingsView() {
                 checked={settings.spamCorps}
                 onChange={(e) => updateSettings({ spamCorps: e.target.checked })}
               />
-              Enable Spam Corps actions in Screener
+              Enable Spam Corps actions in New Senders
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -527,7 +527,7 @@ export function SettingsView() {
         <section className="space-y-5 rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
           <div>
             <h3 className="font-display text-xl text-ink">Appearance</h3>
-            <p className="mt-1 text-sm text-muted">Background atmosphere and MoneyBox $ cover art.</p>
+            <p className="mt-1 text-sm text-muted">Background atmosphere and MoneyBox $ day cover.</p>
           </div>
           <label className="block text-sm font-medium">
             Wallpaper theme
@@ -556,7 +556,7 @@ export function SettingsView() {
             />
           </label>
           <label className="block text-sm font-medium">
-            Default MoneyBox $ cover art
+            Default MoneyBox $ day cover
             <select
               className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2"
               value={settings.coverArt}
@@ -625,12 +625,12 @@ export function SettingsView() {
 }
 
 export function SearchView() {
-  const searchQuery = useHeyStore((s) => s.searchQuery);
-  const setSearch = useHeyStore((s) => s.setSearch);
-  const threads = useHeyStore((s) => s.threads);
-  const messages = useHeyStore((s) => s.messages);
-  const openThread = useHeyStore((s) => s.openThread);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const searchQuery = useMailStore((s) => s.searchQuery);
+  const setSearch = useMailStore((s) => s.setSearch);
+  const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
+  const openThread = useMailStore((s) => s.openThread);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
 
   const results = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -688,19 +688,19 @@ export function SearchView() {
 }
 
 export function ComposeView() {
-  const composeDraft = useHeyStore((s) => s.composeDraft);
-  const setCompose = useHeyStore((s) => s.setCompose);
-  const sendNewEmail = useHeyStore((s) => s.sendNewEmail);
-  const signatures = useHeyStore((s) => s.signatures || []);
-  const settings = useHeyStore((s) => s.settings);
-  const replyToEveryone = useHeyStore((s) => s.replyToEveryone);
-  const threads = useHeyStore((s) => s.threads);
-  const setToast = useHeyStore((s) => s.setToast);
+  const composeDraft = useMailStore((s) => s.composeDraft);
+  const setCompose = useMailStore((s) => s.setCompose);
+  const sendNewEmail = useMailStore((s) => s.sendNewEmail);
+  const signatures = useMailStore((s) => s.signatures || []);
+  const settings = useMailStore((s) => s.settings);
+  const replyToEveryone = useMailStore((s) => s.replyToEveryone);
+  const threads = useMailStore((s) => s.threads);
+  const setToast = useMailStore((s) => s.setToast);
   const [bulk, setBulk] = useState(false);
   const [sending, setSending] = useState(false);
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const [accountId, setAccountId] = useState("");
   const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
   const [requestReceipt, setRequestReceipt] = useState(settings.requestReadReceiptsByDefault ?? true);
@@ -912,7 +912,7 @@ export function ComposeView() {
                 )
               }
             >
-              Reply to {threads.filter((t) => t.replyLater).length} Reply Later emails
+              Reply to {threads.filter((t) => t.replyLater).length} Snooze emails
             </Button>
           </div>
         ) : null}

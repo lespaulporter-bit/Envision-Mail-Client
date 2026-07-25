@@ -1,5 +1,5 @@
 import { desktopApi, isDesktop } from "@/lib/desktop";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 
 export type ImapFolderKey = "inbox" | "sent" | "spam" | "trash";
 
@@ -16,7 +16,7 @@ export function parseImapMessageId(
 }
 
 function collectImapRefs(threadId: string) {
-  const state = useHeyStore.getState();
+  const state = useMailStore.getState();
   const thread = state.threads.find((t) => t.id === threadId);
   if (!thread) return { thread: null, byAccount: new Map<string, Map<ImapFolderKey, number[]>>() };
   const byAccount = new Map<string, Map<ImapFolderKey, number[]>>();
@@ -76,7 +76,7 @@ async function syncDeleteOnServer(byAccount: Map<string, Map<ImapFolderKey, numb
 export async function deleteThreadSmart(threadId: string) {
   const { thread, byAccount } = collectImapRefs(threadId);
   if (!thread) return { ok: false, error: "Thread not found" };
-  const store = useHeyStore.getState();
+  const store = useMailStore.getState();
 
   if (thread.box === "trash" || thread.box === "spam") {
     const server = await syncDeleteOnServer(byAccount);
@@ -99,15 +99,15 @@ export async function permanentlyDeleteThread(threadId: string) {
   const { thread, byAccount } = collectImapRefs(threadId);
   if (!thread) return { ok: false, error: "Thread not found" };
   const server = await syncDeleteOnServer(byAccount);
-  useHeyStore.getState().permanentlyDeleteThreads([threadId]);
+  useMailStore.getState().permanentlyDeleteThreads([threadId]);
   if (server.warnings.length) {
-    useHeyStore.getState().setToast(`Removed locally — server: ${server.warnings[0]}`);
+    useMailStore.getState().setToast(`Removed locally — server: ${server.warnings[0]}`);
   }
   return { ok: true };
 }
 
 export async function emptySpamFolder() {
-  const store = useHeyStore.getState();
+  const store = useMailStore.getState();
   const activeId = store.inboxAccountId;
   const spamThreads = store.threads.filter(
     (t) => t.box === "spam" && (!activeId || t.accountId === activeId),
@@ -138,7 +138,7 @@ export async function emptySpamFolder() {
 }
 
 export async function emptyTrashFolder() {
-  const store = useHeyStore.getState();
+  const store = useMailStore.getState();
   const activeId = store.inboxAccountId;
   const trashThreads = store.threads.filter(
     (t) => t.box === "trash" && (!activeId || t.accountId === activeId),
@@ -172,16 +172,16 @@ export async function restoreThreadFromTrash(threadId: string) {
   const { thread, byAccount } = collectImapRefs(threadId);
   if (!thread) return { ok: false, error: "Thread not found" };
   const server = await syncMoveToServer(byAccount, "inbox");
-  useHeyStore.getState().restoreThreadsFromTrash([threadId]);
+  useMailStore.getState().restoreThreadsFromTrash([threadId]);
   if (server.warnings.length) {
-    useHeyStore.getState().setToast(`Restored locally — server: ${server.warnings[0]}`);
+    useMailStore.getState().setToast(`Restored locally — server: ${server.warnings[0]}`);
   }
   return { ok: true };
 }
 
 /** Permanently remove Trash older than N days (default 30). 0 = skip. */
 export async function purgeOldTrash(days?: number) {
-  const store = useHeyStore.getState();
+  const store = useMailStore.getState();
   const purgeDays = days ?? store.settings.autoPurgeTrashDays ?? 30;
   if (!purgeDays || purgeDays < 1) return { ok: true, purged: 0 };
   const cutoff = Date.now() - purgeDays * 86_400_000;

@@ -29,7 +29,7 @@ import { Button, Toast } from "@/components/ui";
 import { WallpaperBackground } from "@/components/WallpaperBackground";
 import { syncActiveDesktopAccount } from "@/components/AccountsPanel";
 import { desktopApi, isDesktop } from "@/lib/desktop";
-import { selectAccountThreads, selectBoxThreads, useHeyStore, type AppView } from "@/lib/store";
+import { selectAccountThreads, selectBoxThreads, useMailStore, type AppView } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { purgeOldTrash } from "@/lib/mail-delete";
 import {
@@ -66,19 +66,19 @@ const nav: {
   pastelActive?: string;
 }[] = [
   { id: "lesbox", label: "MoneyBox $", icon: Inbox, countKey: "lesbox", pastel: "bg-[#d6e8ff]", pastelActive: "bg-[#b8d6ff]" },
-  { id: "feed", label: "The Feed", icon: Newspaper, countKey: "feed", pastel: "bg-[#d8f5e8]", pastelActive: "bg-[#b8ebd4]" },
-  { id: "paper_trail", label: "Paper Trail", icon: Receipt, countKey: "paper_trail", pastel: "bg-[#ffe4d6]", pastelActive: "bg-[#ffd0b8]" },
-  { id: "screener", label: "Screener", icon: ShieldCheck, countKey: "screener", pastel: "bg-[#fff0c8]", pastelActive: "bg-[#ffe29a]" },
+  { id: "feed", label: "Newsstand", icon: Newspaper, countKey: "feed", pastel: "bg-[#d8f5e8]", pastelActive: "bg-[#b8ebd4]" },
+  { id: "paper_trail", label: "Receipts", icon: Receipt, countKey: "paper_trail", pastel: "bg-[#ffe4d6]", pastelActive: "bg-[#ffd0b8]" },
+  { id: "screener", label: "New Senders", icon: ShieldCheck, countKey: "screener", pastel: "bg-[#fff0c8]", pastelActive: "bg-[#ffe29a]" },
   { id: "sent", label: "Sent", icon: Send, pastel: "bg-[#e0eefc]", pastelActive: "bg-[#c8dff8]" },
   { id: "spam", label: "Spam", icon: ShieldAlert, countKey: "spam", pastel: "bg-[#ffe8e4]", pastelActive: "bg-[#ffd4cc]" },
   { id: "trash", label: "Trash", icon: Trash2, countKey: "trash", pastel: "bg-[#ececec]", pastelActive: "bg-[#dddddd]" },
   { id: "calendar", label: "Calendar", icon: CalendarDays, pastel: "bg-[#e8ddff]", pastelActive: "bg-[#d4c4ff]" },
-  { id: "reply_later", label: "Reply Later", icon: Clock3, countKey: "reply_later", pastel: "bg-[#d9f0f7]", pastelActive: "bg-[#bde4f0]" },
-  { id: "set_aside", label: "Set Aside", icon: Bookmark, countKey: "set_aside", pastel: "bg-[#fce0eb]", pastelActive: "bg-[#f7c5d8]" },
-  { id: "focus_reply", label: "Focus & Reply", icon: ClipboardList, pastel: "bg-[#d5f2ef]", pastelActive: "bg-[#b5e8e2]" },
+  { id: "reply_later", label: "Snooze", icon: Clock3, countKey: "reply_later", pastel: "bg-[#d9f0f7]", pastelActive: "bg-[#bde4f0]" },
+  { id: "set_aside", label: "On Hold", icon: Bookmark, countKey: "set_aside", pastel: "bg-[#fce0eb]", pastelActive: "bg-[#f7c5d8]" },
+  { id: "focus_reply", label: "Reply Queue", icon: ClipboardList, pastel: "bg-[#d5f2ef]", pastelActive: "bg-[#b5e8e2]" },
   { id: "contacts", label: "Contacts", icon: ContactRound, pastel: "bg-[#ece0f5]", pastelActive: "bg-[#dcc8ed]" },
   { id: "attachments", label: "Attachments", icon: Paperclip },
-  { id: "clips", label: "Clips", icon: Layers3 },
+  { id: "clips", label: "Highlights", icon: Layers3 },
   { id: "snippets", label: "Snippets", icon: FileStack },
   { id: "collections", label: "Collections", icon: Layers3 },
   { id: "workflows", label: "Workflows", icon: Workflow },
@@ -95,18 +95,18 @@ function useHydrated() {
 
 export function AppShell() {
   const hydrated = useHydrated();
-  const view = useHeyStore((s) => s.view);
-  const setView = useHeyStore((s) => s.setView);
-  const threads = useHeyStore((s) => s.threads);
-  const toast = useHeyStore((s) => s.toast);
-  const setToast = useHeyStore((s) => s.setToast);
-  const setSearch = useHeyStore((s) => s.setSearch);
-  const settings = useHeyStore((s) => s.settings);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
-  const switchAccount = useHeyStore((s) => s.switchAccount);
+  const view = useMailStore((s) => s.view);
+  const setView = useMailStore((s) => s.setView);
+  const threads = useMailStore((s) => s.threads);
+  const toast = useMailStore((s) => s.toast);
+  const setToast = useMailStore((s) => s.setToast);
+  const setSearch = useMailStore((s) => s.setSearch);
+  const settings = useMailStore((s) => s.settings);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const switchAccount = useMailStore((s) => s.switchAccount);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("2.2.0");
+  const [appVersion, setAppVersion] = useState("2.3.0");
 
   const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
   const scoped = inboxAccountId;
@@ -127,7 +127,7 @@ export function AppShell() {
       void api.listAccounts().then((list) => {
         const mapped = list.map((a) => ({ id: a.id, email: a.email, name: a.name }));
         setAccounts(mapped);
-        const current = useHeyStore.getState().inboxAccountId;
+        const current = useMailStore.getState().inboxAccountId;
         if (!mapped.length) {
           if (current) switchAccount(null, { silent: true });
           return;
@@ -167,7 +167,7 @@ export function AppShell() {
 
   useEffect(() => {
     if (!isDesktop()) return;
-    const minutes = Math.max(1, useHeyStore.getState().settings.autoFetchMinutes || 2);
+    const minutes = Math.max(1, useMailStore.getState().settings.autoFetchMinutes || 2);
     const run = () => {
       void syncActiveDesktopAccount().then(() => {
         const api = desktopApi();
@@ -310,7 +310,7 @@ export function AppShell() {
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0 opacity-80" />
-                <span className={cn("flex-1 truncate", isMoneyBox && "font-bold text-hey-blue")}>
+                <span className={cn("flex-1 truncate", isMoneyBox && "font-bold text-teal")}>
                   {item.label}
                 </span>
                 {count ? (
@@ -366,16 +366,16 @@ export function AppShell() {
               onClick={() => setView("reply_later")}
               className="pointer-events-auto rounded-full bg-amber px-4 py-2.5 text-sm font-semibold text-white shadow-lg ring-2 ring-white/80"
             >
-              Reply Later · {counts.reply_later}
+              Snooze · {counts.reply_later}
             </button>
           ) : null}
           {counts.set_aside > 0 ? (
             <button
               type="button"
               onClick={() => setView("set_aside")}
-              className="pointer-events-auto rounded-full bg-hey-blue px-4 py-2.5 text-sm font-semibold text-white shadow-lg ring-2 ring-white/80"
+              className="pointer-events-auto rounded-full bg-teal px-4 py-2.5 text-sm font-semibold text-white shadow-lg ring-2 ring-white/80"
             >
-              Set Aside · {counts.set_aside}
+              On Hold · {counts.set_aside}
             </button>
           ) : null}
         </div>

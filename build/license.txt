@@ -1,5 +1,5 @@
 Envision Mail
+Copyright © 2026 Envision Mail
 
-Email + calendar client with Imbox-style workflows and real IMAP/SMTP accounts.
-
-Not affiliated with 37signals, Basecamp, or HEY.
+Built for Envision DMS.
+Your email on Gmail, Outlook, and other providers remains yours.

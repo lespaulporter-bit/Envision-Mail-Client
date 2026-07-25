@@ -2,15 +2,15 @@
 
 import { HtmlField } from "@/components/HtmlField";
 import { Button, Input } from "@/components/ui";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import type { EmailTemplate } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { useState } from "react";
 
 export function EmailTemplatesPanel() {
-  const templates = useHeyStore((s) => s.emailTemplates || []);
-  const upsertEmailTemplate = useHeyStore((s) => s.upsertEmailTemplate);
-  const deleteEmailTemplate = useHeyStore((s) => s.deleteEmailTemplate);
+  const templates = useMailStore((s) => s.emailTemplates || []);
+  const upsertEmailTemplate = useMailStore((s) => s.upsertEmailTemplate);
+  const deleteEmailTemplate = useMailStore((s) => s.deleteEmailTemplate);
   const [draft, setDraft] = useState<EmailTemplate>({
     id: "",
     name: "",

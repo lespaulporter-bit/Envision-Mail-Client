@@ -1,22 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --hey-ink: #1d2d35;
-  --hey-muted: #5c6b73;
-  --hey-line: #e4e8eb;
-  --hey-soft: #f4f6f8;
-  --hey-blurple: #5522fa;
-  --hey-blue: #0074e4;
-  --hey-salmon: #ff5a36;
-  --hey-mint: #0d9488;
-  --hey-teal: #0f766e;
-  --hey-teal-bright: #14b8a6;
-  --hey-amber: #f5a623;
-  --hey-paper: #f5f0fa;
-  --hey-gradient: linear-gradient(135deg, #0d9488 0%, #0f766e 55%, #115e59 100%);
+  --em-ink: #1d2d35;
+  --em-muted: #5c6b73;
+  --em-line: #e4e8eb;
+  --em-soft: #f4f6f8;
+  --em-blurple: #0f766e;
+  --em-blue: #0d9488;
+  --em-salmon: #ff5a36;
+  --em-mint: #0d9488;
+  --em-teal: #0f766e;
+  --em-teal-bright: #14b8a6;
+  --em-amber: #f5a623;
+  --em-paper: #f3f8f6;
+  --em-gradient: linear-gradient(135deg, #0d9488 0%, #0f766e 55%, #115e59 100%);
   --envision-logo: linear-gradient(120deg, #2dd4bf 0%, #0d9488 45%, #0f766e 100%);
-  --background: var(--hey-paper);
-  --foreground: var(--hey-ink);
+  --background: var(--em-paper);
+  --foreground: var(--em-ink);
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Fraunces", Georgia, serif;
 }
@@ -24,17 +24,17 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-ink: var(--hey-ink);
-  --color-muted: var(--hey-muted);
-  --color-line: var(--hey-line);
-  --color-soft: var(--hey-soft);
-  --color-blurple: var(--hey-blurple);
-  --color-hey-blue: var(--hey-blue);
-  --color-salmon: var(--hey-salmon);
-  --color-mint: var(--hey-mint);
-  --color-teal: var(--hey-teal);
-  --color-teal-bright: var(--hey-teal-bright);
-  --color-amber: var(--hey-amber);
+  --color-ink: var(--em-ink);
+  --color-muted: var(--em-muted);
+  --color-line: var(--em-line);
+  --color-soft: var(--em-soft);
+  --color-blurple: var(--em-blurple);
+  --color-em-blue: var(--em-blue);
+  --color-salmon: var(--em-salmon);
+  --color-mint: var(--em-mint);
+  --color-teal: var(--em-teal);
+  --color-teal-bright: var(--em-teal-bright);
+  --color-amber: var(--em-amber);
   --font-sans: var(--font-sans);
   --font-display: var(--font-display);
 }
@@ -61,8 +61,10 @@ select {
 }
 
 a {
-  color: inherit;
   text-decoration: none;
+}
+a:not([class*="text-"]) {
+  color: inherit;
 }
 
 ::-webkit-scrollbar {

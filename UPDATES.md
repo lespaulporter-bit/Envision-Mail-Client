@@ -1,5 +1,11 @@
 # Envision Mail updates
 
+## 2.3.0
+- Removed all HEY / 37signals references and renamed borrowed feature names (Newsstand, Receipts, New Senders, Snooze, On Hold, Reply Queue, Day Cover, Clear New, Bump, Highlights).
+- Landing CTAs use high-contrast teal buttons (readable text).
+- Teal-forward branding polish on landing and primary actions.
+
+## 2.2.0
 ## 2.2.0
 - LesBox renamed to **MoneyBox $** everywhere in the UI.
 - One-time migration from Les Mail: imports saved IMAP accounts (and encrypted app passwords when the OS allows) plus local mail cache when safe.

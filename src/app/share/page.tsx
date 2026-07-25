@@ -1,14 +1,14 @@
 "use client";
 
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo } from "react";
 
 function ShareContent() {
   const params = useSearchParams();
   const token = params.get("token") || "";
-  const threads = useHeyStore((s) => s.threads);
-  const messages = useHeyStore((s) => s.messages);
+  const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
 
   const thread = useMemo(
     () => threads.find((t) => t.shareToken === token),
@@ -33,7 +33,7 @@ function ShareContent() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted">Shared via HEY</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted">Shared via Envision Mail</p>
       <h1 className="mt-2 font-display text-4xl">{thread.customSubject || thread.subject}</h1>
       <p className="mt-2 text-muted">
         {thread.contactName} · live thread page

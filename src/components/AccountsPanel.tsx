@@ -2,7 +2,7 @@
 
 import { Avatar, Button, Input } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import type { DesktopAccount } from "@/types/desktop";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -98,9 +98,9 @@ function loadAccountIntoForm(a: DesktopAccount) {
 }
 
 export function AccountsPanel() {
-  const importSyncedMail = useHeyStore((s) => s.importSyncedMail);
-  const setToast = useHeyStore((s) => s.setToast);
-  const updateSettings = useHeyStore((s) => s.updateSettings);
+  const importSyncedMail = useMailStore((s) => s.importSyncedMail);
+  const setToast = useMailStore((s) => s.setToast);
+  const updateSettings = useMailStore((s) => s.updateSettings);
   const [accounts, setAccounts] = useState<DesktopAccount[]>([]);
   const [presets, setPresets] = useState<Record<string, Preset>>({});
   const [form, setForm] = useState(emptyForm);
@@ -253,14 +253,14 @@ export function AccountsPanel() {
       });
       updateSettings({ email: result.email!, displayName: result.displayName || result.email! });
       setStatusTone("ok");
-      useHeyStore.getState().switchAccount(id, {
+      useMailStore.getState().switchAccount(id, {
         email: result.email!,
         name: result.displayName || result.email!,
         silent: true,
       });
       if (stats.screened > 0) {
-        setStatus(`Imported ${stats.imported} · ${stats.screened} in Screener`);
-        useHeyStore.getState().setView("screener");
+        setStatus(`Imported ${stats.imported} · ${stats.screened} in New Senders`);
+        useMailStore.getState().setView("screener");
       } else {
         setStatus(stats.imported ? `Imported ${stats.imported} for this account` : "Already up to date");
       }
@@ -442,7 +442,7 @@ export function AccountsPanel() {
             setStatusTone("ok");
             setStatus(`Saved ${saved.account.email}`);
             setForm(loadAccountIntoForm(saved.account));
-            useHeyStore.getState().switchAccount(saved.account.id, {
+            useMailStore.getState().switchAccount(saved.account.id, {
               email: saved.account.email,
               name: saved.account.name,
             });
@@ -765,9 +765,9 @@ export function AccountsPanel() {
 export async function syncDesktopAccount(accountId: string) {
   const api = desktopApi();
   if (!api) return { synced: 0, screened: 0, imported: 0, ok: false as const };
-  const importSyncedMail = useHeyStore.getState().importSyncedMail;
-  const updateSettings = useHeyStore.getState().updateSettings;
-  const activeId = useHeyStore.getState().inboxAccountId;
+  const importSyncedMail = useMailStore.getState().importSyncedMail;
+  const updateSettings = useMailStore.getState().updateSettings;
+  const activeId = useMailStore.getState().inboxAccountId;
   const result = await api.syncAccount(accountId);
   if (!result.ok || !result.messages) {
     return { synced: 0, screened: 0, imported: 0, ok: false as const, error: result.error };
@@ -792,13 +792,13 @@ export async function syncDesktopAccount(accountId: string) {
 
 /** Sync only the active account (isolated workspace). */
 export async function syncActiveDesktopAccount() {
-  const activeId = useHeyStore.getState().inboxAccountId;
+  const activeId = useMailStore.getState().inboxAccountId;
   const api = desktopApi();
   if (!api) return { synced: 0, screened: 0, imported: 0 };
   if (!activeId) {
     const list = await api.listAccounts();
     if (!list[0]) return { synced: 0, screened: 0, imported: 0 };
-    useHeyStore.getState().switchAccount(list[0].id, {
+    useMailStore.getState().switchAccount(list[0].id, {
       email: list[0].email,
       name: list[0].name,
       silent: true,
@@ -813,8 +813,8 @@ export async function syncAllDesktopAccounts() {
   const api = desktopApi();
   if (!api) return { synced: 0, screened: 0, imported: 0 };
   const list = await api.listAccounts();
-  const importSyncedMail = useHeyStore.getState().importSyncedMail;
-  const activeId = useHeyStore.getState().inboxAccountId;
+  const importSyncedMail = useMailStore.getState().importSyncedMail;
+  const activeId = useMailStore.getState().inboxAccountId;
   let synced = 0;
   let screened = 0;
   let imported = 0;
@@ -836,7 +836,7 @@ export async function syncAllDesktopAccounts() {
   if (activeId) {
     const active = list.find((a) => a.id === activeId);
     if (active) {
-      useHeyStore.getState().updateSettings({
+      useMailStore.getState().updateSettings({
         email: active.email,
         displayName: active.name || active.email,
       });

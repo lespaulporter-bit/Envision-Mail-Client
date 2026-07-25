@@ -99,7 +99,7 @@ interface Actions {
   setBubbleUp: (threadId: string, at: string | null) => void;
   toggleBundleContact: (email: string) => void;
   renameSubject: (threadId: string, subject: string) => void;
-  unfollowThread: (threadId: string) => void;
+  muteThread: (threadId: string) => void;
   mergeThreads: (targetId: string, sourceId: string) => void;
   addStickyNote: (threadId: string, text: string) => void;
   addPrivateNote: (threadId: string, text: string) => void;
@@ -191,7 +191,7 @@ interface Actions {
   getAttachments: () => AppStateData extends never ? never : import("./types").Attachment[];
 }
 
-export type HeyStore = AppStateData & UiState & Actions;
+export type MailStore = AppStateData & UiState & Actions;
 
 const seed = createEmptyState();
 
@@ -238,7 +238,7 @@ function migrateLegacyPersistKeys() {
 }
 migrateLegacyPersistKeys();
 
-export const useHeyStore = create<HeyStore>()(
+export const useMailStore = create<MailStore>()(
   persist(
     (set, get) => ({
       ...seed,
@@ -423,7 +423,7 @@ export const useHeyStore = create<HeyStore>()(
           threads: get().threads.map((t) =>
             t.id === threadId ? bumpThread({ ...t, bubbleUpAt: at, seen: at ? true : t.seen }) : t,
           ),
-          toast: at ? "Will bubble up later" : "Bubble up cleared",
+          toast: at ? "Will bump later" : "Bump cleared",
         }),
 
       toggleBundleContact: (email) => {
@@ -443,12 +443,12 @@ export const useHeyStore = create<HeyStore>()(
           ),
         }),
 
-      unfollowThread: (threadId) =>
+      muteThread: (threadId) =>
         set({
           threads: get().threads.map((t) =>
-            t.id === threadId ? bumpThread({ ...t, unfollowed: true, seen: true }) : t,
+            t.id === threadId ? bumpThread({ ...t, muteed: true, seen: true }) : t,
           ),
-          toast: "Unfollowed thread",
+          toast: "Muted thread",
         }),
 
       mergeThreads: (targetId, sourceId) => {
@@ -534,7 +534,7 @@ export const useHeyStore = create<HeyStore>()(
             },
             ...get().clips,
           ],
-          toast: "Clipped",
+          toast: "Saved highlight",
         }),
 
       deleteClip: (id) => set({ clips: get().clips.filter((c) => c.id !== id) }),
@@ -751,7 +751,7 @@ export const useHeyStore = create<HeyStore>()(
           replyLater: false,
           setAside: false,
           bundled: false,
-          unfollowed: false,
+          muteed: false,
           stickyNotes: [],
           privateNotes: [],
           collectionIds: [],
@@ -935,7 +935,7 @@ export const useHeyStore = create<HeyStore>()(
               replyLater: false,
               setAside: false,
               bundled: contact.bundled,
-              unfollowed: false,
+              muteed: false,
               stickyNotes: [],
               privateNotes: [],
               collectionIds: [],
@@ -996,10 +996,10 @@ export const useHeyStore = create<HeyStore>()(
             contacts,
             messages: msgs,
             settings,
-            // Stay on active account workspace; jump to Screener for this account
+            // Stay on active account workspace; jump to New Senders for this account
             inboxAccountId: keepActive || accountId,
             view: "screener",
-            toast: `Synced ${imported} · ${screened} need Screener review`,
+            toast: `Synced ${imported} · ${screened} need New Senders review`,
           });
         } else if (imported > 0) {
           set({
@@ -1298,7 +1298,7 @@ export function selectBoxThreads(
       if (opts?.accountId) {
         if (t.accountId !== opts.accountId) return false;
       }
-      if (t.unfollowed && t.seen) return want === "lesbox" ? false : true;
+      if (t.muteed && t.seen) return want === "lesbox" ? false : true;
       if (t.bubbleUpAt && +new Date(t.bubbleUpAt) > now && t.seen) return false;
       if (opts?.onlyNew && t.seen) return false;
       return true;
@@ -1306,7 +1306,7 @@ export function selectBoxThreads(
     .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
 }
 
-/** Threads for the active account across any box (Reply Later, Search, etc.). */
+/** Threads for the active account across any box (Snooze, Search, etc.). */
 export function selectAccountThreads(
   threads: Thread[],
   accountId: string | null | undefined,

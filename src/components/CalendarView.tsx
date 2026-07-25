@@ -2,7 +2,7 @@
 
 import { Button, Input, SectionHeader, Textarea } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import type { CalendarInvitee } from "@/lib/types";
 import {
   addDays,
@@ -34,27 +34,27 @@ function addOneHour(hhmm: string): string {
 }
 
 export function CalendarView() {
-  const calendarDate = useHeyStore((s) => s.calendarDate);
-  const calendarView = useHeyStore((s) => s.calendarView);
-  const setCalendarDate = useHeyStore((s) => s.setCalendarDate);
-  const setCalendarView = useHeyStore((s) => s.setCalendarView);
-  const events = useHeyStore((s) => s.events);
-  const calendars = useHeyStore((s) => s.calendars);
-  const habits = useHeyStore((s) => s.habits);
-  const journal = useHeyStore((s) => s.journal);
-  const dayLabels = useHeyStore((s) => s.dayLabels);
-  const sometimeTasks = useHeyStore((s) => s.sometimeTasks);
-  const settings = useHeyStore((s) => s.settings);
-  const addEvent = useHeyStore((s) => s.addEvent);
-  const updateEvent = useHeyStore((s) => s.updateEvent);
-  const deleteEvent = useHeyStore((s) => s.deleteEvent);
-  const importMacCalendarData = useHeyStore((s) => s.importMacCalendarData);
-  const toggleHabit = useHeyStore((s) => s.toggleHabit);
-  const setJournal = useHeyStore((s) => s.setJournal);
-  const setDayLabel = useHeyStore((s) => s.setDayLabel);
-  const addSometimeTask = useHeyStore((s) => s.addSometimeTask);
-  const toggleSometimeTask = useHeyStore((s) => s.toggleSometimeTask);
-  const setToast = useHeyStore((s) => s.setToast);
+  const calendarDate = useMailStore((s) => s.calendarDate);
+  const calendarView = useMailStore((s) => s.calendarView);
+  const setCalendarDate = useMailStore((s) => s.setCalendarDate);
+  const setCalendarView = useMailStore((s) => s.setCalendarView);
+  const events = useMailStore((s) => s.events);
+  const calendars = useMailStore((s) => s.calendars);
+  const habits = useMailStore((s) => s.habits);
+  const journal = useMailStore((s) => s.journal);
+  const dayLabels = useMailStore((s) => s.dayLabels);
+  const sometimeTasks = useMailStore((s) => s.sometimeTasks);
+  const settings = useMailStore((s) => s.settings);
+  const addEvent = useMailStore((s) => s.addEvent);
+  const updateEvent = useMailStore((s) => s.updateEvent);
+  const deleteEvent = useMailStore((s) => s.deleteEvent);
+  const importMacCalendarData = useMailStore((s) => s.importMacCalendarData);
+  const toggleHabit = useMailStore((s) => s.toggleHabit);
+  const setJournal = useMailStore((s) => s.setJournal);
+  const setDayLabel = useMailStore((s) => s.setDayLabel);
+  const addSometimeTask = useMailStore((s) => s.addSometimeTask);
+  const toggleSometimeTask = useMailStore((s) => s.toggleSometimeTask);
+  const setToast = useMailStore((s) => s.setToast);
 
   const date = parseISO(calendarDate);
   const [title, setTitle] = useState("");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 
 type Props = {
   onInsertBody: (text: string, mode?: "replace" | "append") => void;
@@ -16,9 +16,9 @@ export function EmailTemplatePickers({
   showSubjectTemplates = true,
   className = "",
 }: Props) {
-  const templates = useHeyStore((s) => s.emailTemplates || []);
-  const snippets = useHeyStore((s) => s.snippets || []);
-  const signatures = useHeyStore((s) => s.signatures || []);
+  const templates = useMailStore((s) => s.emailTemplates || []);
+  const snippets = useMailStore((s) => s.snippets || []);
+  const signatures = useMailStore((s) => s.signatures || []);
 
   return (
     <div className={`grid gap-2 sm:grid-cols-3 ${className}`}>

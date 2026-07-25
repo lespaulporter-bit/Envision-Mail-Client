@@ -2,16 +2,16 @@
 
 import { HtmlField } from "@/components/HtmlField";
 import { Button, Input } from "@/components/ui";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import { uid } from "@/lib/utils";
 import type { SignatureTemplate } from "@/lib/types";
 import { useState } from "react";
 
 export function SignaturesPanel() {
-  const signatures = useHeyStore((s) => s.signatures || []);
-  const upsertSignature = useHeyStore((s) => s.upsertSignature);
-  const deleteSignature = useHeyStore((s) => s.deleteSignature);
-  const setDefaultSignature = useHeyStore((s) => s.setDefaultSignature);
+  const signatures = useMailStore((s) => s.signatures || []);
+  const upsertSignature = useMailStore((s) => s.upsertSignature);
+  const deleteSignature = useMailStore((s) => s.deleteSignature);
+  const setDefaultSignature = useMailStore((s) => s.setDefaultSignature);
   const [draft, setDraft] = useState<SignatureTemplate>({
     id: "",
     name: "",

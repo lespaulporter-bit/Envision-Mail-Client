@@ -1,7 +1,7 @@
 "use client";
 
 import { Avatar, Badge, Button } from "@/components/ui";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import type { Thread } from "@/lib/types";
 import { cn, formatThreadTime, previewText } from "@/lib/utils";
 import { Bell, Bookmark, Clock3, Layers, Trash2 } from "lucide-react";
@@ -16,14 +16,14 @@ export function ThreadRow({
   compact?: boolean;
   openBody?: boolean;
 }) {
-  const messages = useHeyStore((s) => s.messages);
-  const contacts = useHeyStore((s) => s.contacts);
-  const multiOpenIds = useHeyStore((s) => s.multiOpenIds);
-  const openThread = useHeyStore((s) => s.openThread);
-  const toggleMultiOpen = useHeyStore((s) => s.toggleMultiOpen);
-  const toggleReplyLater = useHeyStore((s) => s.toggleReplyLater);
-  const toggleSetAside = useHeyStore((s) => s.toggleSetAside);
-  const settings = useHeyStore((s) => s.settings);
+  const messages = useMailStore((s) => s.messages);
+  const contacts = useMailStore((s) => s.contacts);
+  const multiOpenIds = useMailStore((s) => s.multiOpenIds);
+  const openThread = useMailStore((s) => s.openThread);
+  const toggleMultiOpen = useMailStore((s) => s.toggleMultiOpen);
+  const toggleReplyLater = useMailStore((s) => s.toggleReplyLater);
+  const toggleSetAside = useMailStore((s) => s.toggleSetAside);
+  const settings = useMailStore((s) => s.settings);
 
   const lastId = thread.messageIds[thread.messageIds.length - 1];
   const last = lastId ? messages[lastId] : undefined;
@@ -57,7 +57,7 @@ export function ThreadRow({
                 ) : null}
                 {thread.notify ? <Bell className="h-3.5 w-3.5 text-blurple" /> : null}
                 {thread.replyLater ? <Clock3 className="h-3.5 w-3.5 text-amber" /> : null}
-                {thread.setAside ? <Bookmark className="h-3.5 w-3.5 text-hey-blue" /> : null}
+                {thread.setAside ? <Bookmark className="h-3.5 w-3.5 text-em-blue" /> : null}
                 {thread.bundled ? <Layers className="h-3.5 w-3.5 text-muted" /> : null}
                 {!thread.seen ? <Badge tone="blurple">New</Badge> : null}
                 {thread.accountEmail ? (
@@ -84,10 +84,10 @@ export function ThreadRow({
           {selected ? "Selected" : "Multi"}
         </Button>
         <Button size="sm" variant="soft" onClick={() => toggleReplyLater(thread.id)}>
-          Reply later
+          Snooze
         </Button>
         <Button size="sm" variant="soft" onClick={() => toggleSetAside(thread.id)}>
-          Set aside
+          On Hold
         </Button>
         <Button
           size="sm"

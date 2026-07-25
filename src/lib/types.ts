@@ -103,7 +103,7 @@ export interface Thread {
   setAside: boolean;
   bubbleUpAt?: string | null;
   bundled: boolean;
-  unfollowed: boolean;
+  muteed: boolean;
   stickyNotes: StickyNote[];
   privateNotes: PrivateNote[];
   collectionIds: string[];
@@ -268,9 +268,9 @@ export function normalizeMailBox(box: string): MailBox {
 export function boxLabel(box: Box | string): string {
   const b = normalizeBox(box);
   if (b === "lesbox") return "MoneyBox $";
-  if (b === "paper_trail") return "Paper Trail";
-  if (b === "feed") return "The Feed";
-  if (b === "screener") return "Screener";
+  if (b === "paper_trail") return "Receipts";
+  if (b === "feed") return "Newsstand";
+  if (b === "screener") return "New Senders";
   if (b === "sent") return "Sent";
   if (b === "spam") return "Spam";
   if (b === "trash") return "Trash";

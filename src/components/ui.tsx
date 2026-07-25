@@ -19,7 +19,7 @@ export function Button({
         size === "sm" && "px-2.5 py-1.5 text-xs",
         size === "md" && "px-3.5 py-2 text-sm",
         size === "lg" && "px-5 py-2.5 text-base",
-        variant === "primary" && "bg-blurple text-white shadow-sm hover:brightness-110",
+        variant === "primary" && "bg-teal text-white shadow-sm hover:brightness-110",
         variant === "secondary" && "bg-ink text-white hover:opacity-90",
         variant === "ghost" && "bg-transparent text-ink hover:bg-soft",
         variant === "danger" && "bg-salmon text-white hover:brightness-105",
@@ -36,7 +36,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cn(
-        "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-blurple",
+        "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-teal",
         className,
       )}
       {...props}
@@ -48,7 +48,7 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   return (
     <textarea
       className={cn(
-        "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-blurple",
+        "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-teal",
         className,
       )}
       {...props}

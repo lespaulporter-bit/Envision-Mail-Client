@@ -2,7 +2,7 @@
 
 import { Avatar, Badge, Button, Input, Textarea } from "@/components/ui";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import { formatBytes, relativeTime } from "@/lib/utils";
 import { desktopApi } from "@/lib/desktop";
 import {
@@ -14,31 +14,31 @@ import { useEffect, useMemo, useState } from "react";
 import { bodyToHtml } from "@/lib/html-body";
 
 export function ThreadView() {
-  const threadId = useHeyStore((s) => s.selectedThreadId);
-  const threads = useHeyStore((s) => s.threads);
-  const contacts = useHeyStore((s) => s.contacts);
-  const workflows = useHeyStore((s) => s.workflows);
-  const collections = useHeyStore((s) => s.collections);
-  const getThreadMessages = useHeyStore((s) => s.getThreadMessages);
-  const sendReply = useHeyStore((s) => s.sendReply);
-  const toggleReplyLater = useHeyStore((s) => s.toggleReplyLater);
-  const toggleSetAside = useHeyStore((s) => s.toggleSetAside);
-  const setBubbleUp = useHeyStore((s) => s.setBubbleUp);
-  const renameSubject = useHeyStore((s) => s.renameSubject);
-  const unfollowThread = useHeyStore((s) => s.unfollowThread);
-  const addStickyNote = useHeyStore((s) => s.addStickyNote);
-  const addPrivateNote = useHeyStore((s) => s.addPrivateNote);
-  const shareThread = useHeyStore((s) => s.shareThread);
-  const clipText = useHeyStore((s) => s.clipText);
-  const moveThread = useHeyStore((s) => s.moveThread);
-  const setWorkflowStage = useHeyStore((s) => s.setWorkflowStage);
-  const addToCollection = useHeyStore((s) => s.addToCollection);
-  const createEventFromThread = useHeyStore((s) => s.createEventFromThread);
-  const toggleThreadNotify = useHeyStore((s) => s.toggleThreadNotify);
-  const toggleBundleContact = useHeyStore((s) => s.toggleBundleContact);
-  const mergeThreads = useHeyStore((s) => s.mergeThreads);
-  const setView = useHeyStore((s) => s.setView);
-  const setToast = useHeyStore((s) => s.setToast);
+  const threadId = useMailStore((s) => s.selectedThreadId);
+  const threads = useMailStore((s) => s.threads);
+  const contacts = useMailStore((s) => s.contacts);
+  const workflows = useMailStore((s) => s.workflows);
+  const collections = useMailStore((s) => s.collections);
+  const getThreadMessages = useMailStore((s) => s.getThreadMessages);
+  const sendReply = useMailStore((s) => s.sendReply);
+  const toggleReplyLater = useMailStore((s) => s.toggleReplyLater);
+  const toggleSetAside = useMailStore((s) => s.toggleSetAside);
+  const setBubbleUp = useMailStore((s) => s.setBubbleUp);
+  const renameSubject = useMailStore((s) => s.renameSubject);
+  const muteThread = useMailStore((s) => s.muteThread);
+  const addStickyNote = useMailStore((s) => s.addStickyNote);
+  const addPrivateNote = useMailStore((s) => s.addPrivateNote);
+  const shareThread = useMailStore((s) => s.shareThread);
+  const clipText = useMailStore((s) => s.clipText);
+  const moveThread = useMailStore((s) => s.moveThread);
+  const setWorkflowStage = useMailStore((s) => s.setWorkflowStage);
+  const addToCollection = useMailStore((s) => s.addToCollection);
+  const createEventFromThread = useMailStore((s) => s.createEventFromThread);
+  const toggleThreadNotify = useMailStore((s) => s.toggleThreadNotify);
+  const toggleBundleContact = useMailStore((s) => s.toggleBundleContact);
+  const mergeThreads = useMailStore((s) => s.mergeThreads);
+  const setView = useMailStore((s) => s.setView);
+  const setToast = useMailStore((s) => s.setToast);
 
   const [reply, setReply] = useState("");
   const [replyCc, setReplyCc] = useState("");
@@ -53,9 +53,9 @@ export function ThreadView() {
   const [deleting, setDeleting] = useState(false);
   const [signatureId, setSignatureId] = useState("");
   const [requestReceipt, setRequestReceipt] = useState(true);
-  const signatures = useHeyStore((s) => s.signatures || []);
-  const settings = useHeyStore((s) => s.settings);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const signatures = useMailStore((s) => s.signatures || []);
+  const settings = useMailStore((s) => s.settings);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const thread = threads.find((t) => t.id === threadId);
 
   useEffect(() => {
@@ -135,10 +135,10 @@ export function ThreadView() {
 
       <div className="mb-6 flex flex-wrap gap-2">
         <Button size="sm" variant="soft" onClick={() => toggleReplyLater(thread.id)}>
-          {thread.replyLater ? "Remove Reply Later" : "Reply Later"}
+          {thread.replyLater ? "Remove Snooze" : "Snooze"}
         </Button>
         <Button size="sm" variant="soft" onClick={() => toggleSetAside(thread.id)}>
-          {thread.setAside ? "Unset Aside" : "Set Aside"}
+          {thread.setAside ? "Remove Hold" : "On Hold"}
         </Button>
         <Button
           size="sm"
@@ -149,7 +149,7 @@ export function ThreadView() {
             setBubbleUp(thread.id, at.toISOString());
           }}
         >
-          Bubble Up in 2 days
+          Bump in 2 days
         </Button>
         <Button size="sm" variant="soft" onClick={() => setBubbleUp(thread.id, null)}>
           Clear Bubble
@@ -170,8 +170,8 @@ export function ThreadView() {
         >
           Rename subject
         </Button>
-        <Button size="sm" variant="soft" onClick={() => unfollowThread(thread.id)}>
-          Unfollow
+        <Button size="sm" variant="soft" onClick={() => muteThread(thread.id)}>
+          Mute
         </Button>
         <Button size="sm" variant="soft" onClick={() => shareThread(thread.id)}>
           Share link
@@ -186,7 +186,7 @@ export function ThreadView() {
           → Feed
         </Button>
         <Button size="sm" variant="soft" onClick={() => moveThread(thread.id, "paper_trail")}>
-          → Paper Trail
+          → Receipts
         </Button>
         {thread.box === "trash" ? (
           <>
@@ -520,7 +520,7 @@ export function ThreadView() {
               setView("focus_reply");
             }}
           >
-            Focus & Reply queue
+            Reply Queue queue
           </Button>
         </div>
       </div>

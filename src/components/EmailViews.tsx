@@ -4,22 +4,22 @@ import { CoverArt } from "@/components/CoverArt";
 import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
-import { selectBoxThreads, useHeyStore } from "@/lib/store";
+import { selectBoxThreads, useMailStore } from "@/lib/store";
 import type { Message, Thread } from "@/lib/types";
 import { previewText } from "@/lib/utils";
 import { useMemo, useState } from "react";
 
 export function MoneyBoxView() {
-  const threads = useHeyStore((s) => s.threads);
-  const settings = useHeyStore((s) => s.settings);
-  const powerThrough = useHeyStore((s) => s.powerThrough);
-  const multiOpenIds = useHeyStore((s) => s.multiOpenIds);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
-  const togglePowerThrough = useHeyStore((s) => s.togglePowerThrough);
-  const markAllSeenInBox = useHeyStore((s) => s.markAllSeenInBox);
-  const setCoverArt = useHeyStore((s) => s.setCoverArt);
-  const clearMultiOpen = useHeyStore((s) => s.clearMultiOpen);
-  const openThread = useHeyStore((s) => s.openThread);
+  const threads = useMailStore((s) => s.threads);
+  const settings = useMailStore((s) => s.settings);
+  const powerThrough = useMailStore((s) => s.powerThrough);
+  const multiOpenIds = useMailStore((s) => s.multiOpenIds);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const togglePowerThrough = useMailStore((s) => s.togglePowerThrough);
+  const markAllSeenInBox = useMailStore((s) => s.markAllSeenInBox);
+  const setCoverArt = useMailStore((s) => s.setCoverArt);
+  const clearMultiOpen = useMailStore((s) => s.clearMultiOpen);
+  const openThread = useMailStore((s) => s.openThread);
 
   const all = useMemo(
     () => selectBoxThreads(threads, "lesbox", { accountId: inboxAccountId }),
@@ -56,7 +56,7 @@ export function MoneyBoxView() {
         actions={
           <>
             <Button size="sm" variant={powerThrough ? "primary" : "soft"} onClick={togglePowerThrough}>
-              Power Through New
+              Clear New
             </Button>
             <Button size="sm" variant="soft" onClick={() => markAllSeenInBox("lesbox")}>
               Mark all seen
@@ -66,7 +66,7 @@ export function MoneyBoxView() {
               value={settings.coverArt}
               onChange={(e) => setCoverArt(e.target.value as typeof settings.coverArt)}
             >
-              <option value="none">No cover art</option>
+              <option value="none">No day cover</option>
               <option value="gradient">Gradient cover</option>
               <option value="photo">Photo cover</option>
               <option value="calendar">Calendar cover</option>
@@ -102,14 +102,14 @@ export function MoneyBoxView() {
 
       <section className="mb-6">
         <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
-          New for you <Badge tone="blurple">{listNew.length}</Badge>
+          Fresh <Badge tone="blurple">{listNew.length}</Badge>
         </h2>
         {listNew.length === 0 ? (
           <EmptyState
             title="You're caught up"
             body={
               all.length === 0
-                ? "Sync an account in Settings. Allowed contacts land here; new senders go to Screener first."
+                ? "Sync an account in Settings. Allowed contacts land here; new senders go to New Senders first."
                 : "No unread mail in this inbox."
             }
           />
@@ -127,7 +127,7 @@ export function MoneyBoxView() {
       {!powerThrough && (
         <section className="mt-6">
           <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
-            Previously seen <Badge>{seen.length}</Badge>
+            Seen <Badge>{seen.length}</Badge>
           </h2>
           {seen.length === 0 ? (
             <EmptyState title="Nothing here yet" body="Read mail shows up in this list." />
@@ -145,8 +145,8 @@ export function MoneyBoxView() {
 }
 
 export function FeedView() {
-  const threads = useHeyStore((s) => s.threads);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const threads = useMailStore((s) => s.threads);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const list = useMemo(
     () => selectBoxThreads(threads, "feed", { accountId: inboxAccountId }),
     [threads, inboxAccountId],
@@ -155,11 +155,11 @@ export function FeedView() {
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
-        title="The Feed"
+        title="Newsstand"
         subtitle="Newsletters and long-reads, already open. Scroll and enjoy."
       />
       {list.length === 0 ? (
-        <EmptyState title="Feed is empty" body="Screen newsletters into The Feed and they'll show up here expanded." />
+        <EmptyState title="Newsstand is empty" body="Screen newsletters into Newsstand and they'll show up here expanded." />
       ) : (
         <div className="mx-auto max-w-2xl space-y-4">
           {list.map((t) => (
@@ -174,8 +174,8 @@ export function FeedView() {
 }
 
 export function PaperTrailView() {
-  const threads = useHeyStore((s) => s.threads);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const threads = useMailStore((s) => s.threads);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const list = useMemo(
     () => selectBoxThreads(threads, "paper_trail", { accountId: inboxAccountId }),
     [threads, inboxAccountId],
@@ -184,7 +184,7 @@ export function PaperTrailView() {
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
-        title="The Paper Trail"
+        title="The Receipts"
         subtitle="Receipts, confirmations, and transactional clutter — out of your face, easy to find."
       />
       {list.length === 0 ? (
@@ -261,7 +261,7 @@ function ScreenerCard({
           </Button>
         ) : null}
         <Button onClick={onAllow}>
-          Allow → {boxChoice === "lesbox" ? "MoneyBox $" : boxChoice === "feed" ? "Feed" : "Paper Trail"}
+          Allow → {boxChoice === "lesbox" ? "MoneyBox $" : boxChoice === "feed" ? "Feed" : "Receipts"}
         </Button>
         <Button variant="danger" onClick={onBlock}>
           Block
@@ -277,12 +277,12 @@ function ScreenerCard({
 }
 
 export function ScreenerView() {
-  const threads = useHeyStore((s) => s.threads);
-  const messages = useHeyStore((s) => s.messages);
-  const settings = useHeyStore((s) => s.settings);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
-  const screenContact = useHeyStore((s) => s.screenContact);
-  const markSpam = useHeyStore((s) => s.markSpam);
+  const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
+  const settings = useMailStore((s) => s.settings);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const screenContact = useMailStore((s) => s.screenContact);
+  const markSpam = useMailStore((s) => s.markSpam);
   const list = useMemo(
     () => selectBoxThreads(threads, "screener", { accountId: inboxAccountId }),
     [threads, inboxAccountId],
@@ -307,8 +307,8 @@ export function ScreenerView() {
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
-        title="The Screener"
-        subtitle="New synced senders wait here. Allow them into MoneyBox $, The Feed, or Paper Trail — or block."
+        title="New Senders"
+        subtitle="New synced senders wait here. Allow them into MoneyBox $, Newsstand, or Receipts — or block."
         actions={
           <>
             <label className="flex items-center gap-2 text-sm text-muted">
@@ -319,8 +319,8 @@ export function ScreenerView() {
                 onChange={(e) => setBoxChoice(e.target.value as typeof boxChoice)}
               >
                 <option value="lesbox">MoneyBox $</option>
-                <option value="feed">The Feed</option>
-                <option value="paper_trail">Paper Trail</option>
+                <option value="feed">Newsstand</option>
+                <option value="paper_trail">Receipts</option>
               </select>
             </label>
             {list.length > 0 ? (
@@ -334,8 +334,8 @@ export function ScreenerView() {
 
       {list.length === 0 ? (
         <EmptyState
-          title="Screener is clear"
-          body="Sync mail from Settings or the sidebar. Unknown senders land here first — Allow moves them to MoneyBox $ (or Feed / Paper Trail)."
+          title="New Senders is clear"
+          body="Sync mail from Settings or the sidebar. Unknown senders land here first — Allow moves them to MoneyBox $ (or Feed / Receipts)."
         />
       ) : (
         <div className="space-y-4">
@@ -363,8 +363,8 @@ export function ScreenerView() {
 }
 
 export function SentView() {
-  const threads = useHeyStore((s) => s.threads);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const threads = useMailStore((s) => s.threads);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const list = useMemo(
     () => selectBoxThreads(threads, "sent", { accountId: inboxAccountId }),
     [threads, inboxAccountId],
@@ -393,9 +393,9 @@ export function SentView() {
 }
 
 export function SpamView() {
-  const threads = useHeyStore((s) => s.threads);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
-  const screenContact = useHeyStore((s) => s.screenContact);
+  const threads = useMailStore((s) => s.threads);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const screenContact = useMailStore((s) => s.screenContact);
   const [busy, setBusy] = useState(false);
   const list = useMemo(
     () => selectBoxThreads(threads, "spam", { accountId: inboxAccountId }),
@@ -433,7 +433,7 @@ export function SpamView() {
       {list.length === 0 ? (
         <EmptyState
           title="Spam is empty"
-          body="Sync to load your Spam/Junk mailbox, or block senders from Screener."
+          body="Sync to load your Spam/Junk mailbox, or block senders from New Senders."
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
@@ -476,9 +476,9 @@ export function SpamView() {
 }
 
 export function TrashView() {
-  const threads = useHeyStore((s) => s.threads);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
-  const settings = useHeyStore((s) => s.settings);
+  const threads = useMailStore((s) => s.threads);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const settings = useMailStore((s) => s.settings);
   const [busy, setBusy] = useState(false);
   const list = useMemo(
     () => selectBoxThreads(threads, "trash", { accountId: inboxAccountId }),
@@ -572,19 +572,19 @@ export function TrashView() {
 }
 
 export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
-  const threads = useHeyStore((s) => s.threads);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const threads = useMailStore((s) => s.threads);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const list = threads.filter(
     (t) =>
       (!inboxAccountId || t.accountId === inboxAccountId) &&
       (mode === "reply_later" ? t.replyLater : t.setAside),
   );
-  const setView = useHeyStore((s) => s.setView);
+  const setView = useMailStore((s) => s.setView);
 
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
-        title={mode === "reply_later" ? "Reply Later" : "Set Aside"}
+        title={mode === "reply_later" ? "Snooze" : "On Hold"}
         subtitle={
           mode === "reply_later"
             ? "Emails that need a reply when you have time."
@@ -592,14 +592,14 @@ export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
         }
         actions={
           mode === "reply_later" ? (
-            <Button onClick={() => setView("focus_reply")}>Focus & Reply</Button>
+            <Button onClick={() => setView("focus_reply")}>Reply Queue</Button>
           ) : null
         }
       />
       {list.length === 0 ? (
         <EmptyState
           title="Nothing here"
-          body={mode === "reply_later" ? "Mark threads Reply Later from any email." : "Set aside travel info, links, and numbers."}
+          body={mode === "reply_later" ? "Snooze threads from any email." : "Hold travel info, links, and numbers."}
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
@@ -613,21 +613,21 @@ export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
 }
 
 export function FocusReplyView() {
-  const threads = useHeyStore((s) => s.threads);
-  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
-  const sendReply = useHeyStore((s) => s.sendReply);
+  const threads = useMailStore((s) => s.threads);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const sendReply = useMailStore((s) => s.sendReply);
   const queue = threads.filter(
     (t) => t.replyLater && (!inboxAccountId || t.accountId === inboxAccountId),
   );
   const [index, setIndex] = useState(0);
   const [body, setBody] = useState("");
   const current = queue[index];
-  const getThreadMessages = useHeyStore((s) => s.getThreadMessages);
+  const getThreadMessages = useMailStore((s) => s.getThreadMessages);
 
   if (!current) {
     return (
       <div className="px-4 py-6 md:px-8">
-        <EmptyState title="Focus & Reply complete" body="No Reply Later emails left. Nice work." />
+        <EmptyState title="Reply Queue complete" body="No Snooze emails left. Nice work." />
       </div>
     );
   }
@@ -638,7 +638,7 @@ export function FocusReplyView() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 md:px-8">
       <SectionHeader
-        title="Focus & Reply"
+        title="Reply Queue"
         subtitle={`${index + 1} of ${queue.length} — MoneyBox $ hidden so you can knock these out.`}
       />
       <article className="rounded-2xl border border-line bg-white p-5">

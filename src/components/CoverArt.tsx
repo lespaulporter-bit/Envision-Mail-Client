@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui";
-import { useHeyStore } from "@/lib/store";
+import { useMailStore } from "@/lib/store";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 
@@ -26,15 +26,15 @@ function formatCountdown(targetIso: string, nowMs: number) {
 }
 
 export function CoverArt() {
-  const settings = useHeyStore((s) => s.settings);
-  const events = useHeyStore((s) => s.events);
-  const habits = useHeyStore((s) => s.habits);
-  const sometimeTasks = useHeyStore((s) => s.sometimeTasks);
-  const toggleHabit = useHeyStore((s) => s.toggleHabit);
-  const toggleSometimeTask = useHeyStore((s) => s.toggleSometimeTask);
-  const addSometimeTask = useHeyStore((s) => s.addSometimeTask);
-  const addEvent = useHeyStore((s) => s.addEvent);
-  const setView = useHeyStore((s) => s.setView);
+  const settings = useMailStore((s) => s.settings);
+  const events = useMailStore((s) => s.events);
+  const habits = useMailStore((s) => s.habits);
+  const sometimeTasks = useMailStore((s) => s.sometimeTasks);
+  const toggleHabit = useMailStore((s) => s.toggleHabit);
+  const toggleSometimeTask = useMailStore((s) => s.toggleSometimeTask);
+  const addSometimeTask = useMailStore((s) => s.addSometimeTask);
+  const addEvent = useMailStore((s) => s.addEvent);
+  const setView = useMailStore((s) => s.setView);
   const [task, setTask] = useState("");
   const [nowMs, setNowMs] = useState(() => Date.now());
   const today = new Date().toISOString().slice(0, 10);
@@ -65,7 +65,7 @@ export function CoverArt() {
       ? "linear-gradient(160deg, rgba(29,45,53,0.55), rgba(85,34,250,0.55)), url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80') center/cover"
       : settings.coverArt === "calendar"
         ? "linear-gradient(145deg, #0b1c2c 0%, #1a3a5c 45%, #5522fa 100%)"
-        : "var(--hey-gradient)";
+        : "var(--em-gradient)";
 
   return (
     <section className="animate-cover-rise relative mb-6 overflow-hidden rounded-3xl text-white shadow-lg" style={{ background: gradient, minHeight: 280 }}>
@@ -73,9 +73,9 @@ export function CoverArt() {
       <div className="relative p-6 md:p-8">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Cover Art</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Day Cover</p>
             <h2 className="font-display text-3xl">
-              {settings.coverArt === "calendar" ? "Your schedule" : "Previously seen, tucked away"}
+              {settings.coverArt === "calendar" ? "Your schedule" : "Seen, tucked away"}
             </h2>
           </div>
           <Button
@@ -193,7 +193,7 @@ export function CoverArt() {
           </div>
         ) : (
           <p className="max-w-lg text-white/85">
-            Previously seen emails are under this cover. New for you stays on top — tidy MoneyBox $ energy.
+            Seen emails are under this cover. Fresh stays on top — tidy MoneyBox $ energy.
           </p>
         )}
       </div>
