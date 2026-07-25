@@ -138,6 +138,18 @@ interface Actions {
   addEvent: (event: Omit<CalendarEvent, "id">) => void;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
   deleteEvent: (id: string) => void;
+  importMacCalendarData: (payload: {
+    calendars: Array<{ id: string; name: string; color?: string }>;
+    events: Array<{
+      id: string;
+      title: string;
+      start: string;
+      end: string;
+      calendarId: string;
+      location?: string;
+      notes?: string;
+    }>;
+  }) => void;
   toggleHabit: (habitId: string, date: string) => void;
   addSometimeTask: (text: string) => void;
   toggleSometimeTask: (id: string) => void;
@@ -851,7 +863,13 @@ export const useHeyStore = create<HeyStore>()(
       },
 
       addEvent: (event) =>
-        set({ events: [...get().events, { ...event, id: uid("e") }], toast: "Event added" }),
+        set({
+          events: [
+            ...get().events,
+            { ...event, id: uid("e"), source: event.source ?? "local" },
+          ],
+          toast: "Event added",
+        }),
 
       updateEvent: (id, patch) =>
         set({
@@ -859,6 +877,73 @@ export const useHeyStore = create<HeyStore>()(
         }),
 
       deleteEvent: (id) => set({ events: get().events.filter((e) => e.id !== id) }),
+
+      importMacCalendarData: ({ calendars: macCals, events: macEvents }) => {
+        const pastelColors = ["#A78BFA", "#60A5FA", "#34D399", "#F472B6", "#FBBF24", "#FB923C", "#38BDF8"];
+        let calendars = [...get().calendars];
+        const calIdByExternal = new Map<string, string>();
+
+        macCals.forEach((mc, i) => {
+          const externalId = String(mc.id);
+          const existing = calendars.find((c) => c.source === "mac" && c.externalId === externalId);
+          if (existing) {
+            calendars = calendars.map((c) =>
+              c.id === existing.id
+                ? {
+                    ...c,
+                    name: mc.name || c.name,
+                    color: mc.color || c.color,
+                    visible: c.visible,
+                    source: "mac" as const,
+                    externalId,
+                  }
+                : c,
+            );
+            calIdByExternal.set(externalId, existing.id);
+          } else {
+            const id = uid("maccal");
+            calendars.push({
+              id,
+              name: mc.name || "Mac Calendar",
+              color: mc.color || pastelColors[i % pastelColors.length],
+              visible: true,
+              source: "mac",
+              externalId,
+            });
+            calIdByExternal.set(externalId, id);
+          }
+        });
+
+        const keepLocal = get().events.filter((e) => e.source !== "mac");
+        const macMerged = macEvents.map((me) => {
+          const externalId = String(me.id);
+          const prev = get().events.find((e) => e.source === "mac" && e.externalId === externalId);
+          const calendarId =
+            calIdByExternal.get(String(me.calendarId)) ||
+            prev?.calendarId ||
+            calendars.find((c) => c.source === "mac")?.id ||
+            "cal1";
+          return {
+            id: prev?.id || uid("e"),
+            title: me.title || "Untitled",
+            start: me.start,
+            end: me.end,
+            calendarId,
+            location: me.location || undefined,
+            notes: me.notes || undefined,
+            externalId,
+            source: "mac" as const,
+            reminderMinutes: prev?.reminderMinutes,
+            countdown: prev?.countdown,
+          };
+        });
+
+        set({
+          calendars,
+          events: [...keepLocal, ...macMerged],
+          toast: `Synced ${macMerged.length} Mac event${macMerged.length === 1 ? "" : "s"}`,
+        });
+      },
 
       toggleHabit: (habitId, date) =>
         set({

@@ -171,6 +171,8 @@ export interface CalendarEvent {
   reminderMinutes?: number[];
   fromThreadId?: string | null;
   invitesSentAt?: string | null;
+  externalId?: string | null;
+  source?: "local" | "mac" | null;
 }
 
 export interface SubCalendar {
@@ -178,6 +180,8 @@ export interface SubCalendar {
   name: string;
   color: string;
   visible: boolean;
+  source?: "local" | "mac";
+  externalId?: string | null;
 }
 
 export interface Habit {

@@ -99,6 +99,20 @@ export interface LesMailDesktopApi {
     event: any;
   }) => Promise<{ ok: boolean; error?: string; results?: unknown[] }>;
   generateTeamsUrl: (title?: string) => Promise<{ ok: boolean; url: string }>;
+  syncMacCalendars: () => Promise<{
+    ok: boolean;
+    error?: string;
+    calendars?: Array<{ id: string; name: string; color?: string }>;
+    events?: Array<{
+      id: string;
+      title: string;
+      start: string;
+      end: string;
+      calendarId: string;
+      location?: string;
+      notes?: string;
+    }>;
+  }>;
   getAppInfo: () => Promise<{ name: string; version: string; userData: string; platform: string; isPackaged: boolean }>;
   uninstall: () => Promise<{ ok: boolean; cancelled?: boolean }>;
   openExternal: (url: string) => Promise<{ ok: boolean }>;

@@ -18,6 +18,21 @@ import {
 } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 
+function defaultStartTime(): string {
+  const d = new Date();
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + 1);
+  return format(d, "HH:mm");
+}
+
+function addOneHour(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map((n) => Number(n));
+  const d = new Date();
+  d.setHours(h || 0, m || 0, 0, 0);
+  d.setHours(d.getHours() + 1);
+  return format(d, "HH:mm");
+}
+
 export function CalendarView() {
   const calendarDate = useHeyStore((s) => s.calendarDate);
   const calendarView = useHeyStore((s) => s.calendarView);
@@ -33,6 +48,7 @@ export function CalendarView() {
   const addEvent = useHeyStore((s) => s.addEvent);
   const updateEvent = useHeyStore((s) => s.updateEvent);
   const deleteEvent = useHeyStore((s) => s.deleteEvent);
+  const importMacCalendarData = useHeyStore((s) => s.importMacCalendarData);
   const toggleHabit = useHeyStore((s) => s.toggleHabit);
   const setJournal = useHeyStore((s) => s.setJournal);
   const setDayLabel = useHeyStore((s) => s.setDayLabel);
@@ -42,18 +58,27 @@ export function CalendarView() {
 
   const date = parseISO(calendarDate);
   const [title, setTitle] = useState("");
+  const [eventDate, setEventDate] = useState(calendarDate);
+  const [startTime, setStartTime] = useState(defaultStartTime);
+  const [endTime, setEndTime] = useState(() => addOneHour(defaultStartTime()));
   const [inviteesText, setInviteesText] = useState("");
   const [useTeams, setUseTeams] = useState(true);
   const [teamsUrl, setTeamsUrl] = useState("");
   const [accountId, setAccountId] = useState("");
   const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
+  const [syncingMac, setSyncingMac] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
   const [taskDraft, setTaskDraft] = useState("");
   const [journalDraft, setJournalDraft] = useState("");
+  const isMacDesktop = isDesktop() && desktopApi()?.platform === "darwin";
 
   useEffect(() => {
     setJournalDraft(journal.find((j) => j.date === calendarDate)?.body || "");
   }, [calendarDate, journal]);
+
+  useEffect(() => {
+    setEventDate(calendarDate);
+  }, [calendarDate]);
 
   useEffect(() => {
     const api = desktopApi();
@@ -126,6 +151,34 @@ export function CalendarView() {
             >
               →
             </Button>
+            {isMacDesktop ? (
+              <Button
+                size="sm"
+                variant="soft"
+                disabled={syncingMac}
+                onClick={() => {
+                  void (async () => {
+                    setSyncingMac(true);
+                    try {
+                      const api = desktopApi();
+                      const result = await api?.syncMacCalendars();
+                      if (!result?.ok) {
+                        setToast(result?.error || "Mac Calendar sync failed");
+                        return;
+                      }
+                      importMacCalendarData({
+                        calendars: result.calendars || [],
+                        events: result.events || [],
+                      });
+                    } finally {
+                      setSyncingMac(false);
+                    }
+                  })();
+                }}
+              >
+                {syncingMac ? "Syncing…" : "Sync Mac Calendars"}
+              </Button>
+            ) : null}
           </>
         }
       />
@@ -133,6 +186,9 @@ export function CalendarView() {
       <div className="mb-4 flex flex-wrap gap-3 text-xs text-muted">
         <span>Primary TZ: {settings.timezone}</span>
         {settings.secondaryTimezone ? <span>Secondary: {settings.secondaryTimezone}</span> : null}
+        {calendars.some((c) => c.source === "mac") ? (
+          <span>{calendars.filter((c) => c.source === "mac").length} Mac calendar(s)</span>
+        ) : null}
       </div>
 
       <div className={`mb-6 grid gap-2 ${calendarView === "month" ? "grid-cols-7" : calendarView === "week" ? "grid-cols-2 md:grid-cols-7" : "grid-cols-1"}`}>
@@ -163,6 +219,7 @@ export function CalendarView() {
                       style={{ background: colorFor(e.calendarId) }}
                       title={e.title}
                     >
+                      {e.source === "mac" ? "Mac · " : ""}
                       {e.meetingProvider === "teams" ? "Teams · " : ""}
                       {e.title}
                     </li>
@@ -181,7 +238,12 @@ export function CalendarView() {
               <li key={e.id} className="rounded-xl border border-line p-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <div className="font-semibold">{e.title}</div>
+                    <div className="font-semibold">
+                      {e.title}
+                      {e.source === "mac" ? (
+                        <span className="ml-2 text-xs font-normal text-muted">Mac</span>
+                      ) : null}
+                    </div>
                     <div className="text-sm text-muted">
                       {format(parseISO(e.start), "h:mm a")} – {format(parseISO(e.end), "h:mm a")}
                       {e.location ? ` · ${e.location}` : ""}
@@ -237,12 +299,24 @@ export function CalendarView() {
           </ul>
 
           <form
-            className="mt-4 space-y-2 rounded-xl border border-dashed border-line bg-soft/40 p-3"
+            className="mt-4 space-y-2 rounded-xl border border-[#e8d5ff]/60 bg-[linear-gradient(145deg,#fff0e8_0%,#f3e8ff_55%,#e8f4ff_100%)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
             onSubmit={async (ev) => {
               ev.preventDefault();
               if (!title.trim()) return;
-              const start = parseISO(`${calendarDate}T10:00:00`);
-              const end = parseISO(`${calendarDate}T11:00:00`);
+              if (!eventDate || !startTime || !endTime) {
+                setToast("Date, start time, and end time are required");
+                return;
+              }
+              const start = parseISO(`${eventDate}T${startTime}:00`);
+              const end = parseISO(`${eventDate}T${endTime}:00`);
+              if (Number.isNaN(+start) || Number.isNaN(+end)) {
+                setToast("Invalid date or time");
+                return;
+              }
+              if (end <= start) {
+                setToast("End time must be after start time");
+                return;
+              }
               const invitees = parseInvitees(inviteesText);
               let meetingUrl = teamsUrl.trim();
               let meetingProvider: "teams" | "none" = meetingUrl ? "teams" : "none";
@@ -267,6 +341,7 @@ export function CalendarView() {
                 meetingUrl: meetingUrl || undefined,
                 meetingProvider,
                 notes: meetingProvider === "teams" ? "Microsoft Teams meeting" : undefined,
+                source: "local",
               });
               setTitle("");
               setInviteesText("");
@@ -274,8 +349,44 @@ export function CalendarView() {
               setToast("Event added — use Email invites to notify people");
             }}
           >
-            <h4 className="text-sm font-semibold">New event + Teams invite</h4>
-            <Input placeholder="Event title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <h4 className="text-sm font-semibold text-ink">New event + Teams invite</h4>
+            <Input placeholder="Event title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="block text-xs font-medium text-muted">
+                Date
+                <Input
+                  className="mt-1"
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="block text-xs font-medium text-muted">
+                Start time
+                <Input
+                  className="mt-1"
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setStartTime(next);
+                    if (endTime <= next) setEndTime(addOneHour(next));
+                  }}
+                  required
+                />
+              </label>
+              <label className="block text-xs font-medium text-muted">
+                End time
+                <Input
+                  className="mt-1"
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  required
+                />
+              </label>
+            </div>
             <Textarea
               rows={2}
               placeholder="Invitee emails (comma or newline separated) — unlimited"

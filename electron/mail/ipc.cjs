@@ -7,6 +7,7 @@ const { testImap, fetchInbox } = require("./imap.cjs");
 const { testSmtp, sendMail, sendCalendarInvites } = require("./smtp.cjs");
 const { generateTeamsMeetingUrl } = require("./calendar-invite.cjs");
 const { discoverMailSettings } = require("./discover.cjs");
+const { syncMacCalendars } = require("./mac-calendar.cjs");
 
 function registerMailIpc() {
   ipcMain.handle("mail:presets", async () => PRESETS);
@@ -144,6 +145,8 @@ function registerMailIpc() {
     ok: true,
     url: generateTeamsMeetingUrl(title || "Les Mail meeting"),
   }));
+
+  ipcMain.handle("calendar:syncMac", async () => syncMacCalendars());
 
   ipcMain.handle("app:getInfo", async () => ({
     name: app.getName(),

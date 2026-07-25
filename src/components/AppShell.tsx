@@ -48,16 +48,23 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ComponentType } from "react";
 
-const nav: { id: AppView; label: string; icon: ComponentType<{ className?: string }>; countKey?: string }[] = [
-  { id: "lesbox", label: "LesBox", icon: Inbox, countKey: "lesbox" },
-  { id: "feed", label: "The Feed", icon: Newspaper, countKey: "feed" },
-  { id: "paper_trail", label: "Paper Trail", icon: Receipt, countKey: "paper_trail" },
-  { id: "screener", label: "Screener", icon: ShieldCheck, countKey: "screener" },
-  { id: "calendar", label: "Calendar", icon: CalendarDays },
-  { id: "reply_later", label: "Reply Later", icon: Clock3, countKey: "reply_later" },
-  { id: "set_aside", label: "Set Aside", icon: Bookmark, countKey: "set_aside" },
-  { id: "focus_reply", label: "Focus & Reply", icon: ClipboardList },
-  { id: "contacts", label: "Contacts", icon: ContactRound },
+const nav: {
+  id: AppView;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  countKey?: string;
+  pastel?: string;
+  pastelActive?: string;
+}[] = [
+  { id: "lesbox", label: "LesBox", icon: Inbox, countKey: "lesbox", pastel: "bg-[#d6e8ff]", pastelActive: "bg-[#b8d6ff]" },
+  { id: "feed", label: "The Feed", icon: Newspaper, countKey: "feed", pastel: "bg-[#d8f5e8]", pastelActive: "bg-[#b8ebd4]" },
+  { id: "paper_trail", label: "Paper Trail", icon: Receipt, countKey: "paper_trail", pastel: "bg-[#ffe4d6]", pastelActive: "bg-[#ffd0b8]" },
+  { id: "screener", label: "Screener", icon: ShieldCheck, countKey: "screener", pastel: "bg-[#fff0c8]", pastelActive: "bg-[#ffe29a]" },
+  { id: "calendar", label: "Calendar", icon: CalendarDays, pastel: "bg-[#e8ddff]", pastelActive: "bg-[#d4c4ff]" },
+  { id: "reply_later", label: "Reply Later", icon: Clock3, countKey: "reply_later", pastel: "bg-[#d9f0f7]", pastelActive: "bg-[#bde4f0]" },
+  { id: "set_aside", label: "Set Aside", icon: Bookmark, countKey: "set_aside", pastel: "bg-[#fce0eb]", pastelActive: "bg-[#f7c5d8]" },
+  { id: "focus_reply", label: "Focus & Reply", icon: ClipboardList, pastel: "bg-[#d5f2ef]", pastelActive: "bg-[#b5e8e2]" },
+  { id: "contacts", label: "Contacts", icon: ContactRound, pastel: "bg-[#ece0f5]", pastelActive: "bg-[#dcc8ed]" },
   { id: "attachments", label: "Attachments", icon: Paperclip },
   { id: "clips", label: "Clips", icon: Layers3 },
   { id: "snippets", label: "Snippets", icon: FileStack },
@@ -178,9 +185,9 @@ export function AppShell() {
   }
 
   return (
-    <div className="relative flex min-h-screen bg-[linear-gradient(180deg,#f7f4ff_0%,#fbfcfd_28%,#fbfcfd_100%)]">
+    <div className="relative flex min-h-screen bg-[linear-gradient(165deg,#efe8ff_0%,#e8f7f2_42%,#fff4eb_100%)]">
       <WallpaperBackground />
-      <aside className="sticky top-0 flex h-screen w-[240px] shrink-0 flex-col border-r border-line bg-white/80 backdrop-blur">
+      <aside className="sticky top-0 flex h-screen w-[240px] shrink-0 flex-col border-r border-line bg-white/70 backdrop-blur">
         <div className="border-b border-line px-4 py-4">
           <a href="/" className="font-display text-3xl tracking-tight" style={{ backgroundImage: "var(--hey-gradient)", WebkitBackgroundClip: "text", color: "transparent" }}>
             Les Mail
@@ -250,11 +257,24 @@ export function AppShell() {
                 }}
                 className={cn(
                   "mb-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
-                  active ? "bg-[#f0ebff] font-semibold text-blurple" : "text-ink hover:bg-soft",
+                  item.pastel
+                    ? active
+                      ? `${item.pastelActive} font-semibold text-ink`
+                      : `${item.pastel} text-ink hover:brightness-[0.97]`
+                    : active
+                      ? "bg-[#f0ebff] font-semibold text-blurple"
+                      : "text-ink hover:bg-soft/80",
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0 opacity-80" />
-                <span className="flex-1 truncate">{item.label}</span>
+                <span
+                  className={cn(
+                    "flex-1 truncate",
+                    isLesBox && "font-bold text-hey-blue",
+                  )}
+                >
+                  {item.label}
+                </span>
                 {count ? (
                   <span className="rounded-md bg-blurple px-1.5 py-0.5 text-[10px] font-bold text-white">{count}</span>
                 ) : null}

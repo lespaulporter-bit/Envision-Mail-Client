@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("lesMail", {
   sendMail: (payload) => ipcRenderer.invoke("mail:send", payload),
   sendCalendarInvites: (payload) => ipcRenderer.invoke("mail:sendCalendarInvites", payload),
   generateTeamsUrl: (title) => ipcRenderer.invoke("mail:generateTeamsUrl", title),
+  syncMacCalendars: () => ipcRenderer.invoke("calendar:syncMac"),
   getAppInfo: () => ipcRenderer.invoke("app:getInfo"),
   uninstall: () => ipcRenderer.invoke("app:uninstall"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
