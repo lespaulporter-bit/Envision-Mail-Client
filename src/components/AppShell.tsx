@@ -110,10 +110,15 @@ export function AppShell() {
       void (async () => {
         setSyncing(true);
         try {
-          await syncAllDesktopAccounts();
+          const result = await syncAllDesktopAccounts();
           loadAccounts();
-          setInboxAccountId(null);
-          setView("lesbox");
+          if (!(result.screened > 0)) {
+            setInboxAccountId(null);
+          }
+          // Store already sets Screener when screened; otherwise leave / go LesBox
+          if (!(result.screened > 0) && useHeyStore.getState().view !== "screener") {
+            setView("lesbox");
+          }
         } finally {
           setSyncing(false);
         }
@@ -191,14 +196,18 @@ export function AppShell() {
                 void (async () => {
                   setSyncing(true);
                   try {
-                    await syncAllDesktopAccounts();
+                    const result = await syncAllDesktopAccounts();
                     const api = desktopApi();
                     if (api) {
                       const list = await api.listAccounts();
                       setAccounts(list.map((a) => ({ id: a.id, email: a.email, name: a.name })));
                     }
-                    setInboxAccountId(null);
-                    setView("lesbox");
+                    if (!(result.screened > 0)) {
+                      setInboxAccountId(null);
+                      if (useHeyStore.getState().view !== "screener") {
+                        setView("lesbox");
+                      }
+                    }
                   } finally {
                     setSyncing(false);
                   }
@@ -259,6 +268,9 @@ export function AppShell() {
                   onlyNew: true,
                   accountId: a.id,
                 }).length;
+                const screenerCount = selectBoxThreads(threads, "screener", {
+                  accountId: a.id,
+                }).length;
                 const active = view === "lesbox" && inboxAccountId === a.id;
                 return (
                   <button
@@ -273,6 +285,14 @@ export function AppShell() {
                   >
                     <Inbox className="h-4 w-4 shrink-0 opacity-80" />
                     <span className="flex-1 truncate">{a.email}</span>
+                    {screenerCount ? (
+                      <span
+                        className="rounded-md bg-amber px-1.5 py-0.5 text-[10px] font-bold text-white"
+                        title="In Screener"
+                      >
+                        {screenerCount}
+                      </span>
+                    ) : null}
                     {newCount ? (
                       <span className="rounded-md bg-blurple px-1.5 py-0.5 text-[10px] font-bold text-white">
                         {newCount}
@@ -285,7 +305,7 @@ export function AppShell() {
           ) : null}
         </nav>
         <div className="border-t border-line p-3 text-[11px] leading-relaxed text-muted">
-          Les Mail 4 — LesBox + auto-fetch. Menu → Uninstall Les Mail to remove completely.
+          Les Mail 5 — Screener for new mail, LesBox when you allow. Menu → Uninstall to remove.
         </div>
       </aside>
 

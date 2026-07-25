@@ -7,7 +7,6 @@ import type {
   AppStateData,
   Box,
   CalendarEvent,
-  Contact,
   CoverArtMode,
   EmailTemplate,
   MailBox,
@@ -168,41 +167,22 @@ function threadHasImapMail(thread: Thread, messages: Record<string, Message>): b
   return thread.messageIds.some((id) => messages[id]?.id?.startsWith("imap_"));
 }
 
-function rescueImapThreadsToLesbox(threads: Thread[], messages: Record<string, Message>): Thread[] {
+/** Backfill missing accountId from imap_<accountId>_<uid> message ids. Does NOT move screener → lesbox. */
+function backfillImapAccountIds(threads: Thread[], messages: Record<string, Message>): Thread[] {
   return threads.map((t) => {
+    if (t.accountId) return t;
     if (!threadHasImapMail(t, messages)) return t;
-    if (t.box === "spam") return t;
 
-    let accountId = t.accountId || null;
-    if (!accountId) {
-      for (const mid of t.messageIds) {
-        const m = /^imap_(.+)_\d+$/.exec(mid);
-        if (m) {
-          accountId = m[1];
-          break;
-        }
+    let accountId: string | null = null;
+    for (const mid of t.messageIds) {
+      const m = /^imap_(.+)_\d+$/.exec(mid);
+      if (m) {
+        accountId = m[1];
+        break;
       }
     }
-
-    if (t.box === "screener") {
-      return { ...t, box: "lesbox", accountId: accountId || t.accountId };
-    }
-    if (!t.accountId && accountId) {
-      return { ...t, accountId };
-    }
-    return t;
+    return accountId ? { ...t, accountId } : t;
   });
-}
-
-function allowContactsForImapThreads(threads: Thread[], contacts: Contact[]): Contact[] {
-  const emails = new Set(
-    threads.filter((t) => t.accountId || t.messageIds.some((id) => id.startsWith("imap_"))).map((t) => t.contactEmail.toLowerCase()),
-  );
-  return contacts.map((c) =>
-    emails.has(c.email.toLowerCase()) && c.status === "pending"
-      ? { ...c, status: "allowed" as const, defaultBox: c.defaultBox || "lesbox" }
-      : c,
-  );
 }
 
 export const useHeyStore = create<HeyStore>()(
@@ -663,7 +643,7 @@ export const useHeyStore = create<HeyStore>()(
 
       importSyncedMail: ({ accountId, email, messages: incoming }) => {
         let imported = 0;
-        const screened = 0;
+        let screened = 0;
         const state = get();
         let threads = [...state.threads];
         let contacts = [...state.contacts];
@@ -715,27 +695,33 @@ export const useHeyStore = create<HeyStore>()(
 
           let contact = contacts.find((c) => c.email.toLowerCase() === counterpartyEmail);
           if (!contact) {
-            // IMAP INBOX mail is already in your real inbox — deliver to LesBox, don't bury in Screener
+            const speakeasy = settings.speakeasyCode;
+            const bypass =
+              Boolean(speakeasy) &&
+              item.subject.toUpperCase().includes(String(speakeasy).toUpperCase());
+            // Outgoing: you chose this recipient → LesBox. Inbound unknown → Screener (unless Speakeasy).
+            const autoAllow = isOutgoing || bypass;
             contact = {
               id: uid("c"),
               email: counterpartyEmail,
               name: counterpartyName,
-              status: "allowed",
+              status: autoAllow ? ("allowed" as const) : ("pending" as const),
               defaultBox: "lesbox",
-              notes: "Auto-allowed from IMAP sync",
-              notify: false,
+              notes: bypass ? "Speakeasy bypass" : "",
+              notify: Boolean(bypass),
               avatarColor: `#${((counterpartyEmail.length * 37) % 0xffffff).toString(16).padStart(6, "0")}`,
               bundled: false,
             };
             contacts = [...contacts, contact];
-          } else if (contact.status === "pending") {
-            // Promote prior screener holds so synced mail becomes visible
-            contact = { ...contact, status: "allowed", defaultBox: contact.defaultBox || "lesbox" };
-            contacts = contacts.map((c) => (c.id === contact!.id ? contact! : c));
           }
+          // Do NOT auto-promote pending → allowed on sync
 
           const box: Box =
-            contact.status === "blocked" ? "spam" : contact.defaultBox || "lesbox";
+            contact.status === "blocked"
+              ? "spam"
+              : contact.status === "pending"
+                ? "screener"
+                : contact.defaultBox || "lesbox";
 
           const subjectKey = item.subject.replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase();
           let thread = threads.find(
@@ -795,9 +781,18 @@ export const useHeyStore = create<HeyStore>()(
               updatedAt: item.sentAt,
             };
             threads = [thread, ...threads];
+            if (box === "screener") screened += 1;
           } else {
             message.threadId = thread.id;
             message.attachments = attachmentList.map((a) => ({ ...a, threadId: thread!.id }));
+            const nextBox: Box =
+              thread.box === "spam" || box === "spam"
+                ? "spam"
+                : thread.box === "screener"
+                  ? "screener"
+                  : thread.box;
+            if (nextBox === "screener" && thread.box !== "screener") screened += 1;
+            else if (box === "screener" && thread.box === "screener") screened += 1;
             threads = threads.map((t) =>
               t.id === thread!.id
                 ? {
@@ -807,8 +802,8 @@ export const useHeyStore = create<HeyStore>()(
                       : [...t.messageIds, messageId],
                     seen: item.seen && t.seen,
                     updatedAt: item.sentAt > t.updatedAt ? item.sentAt : t.updatedAt,
-                    // Ensure IMAP threads aren't stuck in Screener
-                    box: t.box === "spam" ? t.box : box === "spam" ? "spam" : t.box === "screener" ? box : t.box,
+                    // Never force screener → lesbox on sync
+                    box: nextBox,
                     accountId: t.accountId || accountId,
                     accountEmail: t.accountEmail || email,
                     contactEmail: t.contactEmail || counterpartyEmail,
@@ -822,20 +817,36 @@ export const useHeyStore = create<HeyStore>()(
           imported += 1;
         }
 
-        // Rescue any older IMAP threads still stuck in Screener
-        threads = rescueImapThreadsToLesbox(threads, msgs);
-        contacts = allowContactsForImapThreads(threads, contacts);
+        threads = backfillImapAccountIds(threads, msgs);
 
-        set({
-          threads,
-          contacts,
-          messages: msgs,
-          settings,
-          view: "lesbox",
-          toast: imported
-            ? `Synced ${imported} message${imported === 1 ? "" : "s"} → LesBox${email ? ` (${email})` : ""}`
-            : "Already up to date",
-        });
+        if (screened > 0) {
+          set({
+            threads,
+            contacts,
+            messages: msgs,
+            settings,
+            view: "screener",
+            toast: `Synced ${imported} · ${screened} need Screener review`,
+          });
+        } else if (imported > 0) {
+          set({
+            threads,
+            contacts,
+            messages: msgs,
+            settings,
+            view: "lesbox",
+            inboxAccountId: accountId,
+            toast: `Synced ${imported} message${imported === 1 ? "" : "s"} → LesBox${email ? ` (${email})` : ""}`,
+          });
+        } else {
+          set({
+            threads,
+            contacts,
+            messages: msgs,
+            settings,
+            toast: "Already up to date",
+          });
+        }
         return { imported, screened };
       },
 
@@ -992,8 +1003,8 @@ export const useHeyStore = create<HeyStore>()(
           defaultBox: normalizeMailBox(c.defaultBox),
         }));
         const messages = p.messages || current.messages;
-        const rescued = rescueImapThreadsToLesbox(threads, messages);
-        const contacts = allowContactsForImapThreads(rescued, contactsRaw);
+        const rescued = backfillImapAccountIds(threads, messages);
+        const contacts = contactsRaw;
         const settings = {
           ...current.settings,
           ...(p.settings || {}),

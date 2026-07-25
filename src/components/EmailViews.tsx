@@ -115,7 +115,7 @@ export function LesBoxView() {
             title="You're caught up"
             body={
               all.length === 0
-                ? "Sync an account in Settings — new mail lands here in LesBox."
+                ? "Sync an account in Settings. Allowed contacts land here; new senders go to Screener first."
                 : "No unread mail in this inbox."
             }
           />
@@ -202,34 +202,58 @@ export function ScreenerView() {
   const threads = useHeyStore((s) => s.threads);
   const messages = useHeyStore((s) => s.messages);
   const settings = useHeyStore((s) => s.settings);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
   const screenContact = useHeyStore((s) => s.screenContact);
   const markSpam = useHeyStore((s) => s.markSpam);
-  const list = useMemo(() => selectBoxThreads(threads, "screener"), [threads]);
+  const list = useMemo(
+    () => selectBoxThreads(threads, "screener", { accountId: inboxAccountId }),
+    [threads, inboxAccountId],
+  );
   const [boxChoice, setBoxChoice] = useState<"lesbox" | "feed" | "paper_trail">("lesbox");
+
+  const allowAllVisible = () => {
+    const seen = new Set<string>();
+    for (const t of list) {
+      const email = t.contactEmail.toLowerCase();
+      if (seen.has(email)) continue;
+      seen.add(email);
+      screenContact(t.contactEmail, "allow", "lesbox");
+    }
+  };
 
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="The Screener"
-        subtitle="Screen emails like you screen calls. First-time senders wait here."
+        subtitle="New synced senders wait here. Allow them into LesBox, The Feed, or Paper Trail — or block."
         actions={
-          <label className="flex items-center gap-2 text-sm text-muted">
-            Allow into
-            <select
-              className="rounded-lg border border-line bg-white px-2 py-1.5"
-              value={boxChoice}
-              onChange={(e) => setBoxChoice(e.target.value as typeof boxChoice)}
-            >
-              <option value="lesbox">LesBox</option>
-              <option value="feed">The Feed</option>
-              <option value="paper_trail">Paper Trail</option>
-            </select>
-          </label>
+          <>
+            <label className="flex items-center gap-2 text-sm text-muted">
+              Allow into
+              <select
+                className="rounded-lg border border-line bg-white px-2 py-1.5"
+                value={boxChoice}
+                onChange={(e) => setBoxChoice(e.target.value as typeof boxChoice)}
+              >
+                <option value="lesbox">LesBox</option>
+                <option value="feed">The Feed</option>
+                <option value="paper_trail">Paper Trail</option>
+              </select>
+            </label>
+            {list.length > 0 ? (
+              <Button size="sm" variant="soft" onClick={allowAllVisible}>
+                Allow all visible to LesBox
+              </Button>
+            ) : null}
+          </>
         }
       />
 
       {list.length === 0 ? (
-        <EmptyState title="Screener is clear" body="New strangers will appear here for your Yes / No." />
+        <EmptyState
+          title="Screener is clear"
+          body="Sync mail from Settings or the sidebar. Unknown senders land here first — Allow moves them to LesBox (or Feed / Paper Trail)."
+        />
       ) : (
         <div className="space-y-4">
           {list.map((t) => {
@@ -241,6 +265,11 @@ export function ScreenerView() {
                     <h3 className="text-lg font-semibold">{t.contactName}</h3>
                     <p className="text-sm text-muted">{t.contactEmail}</p>
                     <p className="mt-2 font-medium">{t.subject}</p>
+                    {t.accountEmail ? (
+                      <p className="mt-1">
+                        <Badge tone="blurple">{t.accountEmail}</Badge>
+                      </p>
+                    ) : null}
                   </div>
                   {last?.trackersBlocked.length ? (
                     <Badge tone="salmon">Spy trackers blocked</Badge>
@@ -254,10 +283,10 @@ export function ScreenerView() {
                 ) : null}
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button onClick={() => screenContact(t.contactEmail, "allow", boxChoice)}>
-                    Yes — {boxChoice.replace("_", " ")}
+                    Allow → {boxChoice === "lesbox" ? "LesBox" : boxChoice === "feed" ? "Feed" : "Paper Trail"}
                   </Button>
                   <Button variant="danger" onClick={() => screenContact(t.contactEmail, "block")}>
-                    No
+                    Block
                   </Button>
                   {settings.spamCorps ? (
                     <Button variant="soft" onClick={() => markSpam(t.id)}>

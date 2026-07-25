@@ -163,9 +163,19 @@ export function AccountsPanel() {
       });
       updateSettings({ email: result.email!, displayName: result.displayName || result.email! });
       setStatusTone("ok");
-      setStatus(`Imported ${stats.imported} → LesBox${stats.screened ? ` · ${stats.screened} screened` : ""}`);
-      useHeyStore.getState().setInboxAccountId(id);
-      useHeyStore.getState().setView("lesbox");
+      if (stats.screened > 0) {
+        setStatus(`Imported ${stats.imported} · ${stats.screened} in Screener`);
+        // store already navigates to Screener — do not force LesBox
+      } else {
+        setStatus(
+          stats.imported
+            ? `Imported ${stats.imported} → LesBox`
+            : "Already up to date",
+        );
+        if (stats.imported > 0) {
+          useHeyStore.getState().setInboxAccountId(id);
+        }
+      }
       await refresh();
     } finally {
       setBusy(null);
@@ -416,23 +426,33 @@ export function AccountsPanel() {
 
 export async function syncAllDesktopAccounts() {
   const api = desktopApi();
-  if (!api) return { synced: 0 };
+  if (!api) return { synced: 0, screened: 0 };
   const list = await api.listAccounts();
   const importSyncedMail = useHeyStore.getState().importSyncedMail;
   const updateSettings = useHeyStore.getState().updateSettings;
   let synced = 0;
+  let screened = 0;
   for (const a of list) {
     const result = await api.syncAccount(a.id);
     if (result.ok && result.messages) {
-      importSyncedMail({
+      const stats = importSyncedMail({
         accountId: result.accountId!,
         email: result.email!,
         displayName: result.displayName,
         messages: result.messages,
       });
       updateSettings({ email: result.email!, displayName: result.displayName || result.email! });
-      synced += result.messages.length;
+      synced += stats.imported;
+      screened += stats.screened;
     }
   }
-  return { synced };
+  if (screened > 0) {
+    useHeyStore.setState({
+      view: "screener",
+      toast: synced
+        ? `Synced ${synced} · ${screened} need Screener review`
+        : `${screened} need Screener review`,
+    });
+  }
+  return { synced, screened };
 }

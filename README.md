@@ -1,19 +1,20 @@
-# Les Mail 4.2
+# Les Mail 5.0
 
-LesBox email + calendar with real IMAP/SMTP. Synced mail lands in LesBox and per-account inboxes.
+LesBox email + calendar with real IMAP/SMTP. New synced mail from unknown senders lands in **Screener** — Allow moves them to LesBox (or The Feed / Paper Trail). Per-account inboxes live in the sidebar.
 
 ## Installers
 
 | File | Use |
 |---|---|
-| `release/Les Mail-4.2.0-mac-arm64.dmg` | Apple Silicon (M1–M5) |
-| `release/Les Mail-4.2.0-mac-x64.dmg` | Intel Mac |
-| `release/Les Mail-4.2.0-win-x64-Setup.exe` | Windows |
+| `release/Les Mail-5.0.0-mac-arm64.dmg` | Apple Silicon (M1–M5) |
+| `release/Les Mail-5.0.0-mac-x64.dmg` | Intel Mac |
+| `release/Les Mail-5.0.0-win-x64-Setup.exe` | Windows |
 | `release/Uninstall Les Mail.command` | One-click Mac uninstall |
 
-## 4.2 fixes
+## 5.0 highlights
 
-- Synced IMAP mail now appears in **LesBox** (was stuck in Screener)
-- **Previously seen** list always visible (cover art no longer hides mail)
-- Sidebar **Inboxes** — one entry per connected email address
-- Prior Screener-stuck IMAP threads are rescued on launch
+- **Screener-first sync** — unknown IMAP senders wait in Screener (not auto-LesBox)
+- Allow → LesBox / Feed / Paper Trail; Block → spam; Speakeasy code still bypasses
+- Per-account **Inboxes** in the sidebar (with Screener count badges)
+- **Previously seen** always visible in LesBox
+- Bulk **Allow all visible to LesBox** in Screener
