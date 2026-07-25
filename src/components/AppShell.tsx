@@ -87,6 +87,7 @@ export function AppShell() {
   const setInboxAccountId = useHeyStore((s) => s.setInboxAccountId);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
+  const [appVersion, setAppVersion] = useState("7.0.0");
 
   useEffect(() => {
     if (!toast) return;
@@ -97,6 +98,9 @@ export function AppShell() {
   useEffect(() => {
     const api = desktopApi();
     if (!api) return;
+    void api.getAppInfo().then((info) => {
+      if (info?.version) setAppVersion(info.version);
+    });
     const loadAccounts = () => {
       void api.listAccounts().then((list) =>
         setAccounts(list.map((a) => ({ id: a.id, email: a.email, name: a.name }))),
@@ -305,7 +309,8 @@ export function AppShell() {
           ) : null}
         </nav>
         <div className="border-t border-line p-3 text-[11px] leading-relaxed text-muted">
-          Les Mail 5 — Screener for new mail, LesBox when you allow. Menu → Uninstall to remove.
+          Les Mail {appVersion} — Screener for new mail, LesBox when you allow. Menu → Uninstall to
+          remove.
         </div>
       </aside>
 
