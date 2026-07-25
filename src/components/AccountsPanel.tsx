@@ -132,7 +132,7 @@ export function AccountsPanel() {
       if (!awaitingAppPassword) return;
       setStatusTone("info");
       setStatus("Welcome back — paste the app password below, then click Test connection or Save.");
-      setToast("Paste your app password into Les Mail");
+      setToast("Paste your app password into Envision Mail");
       setAwaitingAppPassword(false);
     };
     window.addEventListener("focus", onFocus);
@@ -311,7 +311,7 @@ export function AccountsPanel() {
       <div className="rounded-2xl border border-amber/40 bg-[#fff8f0] p-4 text-sm">
         <strong>Desktop required for live mail.</strong>
         <p className="mt-1 text-muted">
-          IMAP/SMTP accounts work in the Les Mail Mac/Windows app. Open the packaged app to connect Gmail, Yahoo, AOL,
+          IMAP/SMTP accounts work in the Envision Mail Mac/Windows app. Open the packaged app to connect Gmail, Yahoo, AOL,
           Stackmail, or custom servers.
         </p>
       </div>
@@ -510,7 +510,7 @@ export function AccountsPanel() {
           <div className="rounded-xl border border-blurple/30 bg-[#f7f4ff] p-3 text-sm">
             <p className="font-medium text-blurple">App password required</p>
             <p className="mt-1 text-xs text-muted">
-              Your normal login password won&apos;t work. Open the provider page, create an app password for “Les Mail”,
+              Your normal login password won&apos;t work. Open the provider page, create an app password for “Envision Mail”,
               copy it, then paste it below and return here.
             </p>
             <Button type="button" className="mt-2" size="sm" onClick={() => void openAppPasswordPage()}>

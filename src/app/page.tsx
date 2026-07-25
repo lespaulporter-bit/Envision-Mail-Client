@@ -6,7 +6,7 @@ const features = [
   { title: "LesBox", body: "New For You, Cover Art, Power Through New, bundling, Bubble Up." },
   { title: "Reply Later + Focus & Reply", body: "Park replies, then knock them out without distractions." },
   { title: "Calendar", body: "Day/week/month, habits, journal, day labels, countdowns, Sometime This Week." },
-  { title: "Easy uninstall", body: "Les Mail menu → Uninstall, or run Uninstall Les Mail.command — removes the app and local data." },
+  { title: "Easy uninstall", body: "Envision Mail menu → Uninstall, or run Uninstall Envision Mail.command — removes the app and local data." },
 ];
 
 export default function LandingPage() {
@@ -15,7 +15,7 @@ export default function LandingPage() {
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_#ebe4ff_0%,_#fbfcfd_45%,_#eef6ff_100%)]" />
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <div className="font-display text-4xl" style={{ backgroundImage: "var(--hey-gradient)", WebkitBackgroundClip: "text", color: "transparent" }}>
-          Les Mail
+          Envision Mail
         </div>
         <nav className="flex items-center gap-3 text-sm">
           <a href="#features" className="text-muted hover:text-ink">
@@ -37,11 +37,11 @@ export default function LandingPage() {
               Email you control — with a calendar that helps
             </h1>
             <p className="mt-5 max-w-md text-lg text-muted">
-              Les Mail brings LesBox-style focus to your real IMAP/SMTP accounts. Screen who can reach you. Separate important mail from noise. Sync and send for real.
+              Envision Mail brings LesBox-style focus to your real IMAP/SMTP accounts. Screen who can reach you. Separate important mail from noise. Sync and send for real.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/app/" className="rounded-xl bg-salmon px-5 py-3 font-semibold text-white shadow-md transition hover:brightness-105">
-                Open Les Mail
+                Open Envision Mail
               </Link>
               <a href="#how" className="rounded-xl bg-white px-5 py-3 font-semibold text-ink ring-1 ring-line">
                 See how it works
@@ -73,7 +73,7 @@ export default function LandingPage() {
 
         <section id="how" className="border-y border-line bg-white/70 py-16">
           <div className="mx-auto max-w-6xl px-6">
-            <h2 className="font-display text-4xl">How Les Mail works</h2>
+            <h2 className="font-display text-4xl">How Envision Mail works</h2>
             <div className="mt-8 grid gap-6 md:grid-cols-3">
               {[
                 ["LesBox", "Important email from people and services you want to hear from."],
@@ -105,7 +105,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t border-line px-6 py-8 text-center text-sm text-muted">
-        Les Mail — local-first email client. Not affiliated with HEY / 37signals.
+        Envision Mail — local-first email client. Not affiliated with HEY / 37signals.
       </footer>
     </div>
   );

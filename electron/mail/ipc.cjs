@@ -195,9 +195,9 @@ function registerMailIpc() {
       defaultId: 0,
       cancelId: 0,
       title: "Uninstall Envision Mail",
-      message: "Remove Les Mail and all local app data?",
+      message: "Remove Envision Mail and all local app data?",
       detail:
-        "This deletes saved IMAP/SMTP accounts, preferences, and cache for Les Mail. Your actual email on the server is not deleted.",
+        "This deletes saved IMAP/SMTP accounts, preferences, and cache for Envision Mail. Your actual email on the server is not deleted.",
     });
     if (result.response !== 1) return { ok: false, cancelled: true };
 

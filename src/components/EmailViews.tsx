@@ -374,7 +374,7 @@ export function SentView() {
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="Sent"
-        subtitle="Mail you’ve sent — synced from your provider’s Sent folder, plus messages sent from Les Mail."
+        subtitle="Mail you’ve sent — synced from your provider’s Sent folder, plus messages sent from Envision Mail."
       />
       {list.length === 0 ? (
         <EmptyState
