@@ -54,6 +54,18 @@ const MX_HINTS = [
     hint: "Generate an app password in Yahoo Account Security.",
   },
   {
+    match: /aol\.com|aim\.com/i,
+    provider: "aol",
+    label: "AOL Mail",
+    imapHost: "imap.aol.com",
+    imapPort: 993,
+    imapSecure: true,
+    smtpHost: "smtp.aol.com",
+    smtpPort: 465,
+    smtpSecure: true,
+    hint: "Generate an AOL app password, then paste it into Les Mail.",
+  },
+  {
     match: /icloud|me\.com|apple/i,
     provider: "icloud",
     label: "iCloud Mail",

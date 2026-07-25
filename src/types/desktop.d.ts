@@ -101,6 +101,7 @@ export interface LesMailDesktopApi {
   generateTeamsUrl: (title?: string) => Promise<{ ok: boolean; url: string }>;
   getAppInfo: () => Promise<{ name: string; version: string; userData: string; platform: string; isPackaged: boolean }>;
   uninstall: () => Promise<{ ok: boolean; cancelled?: boolean }>;
+  openExternal: (url: string) => Promise<{ ok: boolean }>;
   onRequestUninstall: (cb: () => void) => () => void;
   onRequestSync: (cb: () => void) => () => void;
   onOpenSettings: (cb: () => void) => () => void;

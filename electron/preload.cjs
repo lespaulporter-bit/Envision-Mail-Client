@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("lesMail", {
   generateTeamsUrl: (title) => ipcRenderer.invoke("mail:generateTeamsUrl", title),
   getAppInfo: () => ipcRenderer.invoke("app:getInfo"),
   uninstall: () => ipcRenderer.invoke("app:uninstall"),
+  openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   onRequestUninstall: (cb) => {
     const listener = () => cb();
     ipcRenderer.on("app:request-uninstall", listener);
