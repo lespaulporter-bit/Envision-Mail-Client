@@ -45,7 +45,8 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  # No spaces — GitHub Releases rewrites spaces and breaks electron-updater URLs
+  artifactName: EnvisionMail-${version}-mac-${arch}.${ext}
   extendInfo:
     LSMinimumSystemVersion: "12.0"
     NSHumanReadableCopyright: "Copyright © 2026 Envision Mail"
@@ -69,7 +70,7 @@ win:
     - target: nsis
       arch:
         - x64
-  artifactName: ${productName}-${version}-win-${arch}-Setup.${ext}
+  artifactName: EnvisionMail-${version}-win-${arch}-Setup.${ext}
   signAndEditExecutable: false
 nsis:
   oneClick: false
