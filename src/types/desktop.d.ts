@@ -1,0 +1,115 @@
+export interface DesktopAccount {
+  id: string;
+  name: string;
+  email: string;
+  provider: string;
+  imapHost: string;
+  imapPort: number;
+  imapSecure: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  username: string;
+  enabled?: boolean;
+  hasPassword?: boolean;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
+}
+
+export interface DesktopSyncedMessage {
+  uid: number;
+  messageIdHeader?: string | null;
+  inReplyTo?: string | null;
+  references?: string[] | string;
+  from: string;
+  fromName: string;
+  to: string[];
+  subject: string;
+  bodyHtml: string;
+  bodyText: string;
+  sentAt: string;
+  seen: boolean;
+  attachments: Array<{
+    id: string;
+    name: string;
+    size: number;
+    mimeType: string;
+    messageId: string;
+    threadId: string;
+    receivedAt: string;
+  }>;
+  trackersBlocked: string[];
+}
+
+export interface DiscoveredMailSettings {
+  ok: boolean;
+  error?: string;
+  discovered?: boolean;
+  provider?: string;
+  label?: string;
+  imapHost?: string;
+  imapPort?: number;
+  imapSecure?: boolean;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSecure?: boolean;
+  hint?: string;
+  username?: string;
+  mx?: string[];
+}
+
+export interface LesMailDesktopApi {
+  isDesktop: boolean;
+  platform: string;
+  presets: () => Promise<Record<string, unknown>>;
+  discover: (email: string) => Promise<DiscoveredMailSettings>;
+  listAccounts: () => Promise<DesktopAccount[]>;
+  saveAccount: (
+    payload: Partial<DesktopAccount> & { password?: string },
+  ) => Promise<{ ok: boolean; account?: DesktopAccount; error?: string }>;
+  removeAccount: (id: string) => Promise<{ ok: boolean }>;
+  testAccount: (payload: Partial<DesktopAccount> & { password?: string; id?: string }) => Promise<{
+    ok: boolean;
+    stage?: string;
+    error?: string;
+    suggested?: Partial<DesktopAccount>;
+  }>;
+  syncAccount: (id: string) => Promise<{
+    ok: boolean;
+    error?: string;
+    accountId?: string;
+    email?: string;
+    displayName?: string;
+    messages?: DesktopSyncedMessage[];
+  }>;
+  sendMail: (payload: {
+    accountId: string;
+    to: string;
+    cc?: string;
+    subject: string;
+    text: string;
+    html?: string;
+    inReplyTo?: string;
+    references?: string;
+    requestReadReceipt?: boolean;
+  }) => Promise<{ ok: boolean; error?: string; messageId?: string }>;
+  sendCalendarInvites: (payload: {
+    accountId: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    event: any;
+  }) => Promise<{ ok: boolean; error?: string; results?: unknown[] }>;
+  generateTeamsUrl: (title?: string) => Promise<{ ok: boolean; url: string }>;
+  getAppInfo: () => Promise<{ name: string; version: string; userData: string; platform: string; isPackaged: boolean }>;
+  uninstall: () => Promise<{ ok: boolean; cancelled?: boolean }>;
+  onRequestUninstall: (cb: () => void) => () => void;
+  onRequestSync: (cb: () => void) => () => void;
+  onOpenSettings: (cb: () => void) => () => void;
+}
+
+declare global {
+  interface Window {
+    lesMail?: LesMailDesktopApi;
+  }
+}
+
+export {};

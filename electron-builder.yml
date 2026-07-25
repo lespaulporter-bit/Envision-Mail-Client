@@ -1,0 +1,79 @@
+appId: app.lesmail.desktop
+productName: Les Mail
+copyright: Copyright © 2026 Les Mail
+asar: true
+asarUnpack:
+  - "**/*.{node,dll,dylib,so}"
+directories:
+  output: release
+  buildResources: build
+# Do NOT exclude node_modules/**/src — packages like encoding-japanese require it.
+files:
+  - electron/**/*
+  - package.json
+  - node_modules/**/*
+  - "!node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme,.npmignore,.travis.yml}"
+  - "!node_modules/.cache/**"
+  - "!node_modules/**/test/**"
+  - "!node_modules/**/tests/**"
+  - "!node_modules/**/docs/**"
+  - "!node_modules/**/example/**"
+  - "!node_modules/**/examples/**"
+extraResources:
+  - from: out
+    to: out
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  darkModeSupport: true
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  extendInfo:
+    LSMinimumSystemVersion: "12.0"
+    NSHumanReadableCopyright: "Copyright © 2026 Les Mail"
+dmg:
+  title: ${productName} ${version}
+  writeUpdateInfo: false
+  contents:
+    - x: 130
+      y: 200
+      type: file
+    - x: 410
+      y: 200
+      type: link
+      path: /Applications
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-win-${arch}-Setup.${ext}
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Les Mail
+  deleteAppDataOnUninstall: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  license: build/license.txt
+linux:
+  icon: build/icon.png
+  category: Office
+  target:
+    - AppImage
