@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld("lesMail", {
   generateTeamsUrl: (title) => ipcRenderer.invoke("mail:generateTeamsUrl", title),
   syncMacCalendars: () => ipcRenderer.invoke("calendar:syncMac"),
   getAppInfo: () => ipcRenderer.invoke("app:getInfo"),
+  getUpdateStatus: () => ipcRenderer.invoke("app:getUpdateStatus"),
+  setUpdateFeedUrl: (url) => ipcRenderer.invoke("app:setUpdateFeedUrl", url),
+  checkForUpdates: (opts) => ipcRenderer.invoke("app:checkForUpdates", opts || {}),
   uninstall: () => ipcRenderer.invoke("app:uninstall"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   onRequestUninstall: (cb) => {

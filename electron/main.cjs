@@ -31,6 +31,14 @@ try {
   /* optional */
 }
 
+let autoUpdateApi = null;
+let setupAutoUpdate = () => ({ enabled: false });
+try {
+  ({ setupAutoUpdate } = require("./mail/auto-update.cjs"));
+} catch {
+  /* optional */
+}
+
 const isDev = !app.isPackaged;
 const DEFAULT_WIDTH = 1180;
 const DEFAULT_HEIGHT = 800;
@@ -277,6 +285,7 @@ if (!gotLock) {
         startUrl = `http://127.0.0.1:${staticPort}/app/`;
       }
       createWindow(startUrl);
+      autoUpdateApi = setupAutoUpdate({ getMainWindow: () => mainWindow });
     } catch (err) {
       dialog.showErrorBox("Envision Mail failed to start", String(err));
       app.quit();

@@ -138,6 +138,23 @@ export interface LesMailDesktopApi {
       notes?: string;
     }>;
   }>;
+  getUpdateStatus: () => Promise<{
+    feedUrl: string;
+    lastCheckAt: string | null;
+    lastResult: string | null;
+    lastVersion: string | null;
+    nextCheckDueAt: string;
+    checkEveryDays: number;
+    autoDownload: boolean;
+  }>;
+  setUpdateFeedUrl: (url: string) => Promise<{ ok: boolean; feedUrl: string }>;
+  checkForUpdates: (opts?: { force?: boolean }) => Promise<{
+    ok: boolean;
+    skipped?: boolean;
+    error?: string;
+    updateInfo?: { version?: string } | null;
+    status?: unknown;
+  }>;
   getAppInfo: () => Promise<{ name: string; version: string; userData: string; platform: string; isPackaged: boolean }>;
   uninstall: () => Promise<{ ok: boolean; cancelled?: boolean }>;
   openExternal: (url: string) => Promise<{ ok: boolean }>;

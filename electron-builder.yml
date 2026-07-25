@@ -7,6 +7,10 @@ asarUnpack:
 directories:
   output: release
   buildResources: build
+# Generic feed for electron-updater (host latest-mac.yml / latest.yml + artifacts here)
+publish:
+  provider: generic
+  url: https://updates.envisiondms.com/envision-mail
 # Do NOT exclude node_modules/**/src — packages like encoding-japanese require it.
 files:
   - electron/**/*
@@ -48,7 +52,7 @@ mac:
     NSCalendarsFullAccessUsageDescription: Envision Mail syncs events from Calendar.app into the Calendar view.
 dmg:
   title: ${productName} ${version}
-  writeUpdateInfo: false
+  writeUpdateInfo: true
   contents:
     - x: 130
       y: 200

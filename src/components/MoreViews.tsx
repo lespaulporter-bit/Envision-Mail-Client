@@ -338,14 +338,25 @@ export function SettingsView() {
   const [tab, setTab] = useState<"accounts" | "general" | "mail" | "appearance" | "templates" | "about">(
     "accounts",
   );
-  const [appVersion, setAppVersion] = useState("2.5.0");
+  const [appVersion, setAppVersion] = useState("2.6.0");
+  const [updateStatus, setUpdateStatus] = useState<{
+    feedUrl: string;
+    lastCheckAt: string | null;
+    nextCheckDueAt: string;
+    lastResult: string | null;
+    checkEveryDays: number;
+  } | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
 
   useEffect(() => {
     const api = desktopApi();
     if (!api?.getAppInfo) return;
-    void api.getAppInfo().then((info) => {
+    void (async () => {
+      const info = await api.getAppInfo();
       if (info?.version) setAppVersion(info.version);
-    });
+      const st = await api.getUpdateStatus?.();
+      if (st) setUpdateStatus(st);
+    })();
   }, []);
 
   const tabs: Array<{ id: typeof tab; label: string }> = [
@@ -595,6 +606,54 @@ export function SettingsView() {
             New installs start empty — no sample contacts or demo email. Connect a real account under Accounts to sync
             mail.
           </div>
+
+          <div className="rounded-xl border border-line bg-soft/70 p-4 text-sm">
+            <h4 className="font-semibold text-ink">Automatic updates</h4>
+            <p className="mt-1 text-muted">
+              Envision Mail checks for a newer version every {updateStatus?.checkEveryDays ?? 60} days and downloads it
+              automatically when available.
+            </p>
+            <p className="mt-2 text-xs text-muted">
+              Last check:{" "}
+              {updateStatus?.lastCheckAt ? new Date(updateStatus.lastCheckAt).toLocaleString() : "Not yet"}
+              {updateStatus?.lastResult ? ` · ${updateStatus.lastResult}` : ""}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Next scheduled check:{" "}
+              {updateStatus?.nextCheckDueAt ? new Date(updateStatus.nextCheckDueAt).toLocaleString() : "Soon"}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="soft"
+                disabled={updateBusy}
+                onClick={() => {
+                  void (async () => {
+                    const api = desktopApi();
+                    if (!api?.checkForUpdates) {
+                      alert("Update checks are available in the desktop app.");
+                      return;
+                    }
+                    setUpdateBusy(true);
+                    try {
+                      const res = await api.checkForUpdates({ force: true });
+                      if (res.status) setUpdateStatus(res.status as typeof updateStatus);
+                      if (!res.ok) alert(res.error || "Update check failed");
+                      else if (res.updateInfo?.version) alert(`Update available: ${res.updateInfo.version} (downloading…)`);
+                      else alert("You're up to date.");
+                      const st = await api.getUpdateStatus();
+                      setUpdateStatus(st);
+                    } finally {
+                      setUpdateBusy(false);
+                    }
+                  })();
+                }}
+              >
+                {updateBusy ? "Checking…" : "Check for updates now"}
+              </Button>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <Button
               variant="soft"

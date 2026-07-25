@@ -6,6 +6,7 @@ const accounts = require("./accounts-store.cjs");
 const { testImap, fetchMail, moveMessages, deleteMessages, emptyFolder } = require("./imap.cjs");
 const { testSmtp, sendMail, sendCalendarInvites } = require("./smtp.cjs");
 const appState = require("./app-state.cjs");
+const autoUpdate = require("./auto-update.cjs");
 const { generateTeamsMeetingUrl } = require("./calendar-invite.cjs");
 const { discoverMailSettings } = require("./discover.cjs");
 const { syncMacCalendars } = require("./mac-calendar.cjs");
@@ -123,6 +124,40 @@ function registerMailIpc() {
       const message = err.message || String(err);
       accounts.touchAccount(id, { lastError: message });
       return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle("app:getUpdateStatus", async () => autoUpdate.getUpdateStatus());
+  ipcMain.handle("app:setUpdateFeedUrl", async (_e, url) => ({ ok: true, feedUrl: autoUpdate.setUpdateFeedUrl(url) }));
+  ipcMain.handle("app:checkForUpdates", async (_e, opts) => {
+    try {
+      const { autoUpdater } = require("electron-updater");
+      const force = Boolean(opts && opts.force);
+      if (!require("electron").app.isPackaged) {
+        return { ok: false, error: "Update checks run in the packaged app.", status: autoUpdate.getUpdateStatus() };
+      }
+      if (!force && !autoUpdate.dueForCheck(false)) {
+        return { ok: true, skipped: true, status: autoUpdate.getUpdateStatus() };
+      }
+      autoUpdater.autoDownload = true;
+      autoUpdater.setFeedURL({ provider: "generic", url: autoUpdate.getUpdateFeedUrl() });
+      const fs = require("fs");
+      const path = require("path");
+      const metaPath = path.join(require("electron").app.getPath("userData"), "update-check.json");
+      let meta = {};
+      try { meta = JSON.parse(fs.readFileSync(metaPath, "utf8")); } catch {}
+      meta.lastCheckAt = new Date().toISOString();
+      meta.lastResult = "checking";
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+      const result = await autoUpdater.checkForUpdates();
+      return {
+        ok: true,
+        skipped: false,
+        updateInfo: result && result.updateInfo ? { version: result.updateInfo.version } : null,
+        status: autoUpdate.getUpdateStatus(),
+      };
+    } catch (err) {
+      return { ok: false, error: err.message || String(err), status: autoUpdate.getUpdateStatus() };
     }
   });
 

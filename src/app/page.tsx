@@ -59,7 +59,7 @@ export default function HomePage() {
       <main>
         <section className="mx-auto grid max-w-6xl items-center gap-10 px-6 pb-20 pt-10 md:grid-cols-2 md:pt-16">
           <div className="animate-slide-up">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-teal">EnvisionMail Version 2.5</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-teal">EnvisionMail Version 2.6</p>
             <h1 className="font-display text-5xl leading-[1.05] tracking-tight md:text-6xl">
               Email you control — with a calendar that helps
             </h1>
