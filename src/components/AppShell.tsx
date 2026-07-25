@@ -94,7 +94,7 @@ export function AppShell() {
   const setInboxAccountId = useHeyStore((s) => s.setInboxAccountId);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("7.0.0");
+  const [appVersion, setAppVersion] = useState("10.0.0");
 
   useEffect(() => {
     if (!toast) return;
@@ -334,7 +334,7 @@ export function AppShell() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto pb-28">
         {view === "lesbox" && <LesBoxView />}
         {view === "feed" && <FeedView />}
         {view === "paper_trail" && <PaperTrailView />}
@@ -355,13 +355,19 @@ export function AppShell() {
         {view === "thread" && <ThreadView />}
       </main>
 
-      {(counts.reply_later > 0 || counts.set_aside > 0) && view !== "focus_reply" ? (
-        <div className="fixed bottom-4 right-4 z-40 flex gap-2">
+      {(counts.reply_later > 0 || counts.set_aside > 0) &&
+      view !== "focus_reply" &&
+      view !== "reply_later" &&
+      view !== "set_aside" ? (
+        <div
+          className="pointer-events-none fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3"
+          aria-label="Quick docks"
+        >
           {counts.reply_later > 0 ? (
             <button
               type="button"
               onClick={() => setView("reply_later")}
-              className="rounded-full bg-amber px-4 py-2 text-sm font-semibold text-white shadow-lg"
+              className="pointer-events-auto rounded-full bg-amber px-4 py-2.5 text-sm font-semibold text-white shadow-lg ring-2 ring-white/80"
             >
               Reply Later · {counts.reply_later}
             </button>
@@ -370,7 +376,7 @@ export function AppShell() {
             <button
               type="button"
               onClick={() => setView("set_aside")}
-              className="rounded-full bg-hey-blue px-4 py-2 text-sm font-semibold text-white shadow-lg"
+              className="pointer-events-auto rounded-full bg-hey-blue px-4 py-2.5 text-sm font-semibold text-white shadow-lg ring-2 ring-white/80"
             >
               Set Aside · {counts.set_aside}
             </button>
@@ -378,7 +384,21 @@ export function AppShell() {
         </div>
       ) : null}
 
-      {toast ? <Toast message={toast} onClose={() => setToast(null)} /> : null}
+      {toast ? (
+        <div
+          className={cn(
+            "fixed left-1/2 z-50 -translate-x-1/2",
+            (counts.reply_later > 0 || counts.set_aside > 0) &&
+              view !== "focus_reply" &&
+              view !== "reply_later" &&
+              view !== "set_aside"
+              ? "bottom-28"
+              : "bottom-6",
+          )}
+        >
+          <Toast message={toast} onClose={() => setToast(null)} />
+        </div>
+      ) : null}
     </div>
   );
 }

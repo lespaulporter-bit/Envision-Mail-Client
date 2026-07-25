@@ -123,7 +123,7 @@ export function Badge({ children, tone = "soft" }: { children: ReactNode; tone?:
 
 export function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-slide-up">
+    <div className="animate-slide-up">
       <div className="flex items-center gap-3 rounded-full bg-ink px-4 py-2.5 text-sm text-white shadow-lg">
         <span>{message}</span>
         <button type="button" className="opacity-70 hover:opacity-100" onClick={onClose}>
