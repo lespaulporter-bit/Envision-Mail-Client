@@ -1,6 +1,8 @@
 "use client";
 
 import { Avatar, Button, EmptyState, Input, SectionHeader, Textarea } from "@/components/ui";
+import { BrandLogo } from "@/components/BrandLogo";
+import { bodyToHtml } from "@/lib/html-body";
 import { AccountsPanel } from "@/components/AccountsPanel";
 import { SignaturesPanel } from "@/components/SignaturesPanel";
 import { EmailTemplatesPanel } from "@/components/EmailTemplatesPanel";
@@ -336,7 +338,7 @@ export function SettingsView() {
   const [tab, setTab] = useState<"accounts" | "general" | "mail" | "appearance" | "templates" | "about">(
     "accounts",
   );
-  const [appVersion, setAppVersion] = useState("11.7.0");
+  const [appVersion, setAppVersion] = useState("2.2.0");
 
   useEffect(() => {
     const api = desktopApi();
@@ -525,7 +527,7 @@ export function SettingsView() {
         <section className="space-y-5 rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
           <div>
             <h3 className="font-display text-xl text-ink">Appearance</h3>
-            <p className="mt-1 text-sm text-muted">Background atmosphere and LesBox cover art.</p>
+            <p className="mt-1 text-sm text-muted">Background atmosphere and MoneyBox $ cover art.</p>
           </div>
           <label className="block text-sm font-medium">
             Wallpaper theme
@@ -554,7 +556,7 @@ export function SettingsView() {
             />
           </label>
           <label className="block text-sm font-medium">
-            Default LesBox cover art
+            Default MoneyBox $ cover art
             <select
               className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2"
               value={settings.coverArt}
@@ -584,19 +586,10 @@ export function SettingsView() {
 
       {tab === "about" ? (
         <section className="space-y-5 rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div
-              className="flex h-14 w-14 items-center justify-center rounded-2xl text-2xl font-bold text-white shadow"
-              style={{ background: "var(--hey-gradient)" }}
-              aria-hidden
-            >
-              E
-            </div>
-            <div>
-              <h3 className="font-display text-2xl text-ink">Envision Mail</h3>
-              <p className="text-sm text-muted">Version {appVersion}</p>
-              <p className="mt-1 text-sm text-ink">Thank you for using Envision DMS.</p>
-            </div>
+          <div className="space-y-2">
+            <BrandLogo showVersion size="lg" href="" />
+            <p className="text-sm text-muted">EnvisionMail Version {appVersion}</p>
+            <p className="text-sm text-ink">Thank you for using Envision DMS.</p>
           </div>
           <div className="rounded-xl border border-line bg-soft/70 p-4 text-sm text-muted">
             New installs start empty — no sample contacts or demo email. Connect a real account under Accounts to sync
@@ -740,7 +733,7 @@ export function ComposeView() {
 
   const buildHtml = () => {
     const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
-    const body = `<p>${composeDraft.body.replace(/\n/g, "<br/>")}</p>`;
+    const body = bodyToHtml(composeDraft.body);
     if (!sig) return body;
     const img = sig.imageDataUrl
       ? `<div style="margin-top:8px"><img src="${sig.imageDataUrl}" alt="" style="max-height:72px"/></div>`

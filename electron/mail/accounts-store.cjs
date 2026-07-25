@@ -5,9 +5,29 @@ const { randomUUID } = require("crypto");
 
 function accountsPath() {
   const modern = path.join(app.getPath("userData"), "envision-mail-accounts.json");
-  const legacy = path.join(app.getPath("userData"), "envision-mail-accounts.json");
-  if (fs.existsSync(modern) || !fs.existsSync(legacy)) return modern;
-  return legacy;
+  const legacy = path.join(app.getPath("userData"), "les-mail-accounts.json");
+  const fromLesMail = path.join(app.getPath("appData"), "Les Mail", "les-mail-accounts.json");
+  if (fs.existsSync(modern)) {
+    try {
+      const d = JSON.parse(fs.readFileSync(modern, "utf8"));
+      if (Array.isArray(d.accounts) && d.accounts.length > 0) return modern;
+    } catch {
+      /* fall through and try legacy sources */
+    }
+  }
+  for (const src of [legacy, fromLesMail]) {
+    if (!fs.existsSync(src)) continue;
+    try {
+      const d = JSON.parse(fs.readFileSync(src, "utf8"));
+      if (!Array.isArray(d.accounts) || d.accounts.length === 0) continue;
+      fs.mkdirSync(path.dirname(modern), { recursive: true });
+      fs.copyFileSync(src, modern);
+      return modern;
+    } catch {
+      return src;
+    }
+  }
+  return modern;
 }
 
 function readRaw() {

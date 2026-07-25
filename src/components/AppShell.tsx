@@ -5,7 +5,7 @@ import {
   DockListView,
   FeedView,
   FocusReplyView,
-  LesBoxView,
+  MoneyBoxView,
   PaperTrailView,
   ScreenerView,
   SentView,
@@ -24,6 +24,7 @@ import {
   WorkflowsView,
 } from "@/components/MoreViews";
 import { ThreadView } from "@/components/ThreadView";
+import { BrandLogo } from "@/components/BrandLogo";
 import { Button, Toast } from "@/components/ui";
 import { WallpaperBackground } from "@/components/WallpaperBackground";
 import { syncActiveDesktopAccount } from "@/components/AccountsPanel";
@@ -64,7 +65,7 @@ const nav: {
   pastel?: string;
   pastelActive?: string;
 }[] = [
-  { id: "lesbox", label: "LesBox", icon: Inbox, countKey: "lesbox", pastel: "bg-[#d6e8ff]", pastelActive: "bg-[#b8d6ff]" },
+  { id: "lesbox", label: "MoneyBox $", icon: Inbox, countKey: "lesbox", pastel: "bg-[#d6e8ff]", pastelActive: "bg-[#b8d6ff]" },
   { id: "feed", label: "The Feed", icon: Newspaper, countKey: "feed", pastel: "bg-[#d8f5e8]", pastelActive: "bg-[#b8ebd4]" },
   { id: "paper_trail", label: "Paper Trail", icon: Receipt, countKey: "paper_trail", pastel: "bg-[#ffe4d6]", pastelActive: "bg-[#ffd0b8]" },
   { id: "screener", label: "Screener", icon: ShieldCheck, countKey: "screener", pastel: "bg-[#fff0c8]", pastelActive: "bg-[#ffe29a]" },
@@ -105,7 +106,7 @@ export function AppShell() {
   const switchAccount = useHeyStore((s) => s.switchAccount);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("11.7.0");
+  const [appVersion, setAppVersion] = useState("2.2.0");
 
   const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
   const scoped = inboxAccountId;
@@ -213,26 +214,7 @@ export function AppShell() {
       <WallpaperBackground />
       <aside className="sticky top-0 flex h-screen w-[240px] shrink-0 flex-col border-r border-line bg-white/70 backdrop-blur">
         <div className="border-b border-line px-4 py-4">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white shadow-sm"
-              style={{ background: "var(--hey-gradient)" }}
-              aria-hidden
-            >
-              E
-            </div>
-            <a
-              href="/"
-              className="font-display text-2xl tracking-tight"
-              style={{
-                backgroundImage: "var(--hey-gradient)",
-                WebkitBackgroundClip: "text",
-                color: "transparent",
-              }}
-            >
-              Envision Mail
-            </a>
-          </div>
+          <BrandLogo href="/" showVersion />
           {accounts.length > 0 ? (
             <label className="relative mt-3 block">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted">
@@ -309,8 +291,8 @@ export function AppShell() {
           {nav.map((item) => {
             const Icon = item.icon;
             const count = item.countKey ? counts[item.countKey as keyof typeof counts] : 0;
-            const isLesBox = item.id === "lesbox";
-            const active = isLesBox ? view === "lesbox" || view === "thread" : view === item.id;
+            const isMoneyBox = item.id === "lesbox";
+            const active = isMoneyBox ? view === "lesbox" || view === "thread" : view === item.id;
             return (
               <button
                 key={item.id}
@@ -328,7 +310,7 @@ export function AppShell() {
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0 opacity-80" />
-                <span className={cn("flex-1 truncate", isLesBox && "font-bold text-hey-blue")}>
+                <span className={cn("flex-1 truncate", isMoneyBox && "font-bold text-hey-blue")}>
                   {item.label}
                 </span>
                 {count ? (
@@ -341,13 +323,13 @@ export function AppShell() {
           })}
         </nav>
         <div className="border-t border-line p-3 text-[11px] leading-relaxed text-muted">
-          <div className="font-medium text-ink">{appVersion}</div>
+          <div className="font-medium text-ink">EnvisionMail {appVersion}</div>
           <div className="mt-1">Thank you for using Envision DMS.</div>
         </div>
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto pb-28">
-        {view === "lesbox" && <LesBoxView />}
+        {view === "lesbox" && <MoneyBoxView />}
         {view === "feed" && <FeedView />}
         {view === "paper_trail" && <PaperTrailView />}
         {view === "screener" && <ScreenerView />}

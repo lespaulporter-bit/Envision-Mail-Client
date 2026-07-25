@@ -193,7 +193,7 @@ export function CoverArt() {
           </div>
         ) : (
           <p className="max-w-lg text-white/85">
-            Previously seen emails are under this cover. New for you stays on top — tidy LesBox energy.
+            Previously seen emails are under this cover. New for you stays on top — tidy MoneyBox $ energy.
           </p>
         )}
       </div>

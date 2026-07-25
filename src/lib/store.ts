@@ -49,7 +49,7 @@ interface UiState {
   searchQuery: string;
   powerThrough: boolean;
   multiOpenIds: string[];
-  /** null = all accounts in LesBox; otherwise filter by desktop account id */
+  /** null = all accounts in MoneyBox $; otherwise filter by desktop account id */
   inboxAccountId: string | null;
   composeDraft: {
     to: string;
@@ -223,6 +223,21 @@ function backfillImapAccountIds(threads: Thread[], messages: Record<string, Mess
   });
 }
 
+
+function migrateLegacyPersistKeys() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  const modern = "envision-mail-v1";
+  if (localStorage.getItem(modern)) return;
+  for (const key of ["les-mail-v4", "les-mail-v3", "les-mail-v2", "les-mail-v1"]) {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      localStorage.setItem(modern, raw);
+      break;
+    }
+  }
+}
+migrateLegacyPersistKeys();
+
 export const useHeyStore = create<HeyStore>()(
   persist(
     (set, get) => ({
@@ -374,7 +389,7 @@ export const useHeyStore = create<HeyStore>()(
           threads: get().threads.map((t) =>
             ids.has(t.id) ? bumpThread({ ...t, box: "lesbox" as Box, seen: false }) : t,
           ),
-          toast: "Restored to LesBox",
+          toast: "Restored to MoneyBox $",
         });
       },
 

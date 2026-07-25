@@ -9,7 +9,7 @@ import type { Message, Thread } from "@/lib/types";
 import { previewText } from "@/lib/utils";
 import { useMemo, useState } from "react";
 
-export function LesBoxView() {
+export function MoneyBoxView() {
   const threads = useHeyStore((s) => s.threads);
   const settings = useHeyStore((s) => s.settings);
   const powerThrough = useHeyStore((s) => s.powerThrough);
@@ -47,7 +47,7 @@ export function LesBoxView() {
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
-        title="LesBox"
+        title="MoneyBox $"
         subtitle={
           inboxAccountId
             ? `Only mail for ${inboxLabel}. Switch accounts in the sidebar to see another inbox.`
@@ -261,7 +261,7 @@ function ScreenerCard({
           </Button>
         ) : null}
         <Button onClick={onAllow}>
-          Allow → {boxChoice === "lesbox" ? "LesBox" : boxChoice === "feed" ? "Feed" : "Paper Trail"}
+          Allow → {boxChoice === "lesbox" ? "MoneyBox $" : boxChoice === "feed" ? "Feed" : "Paper Trail"}
         </Button>
         <Button variant="danger" onClick={onBlock}>
           Block
@@ -308,7 +308,7 @@ export function ScreenerView() {
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="The Screener"
-        subtitle="New synced senders wait here. Allow them into LesBox, The Feed, or Paper Trail — or block."
+        subtitle="New synced senders wait here. Allow them into MoneyBox $, The Feed, or Paper Trail — or block."
         actions={
           <>
             <label className="flex items-center gap-2 text-sm text-muted">
@@ -318,14 +318,14 @@ export function ScreenerView() {
                 value={boxChoice}
                 onChange={(e) => setBoxChoice(e.target.value as typeof boxChoice)}
               >
-                <option value="lesbox">LesBox</option>
+                <option value="lesbox">MoneyBox $</option>
                 <option value="feed">The Feed</option>
                 <option value="paper_trail">Paper Trail</option>
               </select>
             </label>
             {list.length > 0 ? (
               <Button size="sm" variant="soft" onClick={allowAllVisible}>
-                Allow all visible to LesBox
+                Allow all visible to MoneyBox $
               </Button>
             ) : null}
           </>
@@ -335,7 +335,7 @@ export function ScreenerView() {
       {list.length === 0 ? (
         <EmptyState
           title="Screener is clear"
-          body="Sync mail from Settings or the sidebar. Unknown senders land here first — Allow moves them to LesBox (or Feed / Paper Trail)."
+          body="Sync mail from Settings or the sidebar. Unknown senders land here first — Allow moves them to MoneyBox $ (or Feed / Paper Trail)."
         />
       ) : (
         <div className="space-y-4">
@@ -446,7 +446,7 @@ export function SpamView() {
                   variant="soft"
                   onClick={() => screenContact(t.contactEmail, "allow", "lesbox")}
                 >
-                  Not spam → LesBox
+                  Not spam → MoneyBox $
                 </Button>
                 <Button
                   size="sm"
@@ -519,7 +519,7 @@ export function TrashView() {
         }
       />
       {list.length === 0 ? (
-        <EmptyState title="Trash is empty" body="Deleted emails from LesBox and other views land here first." />
+        <EmptyState title="Trash is empty" body="Deleted emails from MoneyBox $ and other views land here first." />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
           {list.map((t) => (
@@ -639,7 +639,7 @@ export function FocusReplyView() {
     <div className="mx-auto max-w-2xl px-4 py-6 md:px-8">
       <SectionHeader
         title="Focus & Reply"
-        subtitle={`${index + 1} of ${queue.length} — LesBox hidden so you can knock these out.`}
+        subtitle={`${index + 1} of ${queue.length} — MoneyBox $ hidden so you can knock these out.`}
       />
       <article className="rounded-2xl border border-line bg-white p-5">
         <h2 className="font-display text-2xl">{current.customSubject || current.subject}</h2>

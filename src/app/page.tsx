@@ -2,8 +2,8 @@ import Link from "next/link";
 
 const features = [
   { title: "Real IMAP / SMTP", body: "Connect Gmail, Outlook, iCloud, Yahoo, Fastmail, or custom servers. Test, sync, and send for real." },
-  { title: "The Screener", body: "Screen first-time senders. Yes → LesBox/Feed/Paper Trail. No → blocked." },
-  { title: "LesBox", body: "New For You, Cover Art, Power Through New, bundling, Bubble Up." },
+  { title: "The Screener", body: "Screen first-time senders. Yes → MoneyBox $/Feed/Paper Trail. No → blocked." },
+  { title: "MoneyBox $", body: "New For You, Cover Art, Power Through New, bundling, Bubble Up." },
   { title: "Reply Later + Focus & Reply", body: "Park replies, then knock them out without distractions." },
   { title: "Calendar", body: "Day/week/month, habits, journal, day labels, countdowns, Sometime This Week." },
   { title: "Easy uninstall", body: "Envision Mail menu → Uninstall, or run Uninstall Envision Mail.command — removes the app and local data." },
@@ -37,7 +37,7 @@ export default function LandingPage() {
               Email you control — with a calendar that helps
             </h1>
             <p className="mt-5 max-w-md text-lg text-muted">
-              Envision Mail brings LesBox-style focus to your real IMAP/SMTP accounts. Screen who can reach you. Separate important mail from noise. Sync and send for real.
+              Envision Mail brings MoneyBox-style focus to your real IMAP/SMTP accounts. Screen who can reach you. Separate important mail from noise. Sync and send for real.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/app/" className="rounded-xl bg-salmon px-5 py-3 font-semibold text-white shadow-md transition hover:brightness-105">
@@ -51,7 +51,7 @@ export default function LandingPage() {
           <div className="animate-cover-rise relative overflow-hidden rounded-[28px] bg-[linear-gradient(145deg,#0074e4,#5522fa)] p-1 shadow-2xl">
             <div className="rounded-[24px] bg-white/95 p-5">
               <div className="mb-4 flex items-center justify-between">
-                <span className="font-display text-2xl text-blurple">LesBox</span>
+                <span className="font-display text-2xl text-blurple">MoneyBox $</span>
                 <span className="rounded-full bg-soft px-2 py-1 text-xs font-semibold text-muted">Live IMAP</span>
               </div>
               {[
@@ -76,7 +76,7 @@ export default function LandingPage() {
             <h2 className="font-display text-4xl">How Envision Mail works</h2>
             <div className="mt-8 grid gap-6 md:grid-cols-3">
               {[
-                ["LesBox", "Important email from people and services you want to hear from."],
+                ["MoneyBox $", "Important email from people and services you want to hear from."],
                 ["The Feed", "Newsletters already open — scroll when you feel like it."],
                 ["Paper Trail", "Receipts and confirmations waiting when you need them."],
               ].map(([title, body]) => (

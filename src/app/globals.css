@@ -8,10 +8,13 @@
   --hey-blurple: #5522fa;
   --hey-blue: #0074e4;
   --hey-salmon: #ff5a36;
-  --hey-mint: #00a86b;
+  --hey-mint: #0d9488;
+  --hey-teal: #0f766e;
+  --hey-teal-bright: #14b8a6;
   --hey-amber: #f5a623;
   --hey-paper: #f5f0fa;
-  --hey-gradient: linear-gradient(135deg, #0074e4 0%, #5522fa 100%);
+  --hey-gradient: linear-gradient(135deg, #0d9488 0%, #0f766e 55%, #115e59 100%);
+  --envision-logo: linear-gradient(120deg, #2dd4bf 0%, #0d9488 45%, #0f766e 100%);
   --background: var(--hey-paper);
   --foreground: var(--hey-ink);
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
@@ -29,6 +32,8 @@
   --color-hey-blue: var(--hey-blue);
   --color-salmon: var(--hey-salmon);
   --color-mint: var(--hey-mint);
+  --color-teal: var(--hey-teal);
+  --color-teal-bright: var(--hey-teal-bright);
   --color-amber: var(--hey-amber);
   --font-sans: var(--font-sans);
   --font-display: var(--font-display);
@@ -126,4 +131,65 @@ a {
 .prose-mail ul {
   margin: 0 0 0.85em;
   padding-left: 1.2em;
+}
+
+
+@keyframes envision-logo-sheen {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.envision-mail-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-decoration: none;
+}
+
+.envision-mail-logo__mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: var(--envision-logo);
+  background-size: 200% 200%;
+  animation: envision-logo-sheen 8s ease-in-out infinite;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 6px 14px rgba(13, 148, 136, 0.28);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.envision-mail-logo__wordmark {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  background-image: var(--envision-logo);
+  background-size: 200% 200%;
+  animation: envision-logo-sheen 8s ease-in-out infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.envision-mail-logo__sub {
+  display: block;
+  margin-top: 0.1rem;
+  font-family: var(--font-sans);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f766e;
+  opacity: 0.75;
+}
+
+
+[contenteditable][data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  color: #8a969c;
+  pointer-events: none;
 }

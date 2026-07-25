@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, Input, SectionHeader, Textarea } from "@/components/ui";
+import { HtmlField } from "@/components/HtmlField";
+import { Button, Input } from "@/components/ui";
 import { useHeyStore } from "@/lib/store";
 import { uid } from "@/lib/utils";
 import type { SignatureTemplate } from "@/lib/types";
@@ -23,7 +24,9 @@ export function SignaturesPanel() {
     <div className="space-y-3">
       <div>
         <h3 className="font-display text-xl">Signature templates</h3>
-        <p className="text-sm text-muted">Unlimited templates. Add HTML and optional images (embedded).</p>
+        <p className="text-sm text-muted">
+          Paste your existing HTML signature (Outlook, Gmail, Word). Unlimited templates + optional image.
+        </p>
       </div>
       <div className="space-y-2">
         {signatures.map((s) => (
@@ -61,6 +64,7 @@ export function SignaturesPanel() {
             ...draft,
             id: draft.id || uid("sig"),
             name: draft.name.trim(),
+            html: draft.html.trim(),
           });
           setDraft({ id: "", name: "", html: "", imageDataUrl: undefined, isDefault: false });
         }}
@@ -70,11 +74,11 @@ export function SignaturesPanel() {
           value={draft.name}
           onChange={(e) => setDraft({ ...draft, name: e.target.value })}
         />
-        <Textarea
-          rows={4}
-          placeholder="HTML signature — e.g. Best,<br/><strong>Your Name</strong>"
+        <HtmlField
           value={draft.html}
-          onChange={(e) => setDraft({ ...draft, html: e.target.value })}
+          onChange={(html) => setDraft({ ...draft, html })}
+          placeholder="Paste your current signature here…"
+          minHeight={160}
         />
         <label className="block text-sm">
           Optional image

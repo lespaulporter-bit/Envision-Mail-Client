@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, Input, Textarea } from "@/components/ui";
+import { HtmlField } from "@/components/HtmlField";
+import { Button, Input } from "@/components/ui";
 import { useHeyStore } from "@/lib/store";
 import type { EmailTemplate } from "@/lib/types";
 import { uid } from "@/lib/utils";
@@ -31,7 +32,7 @@ export function EmailTemplatesPanel() {
             <div className="min-w-0 flex-1">
               <div className="font-medium">{t.name}</div>
               {t.subject ? <div className="text-xs text-muted">Subject: {t.subject}</div> : null}
-              <div className="mt-1 line-clamp-2 text-xs text-muted whitespace-pre-wrap">{t.body}</div>
+              <div className="prose-mail mt-1 line-clamp-3 text-xs text-muted" dangerouslySetInnerHTML={{ __html: t.body }} />
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" onClick={() => setDraft(t)}>
@@ -70,12 +71,11 @@ export function EmailTemplatesPanel() {
           value={draft.subject || ""}
           onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
         />
-        <Textarea
-          rows={5}
-          placeholder="Email body…"
+        <HtmlField
           value={draft.body}
-          onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-          required
+          onChange={(body) => setDraft({ ...draft, body })}
+          placeholder="Paste or type email body (HTML supported)…"
+          minHeight={140}
         />
         <div className="flex gap-2">
           <Button type="submit">{draft.id ? "Save template" : "Add template"}</Button>

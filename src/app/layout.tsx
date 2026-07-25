@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Envision Mail — Email + Calendar",
   description:
-    "Envision Mail: LesBox-style email and calendar with real IMAP/SMTP accounts, Screener, Feed, Paper Trail, and more.",
+    "Envision Mail: MoneyBox-style email and calendar with real IMAP/SMTP accounts, Screener, Feed, Paper Trail, and more.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

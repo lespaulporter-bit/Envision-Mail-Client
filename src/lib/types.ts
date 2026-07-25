@@ -267,7 +267,7 @@ export function normalizeMailBox(box: string): MailBox {
 
 export function boxLabel(box: Box | string): string {
   const b = normalizeBox(box);
-  if (b === "lesbox") return "LesBox";
+  if (b === "lesbox") return "MoneyBox $";
   if (b === "paper_trail") return "Paper Trail";
   if (b === "feed") return "The Feed";
   if (b === "screener") return "Screener";

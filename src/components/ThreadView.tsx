@@ -11,6 +11,7 @@ import {
   restoreThreadFromTrash,
 } from "@/lib/mail-delete";
 import { useEffect, useMemo, useState } from "react";
+import { bodyToHtml } from "@/lib/html-body";
 
 export function ThreadView() {
   const threadId = useHeyStore((s) => s.selectedThreadId);
@@ -87,7 +88,7 @@ export function ThreadView() {
       <div className="p-8 text-muted">
         Select a thread.{" "}
         <button type="button" className="text-blurple underline" onClick={() => setView("lesbox")}>
-          Back to LesBox
+          Back to MoneyBox $
         </button>
       </div>
     );
@@ -179,7 +180,7 @@ export function ThreadView() {
           Create event
         </Button>
         <Button size="sm" variant="soft" onClick={() => moveThread(thread.id, "lesbox")}>
-          → LesBox
+          → MoneyBox $
         </Button>
         <Button size="sm" variant="soft" onClick={() => moveThread(thread.id, "feed")}>
           → Feed
@@ -469,7 +470,7 @@ export function ThreadView() {
               try {
                 const api = desktopApi();
                 const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
-                const bodyHtml = `<p>${reply.replace(/\n/g, "<br/>")}</p>${
+                const bodyHtml = `${bodyToHtml(reply)}${
                   sig
                     ? `<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${
                         sig.imageDataUrl

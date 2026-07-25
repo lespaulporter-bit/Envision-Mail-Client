@@ -78,16 +78,15 @@ export function EmailTemplatePickers({
             if (!id) return;
             const sig = signatures.find((x) => x.id === id);
             if (!sig) return;
-            const plain = sig.html
-              .replace(/<br\s*\/?>/gi, "\n")
-              .replace(/<\/p>/gi, "\n")
-              .replace(/<[^>]+>/g, "")
-              .replace(/\n{3,}/g, "\n\n")
-              .trim();
-            onInsertBody(plain, "append");
+            const block = `<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${
+              sig.imageDataUrl
+                ? `<div style="margin-top:8px"><img src="${sig.imageDataUrl}" alt="" style="max-height:72px"/></div>`
+                : ""
+            }</div>`;
+            onInsertBody(block, "append");
           }}
         >
-          <option value="">Insert signature text…</option>
+          <option value="">Insert signature (HTML)…</option>
           {signatures.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}

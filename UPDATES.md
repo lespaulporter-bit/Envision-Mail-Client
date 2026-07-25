@@ -1,10 +1,15 @@
 # Envision Mail updates
 
-## 11.7.0
-- Sidebar footer: version + “Thank you for using Envision DMS.”
-- New installs start empty (no demo contacts/email). Persist key `envision-mail-v1`.
-- Live Countdown timers (tick every second on calendar cover art).
-- Settings redesigned with Accounts / General / Mail / Appearance / Templates / About tabs.
+## 2.2.0
+- LesBox renamed to **MoneyBox $** everywhere in the UI.
+- One-time migration from Les Mail: imports saved IMAP accounts (and encrypted app passwords when the OS allows) plus local mail cache when safe.
+- HTML signature paste (Visual + HTML) from 2.1.
+- Simple uninstall: Envision Mail menu → Uninstall, or `scripts/Uninstall-Envision-Mail.command`.
 
-## 12.1.0
-- Account isolation (superseded numbering; ship continues as 11.7 for distribution).
+## 2.1.0
+- Signature editor accepts pasted HTML (Outlook / Gmail / Word) with Visual + HTML source modes and live preview.
+- Signature insert keeps HTML instead of stripping to plain text.
+
+## 2.0.0
+- Rebrand to Envision Mail with teal wordmark.
+- Empty installs; Settings tabs; Envision DMS footer thanks.

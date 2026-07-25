@@ -8,7 +8,7 @@ Authenticated `app.hey.com` is not publicly crawlable; this clone implements the
 |---|---|
 | The Screener (Yes/No + box routing) | Done |
 | Spam Corps mark-as-spam | Done |
-| LesBox + New For You / Previously Seen | Done |
+| MoneyBox $ + New For You / Previously Seen | Done |
 | The Feed (open scroll) | Done |
 | Paper Trail | Done |
 | Reply Later | Done |

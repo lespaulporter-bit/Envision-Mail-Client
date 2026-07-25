@@ -14,7 +14,7 @@ try {
   app.whenReady().then(() => {
     dialog.showErrorBox(
       "Envision Mail failed to start",
-      `A required mail module is missing from the app package.\n\n${err.message}\n\nReinstall Envision Mail 3.0+ from the release folder.`,
+      `A required mail module is missing from the app package.\n\n${err.message}\n\nReinstall Envision Mail 2.2+ from the release folder.`,
     );
     app.quit();
   });
@@ -22,6 +22,14 @@ try {
 
 // Product identity
 app.setName("Envision Mail");
+
+// Import Les Mail accounts + local data before windows open (keeps app passwords when possible)
+let migrateFromLesMail = () => ({ skipped: true });
+try {
+  ({ migrateFromLesMail } = require("./mail/migrate-from-les-mail.cjs"));
+} catch {
+  /* optional */
+}
 
 const isDev = !app.isPackaged;
 const DEFAULT_WIDTH = 1180;
@@ -162,7 +170,7 @@ function buildMenu() {
       label: "File",
       submenu: [
         {
-          label: "Open LesBox",
+          label: "Open MoneyBox $",
           accelerator: "CmdOrCtrl+1",
           click: () => mainWindow?.loadURL(`http://127.0.0.1:${staticPort}/app/`),
         },
@@ -236,6 +244,14 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
+    try {
+      const mig = migrateFromLesMail();
+      if (mig && (mig.accounts || mig.localStorage)) {
+        console.log("Migrated from Les Mail:", mig);
+      }
+    } catch (e) {
+      console.warn("Les Mail migration:", e);
+    }
     if (!registerMailIpc) return;
     registerMailIpc();
     buildMenu();
