@@ -49,8 +49,12 @@ function registerMailIpc() {
         error: "IMAP and SMTP hosts are required. Click Auto-detect or choose Stackmail / your provider.",
       };
     }
-    const saved = accounts.upsertAccount(input);
-    return { ok: true, account: saved };
+    try {
+      const saved = accounts.upsertAccount(input);
+      return { ok: true, account: saved };
+    } catch (err) {
+      return { ok: false, error: err.message || String(err), code: err.code };
+    }
   });
 
   ipcMain.handle("mail:removeAccount", async (_e, id) => {

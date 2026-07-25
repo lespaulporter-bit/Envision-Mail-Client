@@ -45,6 +45,51 @@ function writeRaw(data) {
   fs.writeFileSync(accountsPath(), JSON.stringify(data, null, 2), "utf8");
 }
 
+function normalizeEmail(email) {
+  return String(email || "")
+    .trim()
+    .toLowerCase();
+}
+
+function findAccountByEmail(accountsList, email, exceptId) {
+  const key = normalizeEmail(email);
+  if (!key) return null;
+  return accountsList.find((a) => normalizeEmail(a.email) === key && a.id !== exceptId) || null;
+}
+
+/** Keep one account per email address (prefer decryptable password, then first seen). */
+function dedupeAccountsByEmail() {
+  const data = readRaw();
+  const unique = [];
+  const bestByEmail = new Map();
+  for (const account of data.accounts) {
+    const key = normalizeEmail(account.email);
+    if (!key) {
+      unique.push(account);
+      continue;
+    }
+    const prev = bestByEmail.get(key);
+    if (!prev) {
+      bestByEmail.set(key, account);
+      unique.push(account);
+      continue;
+    }
+    const prevPass = decryptSecret(prev.passwordEnc);
+    const nextPass = decryptSecret(account.passwordEnc);
+    if (!prevPass && nextPass) {
+      const idx = unique.indexOf(prev);
+      if (idx >= 0) unique[idx] = account;
+      bestByEmail.set(key, account);
+    }
+  }
+  const removed = data.accounts.length - unique.length;
+  if (removed > 0) {
+    data.accounts = unique;
+    writeRaw(data);
+  }
+  return { removed, kept: unique.length };
+}
+
 function encryptSecret(plain) {
   if (!plain) return null;
   if (safeStorage.isEncryptionAvailable()) {
@@ -126,6 +171,7 @@ function publicAccount(account) {
 
 function listAccounts() {
   clearUndecryptablePasswords();
+  dedupeAccountsByEmail();
   return readRaw().accounts.map(publicAccount);
 }
 
@@ -146,7 +192,22 @@ function getAccountSecret(id) {
 function upsertAccount(input) {
   const data = readRaw();
   const now = new Date().toISOString();
-  let account = data.accounts.find((a) => a.id === input.id);
+  const emailNorm = normalizeEmail(input.email);
+  if (!emailNorm.includes("@")) {
+    const err = new Error("Email address is required.");
+    err.code = "EEMAIL";
+    throw err;
+  }
+
+  let account = input.id ? data.accounts.find((a) => a.id === input.id) : null;
+  const duplicate = findAccountByEmail(data.accounts, emailNorm, account?.id || null);
+  if (duplicate) {
+    const err = new Error(
+      `An account for ${emailNorm} is already set up. You can only have one of each email address.`,
+    );
+    err.code = "EDUPLICATE";
+    throw err;
+  }
 
   if (!account) {
     account = {
@@ -157,7 +218,7 @@ function upsertAccount(input) {
   }
 
   account.name = input.name || account.name || input.email;
-  account.email = String(input.email || account.email || "").trim();
+  account.email = emailNorm;
   account.provider = input.provider || account.provider || "custom";
   account.imapHost = input.imapHost || account.imapHost;
   account.imapPort = Number(input.imapPort ?? account.imapPort ?? 993);
@@ -228,4 +289,7 @@ module.exports = {
   touchAccount,
   accountsPath,
   clearUndecryptablePasswords,
+  dedupeAccountsByEmail,
+  normalizeEmail,
+  findAccountByEmail,
 };

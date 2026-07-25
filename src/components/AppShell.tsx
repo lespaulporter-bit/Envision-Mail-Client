@@ -222,7 +222,7 @@ export function AppShell() {
               </span>
               <div className="relative">
                 <select
-                  className="w-full appearance-none rounded-lg border border-line bg-white py-2 pl-3 pr-8 text-xs font-medium text-ink outline-none focus:border-blurple"
+                  className="relative z-20 w-full cursor-pointer appearance-none rounded-lg border border-line bg-white py-2 pl-3 pr-8 text-xs font-medium text-ink outline-none focus:border-blurple"
                   value={inboxAccountId || accounts[0]?.id || ""}
                   onChange={(e) => {
                     const a = accounts.find((x) => x.id === e.target.value);
@@ -355,7 +355,8 @@ export function AppShell() {
       {(counts.reply_later > 0 || counts.set_aside > 0) &&
       view !== "focus_reply" &&
       view !== "reply_later" &&
-      view !== "set_aside" ? (
+      view !== "set_aside" &&
+      view !== "compose" ? (
         <div
           className="pointer-events-none fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3"
           aria-label="Quick docks"

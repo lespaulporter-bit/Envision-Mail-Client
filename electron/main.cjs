@@ -273,11 +273,13 @@ if (!gotLock) {
       console.warn("Les Mail migration:", e);
     }
     try {
-      const { clearUndecryptablePasswords } = require("./mail/accounts-store.cjs");
-      const n = clearUndecryptablePasswords();
+      const store = require("./mail/accounts-store.cjs");
+      const n = store.clearUndecryptablePasswords();
       if (n) console.log(`Cleared ${n} undecryptable app password(s) — user must re-enter`);
+      const dedupe = store.dedupeAccountsByEmail();
+      if (dedupe.removed) console.log(`Removed ${dedupe.removed} duplicate email account(s)`);
     } catch (e) {
-      console.warn("Password cleanup:", e);
+      console.warn("Account cleanup:", e);
     }
     if (!registerMailIpc) return;
     registerMailIpc();

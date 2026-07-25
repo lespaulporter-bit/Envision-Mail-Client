@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.2
+- Compose: sticky **Send via SMTP** bar; floating docks no longer cover send/dropdowns.
+- One account per email address (reject duplicates; auto-dedupe).
+- Controlled template/snippet/signature dropdowns so they open reliably in Electron.
+
 ## 2.6.1
 - Fix SMTP send crash when Les Mail app passwords cannot be decrypted under Envision Mail’s keychain (`safeStorage.decryptString`).
 - Clear undecryptable secrets and prompt to paste a new app password — mail data is never wiped.

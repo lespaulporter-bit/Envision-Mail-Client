@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMailStore } from "@/lib/store";
 
 type Props = {
@@ -19,17 +20,20 @@ export function EmailTemplatePickers({
   const templates = useMailStore((s) => s.emailTemplates || []);
   const snippets = useMailStore((s) => s.snippets || []);
   const signatures = useMailStore((s) => s.signatures || []);
+  const [templateId, setTemplateId] = useState("");
+  const [snippetId, setSnippetId] = useState("");
+  const [sigPickId, setSigPickId] = useState("");
 
   return (
-    <div className={`grid gap-2 sm:grid-cols-3 ${className}`}>
+    <div className={`relative z-10 grid gap-2 sm:grid-cols-3 ${className}`}>
       <label className="block text-xs font-medium text-muted">
         Email template
         <select
-          className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink"
-          defaultValue=""
+          className="mt-1 w-full cursor-pointer rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink"
+          value={templateId}
           onChange={(e) => {
             const id = e.target.value;
-            e.target.value = "";
+            setTemplateId("");
             if (!id) return;
             const t = templates.find((x) => x.id === id);
             if (!t) return;
@@ -48,11 +52,11 @@ export function EmailTemplatePickers({
       <label className="block text-xs font-medium text-muted">
         Snippet
         <select
-          className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink"
-          defaultValue=""
+          className="mt-1 w-full cursor-pointer rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink"
+          value={snippetId}
           onChange={(e) => {
             const id = e.target.value;
-            e.target.value = "";
+            setSnippetId("");
             if (!id) return;
             const s = snippets.find((x) => x.id === id);
             if (!s) return;
@@ -70,11 +74,11 @@ export function EmailTemplatePickers({
       <label className="block text-xs font-medium text-muted">
         Signature (append)
         <select
-          className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink"
-          defaultValue=""
+          className="mt-1 w-full cursor-pointer rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink"
+          value={sigPickId}
           onChange={(e) => {
             const id = e.target.value;
-            e.target.value = "";
+            setSigPickId("");
             if (!id) return;
             const sig = signatures.find((x) => x.id === id);
             if (!sig) return;

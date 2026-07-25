@@ -802,32 +802,114 @@ export function ComposeView() {
     return `${body}<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${img}</div>`;
   };
 
+  const activeAccount =
+    accounts.find((a) => a.id === (accountId || inboxAccountId)) || accounts[0] || null;
+
+  const doSend = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const api = desktopApi();
+      const toList = parseAddrs(composeDraft.to);
+      const ccList = parseAddrs(composeDraft.cc || "");
+      const bccList = parseAddrs(composeDraft.bcc || "");
+      if (!toList.length) {
+        setToast("Add at least one To address");
+        return;
+      }
+      if (!String(composeDraft.subject || "").trim()) {
+        setToast("Add a subject");
+        return;
+      }
+      const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
+      const bodyText = String(composeDraft.body || "").trim();
+      if (!bodyText && !sig?.html) {
+        setToast("Write a message or choose a signature");
+        return;
+      }
+      const html = buildHtml();
+      const toJoined = toList.join(", ");
+      const ccJoined = ccList.length ? ccList.join(", ") : undefined;
+      const bccJoined = bccList.length ? bccList.join(", ") : undefined;
+      const sendAccountId = accountId || inboxAccountId || accounts[0]?.id || "";
+      if (!api) {
+        setToast("Open the Envision Mail desktop app to send via SMTP");
+        return;
+      }
+      if (!sendAccountId) {
+        setToast("Add/select an account in Settings before sending");
+        return;
+      }
+      const result = await api.sendMail({
+        accountId: sendAccountId,
+        to: toJoined,
+        cc: ccJoined,
+        bcc: bccJoined,
+        subject: composeDraft.subject,
+        text: bodyText || "(see HTML signature)",
+        html,
+        requestReadReceipt: requestReceipt,
+      });
+      if (!result.ok) {
+        const err = result.error || "Send failed";
+        const authHint =
+          /auth|password|credentials|login|535|534|decrypt|safeStorage|re-enter/i.test(err)
+            ? " — Settings → Accounts → paste a new app password → Save"
+            : "";
+        setToast(err + authHint);
+        return;
+      }
+      setToast(
+        requestReceipt
+          ? "Sent via SMTP · read receipt requested — check Sent for ✓ when opened"
+          : bccList.length
+            ? `Sent via SMTP · ${bccList.length} Bcc`
+            : "Sent via SMTP",
+      );
+      sendNewEmail(toList[0], composeDraft.subject, bodyText || sig?.html || "", {
+        requestReadReceipt: requestReceipt,
+        smtpMessageId: result.messageId,
+        cc: ccList,
+        bcc: bccList,
+        accountId: sendAccountId,
+        accountEmail: accounts.find((a) => a.id === sendAccountId)?.email,
+      });
+      setCompose({ to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null });
+      setView("sent");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Send failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 md:px-8">
+    <div className="mx-auto max-w-2xl px-4 py-6 pb-36 md:px-8">
       <SectionHeader title="Compose" subtitle="SMTP send with To, Cc, Bcc, signatures, and optional read receipts." />
-      <div className="space-y-3 rounded-2xl border border-line bg-white/90 p-5">
-        {accounts.length > 0 ? (
-          <label className="block text-sm">
-            Send from (active account)
-            <select
-              className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2"
-              value={accountId}
-              disabled
-              title="Switch accounts in the sidebar to write from another address"
-            >
-              {accounts
-                .filter((a) => a.id === accountId)
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name || a.email} ({a.email})
-                  </option>
-                ))}
-            </select>
-            <span className="mt-1 block text-xs text-muted">
-              To send as another address, switch the active account in the sidebar first.
-            </span>
-          </label>
-        ) : null}
+      <div className="sticky top-0 z-30 mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white/95 p-3 shadow-sm backdrop-blur">
+        <Button disabled={sending} onClick={() => void doSend()}>
+          {sending ? "Sending…" : "Send via SMTP"}
+        </Button>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={requestReceipt} onChange={(e) => setRequestReceipt(e.target.checked)} />
+          Request read receipt
+        </label>
+      </div>
+      <div className="relative z-10 space-y-3 rounded-2xl border border-line bg-white/90 p-5">
+        {activeAccount ? (
+          <div className="rounded-lg border border-line bg-soft/60 px-3 py-2 text-sm">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">Send from</div>
+            <div className="font-medium text-ink">
+              {activeAccount.name || activeAccount.email}{" "}
+              <span className="text-muted">({activeAccount.email})</span>
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              Switch the active account in the sidebar to write from another address.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-amber-800">Add an account in Settings before sending.</p>
+        )}
         <div className="flex flex-wrap items-start gap-2">
           <Input
             className="min-w-0 flex-1"
@@ -877,7 +959,7 @@ export function ComposeView() {
           <label className="block text-sm">
             Signature for send
             <select
-              className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2"
+              className="mt-1 w-full cursor-pointer rounded-lg border border-line bg-white px-3 py-2"
               value={signatureId || ""}
               onChange={(e) => setSignatureId(e.target.value)}
             >
@@ -890,93 +972,8 @@ export function ComposeView() {
             </select>
           </label>
         ) : null}
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={requestReceipt} onChange={(e) => setRequestReceipt(e.target.checked)} />
-          Request read receipt
-        </label>
         <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={sending}
-            onClick={async () => {
-              if (sending) return;
-              setSending(true);
-              try {
-                const api = desktopApi();
-                const toList = parseAddrs(composeDraft.to);
-                const ccList = parseAddrs(composeDraft.cc || "");
-                const bccList = parseAddrs(composeDraft.bcc || "");
-                if (!toList.length) {
-                  setToast("Add at least one To address");
-                  return;
-                }
-                if (!String(composeDraft.subject || "").trim()) {
-                  setToast("Add a subject");
-                  return;
-                }
-                const sig =
-                  signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
-                const bodyText = String(composeDraft.body || "").trim();
-                if (!bodyText && !sig?.html) {
-                  setToast("Write a message or choose a signature");
-                  return;
-                }
-                // Ensure signature HTML is included even if body empty
-                const html = buildHtml();
-                const toJoined = toList.join(", ");
-                const ccJoined = ccList.length ? ccList.join(", ") : undefined;
-                const bccJoined = bccList.length ? bccList.join(", ") : undefined;
-                const sendAccountId = accountId || inboxAccountId || accounts[0]?.id || "";
-                if (!api) {
-                  setToast("Open the Envision Mail desktop app to send via SMTP");
-                  return;
-                }
-                if (!sendAccountId) {
-                  setToast("Add/select an account in Settings before sending");
-                  return;
-                }
-                const result = await api.sendMail({
-                  accountId: sendAccountId,
-                  to: toJoined,
-                  cc: ccJoined,
-                  bcc: bccJoined,
-                  subject: composeDraft.subject,
-                  text: bodyText || "(see HTML signature)",
-                  html,
-                  requestReadReceipt: requestReceipt,
-                });
-                if (!result.ok) {
-                  const err = result.error || "Send failed";
-                  const authHint =
-                    /auth|password|credentials|login|535|534|decrypt|safeStorage|re-enter/i.test(err)
-                      ? " — Settings → Accounts → paste a new app password → Save"
-                      : "";
-                  setToast(err + authHint);
-                  return;
-                }
-                setToast(
-                  requestReceipt
-                    ? "Sent via SMTP · read receipt requested — check Sent for ✓ when opened"
-                    : bccList.length
-                      ? `Sent via SMTP · ${bccList.length} Bcc`
-                      : "Sent via SMTP",
-                );
-                sendNewEmail(toList[0], composeDraft.subject, bodyText || sig?.html || "", {
-                  requestReadReceipt: requestReceipt,
-                  smtpMessageId: result.messageId,
-                  cc: ccList,
-                  bcc: bccList,
-                  accountId: sendAccountId,
-                  accountEmail: accounts.find((a) => a.id === sendAccountId)?.email,
-                });
-                setCompose({ to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null });
-                setView("sent");
-              } catch (err) {
-                setToast(err instanceof Error ? err.message : "Send failed");
-              } finally {
-                setSending(false);
-              }
-            }}
-          >
+          <Button disabled={sending} onClick={() => void doSend()}>
             {sending ? "Sending…" : "Send via SMTP"}
           </Button>
           <Button
