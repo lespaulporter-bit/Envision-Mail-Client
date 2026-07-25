@@ -97,6 +97,7 @@ function buildBrandHeaderHtml(account, useCid) {
 async function sendMail(
   account,
   {
+
     to,
     cc,
     bcc,
@@ -110,6 +111,18 @@ async function sendMail(
     attachments,
   },
 ) {
+  if (!account || !account.email) {
+    const err = new Error("Account not found");
+    throw err;
+  }
+  if (!account.password) {
+    const err = new Error("Missing app password for this account");
+    throw err;
+  }
+  if (!to) {
+    const err = new Error("Missing To address");
+    throw err;
+  }
   const transport = createTransport(account);
   const headers = {};
   if (requestReadReceipt) {

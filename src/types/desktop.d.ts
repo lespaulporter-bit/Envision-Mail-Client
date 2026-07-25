@@ -89,6 +89,8 @@ export interface LesMailDesktopApi {
     displayName?: string;
     messages?: DesktopSyncedMessage[];
   }>;
+  loadAppState: () => Promise<unknown>;
+  saveAppState: (payload: unknown) => Promise<{ ok: boolean; path?: string }>;
   sendMail: (payload: {
     accountId: string;
     to: string;

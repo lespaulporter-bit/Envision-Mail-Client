@@ -11,6 +11,17 @@ function migrateFromLesMail() {
   const destRoot = app.getPath("userData");
   const srcRoot = path.join(app.getPath("appData"), "Les Mail");
   const marker = path.join(destRoot, ".migrated-from-les-mail");
+  const stateFile = path.join(destRoot, "envision-mail-state.json");
+  // Never overwrite durable state with old Local Storage copies
+  if (fs.existsSync(stateFile)) {
+    try {
+      const st = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+      const threads = st?.state?.threads || st?.threads;
+      if (Array.isArray(threads) && threads.length > 0) {
+        return { accounts: false, localStorage: false, skipped: true, reason: "state-file-present" };
+      }
+    } catch { /* continue */ }
+  }
   const result = { accounts: false, localStorage: false, skipped: false, reason: "" };
 
   if (!fs.existsSync(srcRoot)) {

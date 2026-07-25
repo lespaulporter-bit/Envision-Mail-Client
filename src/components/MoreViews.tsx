@@ -338,7 +338,7 @@ export function SettingsView() {
   const [tab, setTab] = useState<"accounts" | "general" | "mail" | "appearance" | "templates" | "about">(
     "accounts",
   );
-  const [appVersion, setAppVersion] = useState("2.3.0");
+  const [appVersion, setAppVersion] = useState("2.5.0");
 
   useEffect(() => {
     const api = desktopApi();
@@ -696,6 +696,7 @@ export function ComposeView() {
   const replyToEveryone = useMailStore((s) => s.replyToEveryone);
   const threads = useMailStore((s) => s.threads);
   const setToast = useMailStore((s) => s.setToast);
+  const setView = useMailStore((s) => s.setView);
   const [bulk, setBulk] = useState(false);
   const [sending, setSending] = useState(false);
   const [showCcBcc, setShowCcBcc] = useState(false);
@@ -733,8 +734,9 @@ export function ComposeView() {
 
   const buildHtml = () => {
     const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
-    const body = bodyToHtml(composeDraft.body);
-    if (!sig) return body;
+    const raw = String(composeDraft.body || "").trim();
+    const body = raw ? bodyToHtml(raw) : "";
+    if (!sig) return body || "<p></p>";
     const img = sig.imageDataUrl
       ? `<div style="margin-top:8px"><img src="${sig.imageDataUrl}" alt="" style="max-height:72px"/></div>`
       : "";
@@ -835,12 +837,12 @@ export function ComposeView() {
         </label>
         <div className="flex flex-wrap gap-2">
           <Button
-            disabled={sending || !composeDraft.to || !composeDraft.subject || !composeDraft.body}
+            disabled={sending}
             onClick={async () => {
+              if (sending) return;
               setSending(true);
               try {
                 const api = desktopApi();
-                const html = buildHtml();
                 const toList = parseAddrs(composeDraft.to);
                 const ccList = parseAddrs(composeDraft.cc || "");
                 const bccList = parseAddrs(composeDraft.bcc || "");
@@ -848,56 +850,85 @@ export function ComposeView() {
                   setToast("Add at least one To address");
                   return;
                 }
+                if (!String(composeDraft.subject || "").trim()) {
+                  setToast("Add a subject");
+                  return;
+                }
+                const sig =
+                  signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
+                const bodyText = String(composeDraft.body || "").trim();
+                if (!bodyText && !sig?.html) {
+                  setToast("Write a message or choose a signature");
+                  return;
+                }
+                // Ensure signature HTML is included even if body empty
+                const html = buildHtml();
                 const toJoined = toList.join(", ");
                 const ccJoined = ccList.length ? ccList.join(", ") : undefined;
                 const bccJoined = bccList.length ? bccList.join(", ") : undefined;
-                if (api && accountId) {
-                  const result = await api.sendMail({
-                    accountId,
-                    to: toJoined,
-                    cc: ccJoined,
-                    bcc: bccJoined,
-                    subject: composeDraft.subject,
-                    text: composeDraft.body,
-                    html,
-                    requestReadReceipt: requestReceipt,
-                  });
-                  if (!result.ok) {
-                    setToast(result.error || "Send failed");
-                    return;
-                  }
-                  setToast(
-                    requestReceipt
-                      ? "Sent via SMTP · read receipt requested"
-                      : bccList.length
-                        ? `Sent via SMTP · ${bccList.length} Bcc`
-                        : "Sent via SMTP",
-                  );
-                  sendNewEmail(toList[0], composeDraft.subject, composeDraft.body, {
-                    requestReadReceipt: requestReceipt,
-                    smtpMessageId: result.messageId,
-                    cc: ccList,
-                    bcc: bccList,
-                    accountId,
-                    accountEmail: accounts.find((a) => a.id === accountId)?.email,
-                  });
-                } else {
-                  sendNewEmail(toList[0], composeDraft.subject, composeDraft.body, {
-                    requestReadReceipt: requestReceipt,
-                    cc: ccList,
-                    bcc: bccList,
-                    accountId: inboxAccountId,
-                    accountEmail: settings.email,
-                  });
+                const sendAccountId = accountId || inboxAccountId || accounts[0]?.id || "";
+                if (!api) {
+                  setToast("Open the Envision Mail desktop app to send via SMTP");
+                  return;
                 }
+                if (!sendAccountId) {
+                  setToast("Add/select an account in Settings before sending");
+                  return;
+                }
+                const result = await api.sendMail({
+                  accountId: sendAccountId,
+                  to: toJoined,
+                  cc: ccJoined,
+                  bcc: bccJoined,
+                  subject: composeDraft.subject,
+                  text: bodyText || "(see HTML signature)",
+                  html,
+                  requestReadReceipt: requestReceipt,
+                });
+                if (!result.ok) {
+                  const err = result.error || "Send failed";
+                  const authHint =
+                    /auth|password|credentials|login|535|534/i.test(err)
+                      ? " — re-enter your app password in Settings → Accounts"
+                      : "";
+                  setToast(err + authHint);
+                  return;
+                }
+                setToast(
+                  requestReceipt
+                    ? "Sent via SMTP · read receipt requested — check Sent for ✓ when opened"
+                    : bccList.length
+                      ? `Sent via SMTP · ${bccList.length} Bcc`
+                      : "Sent via SMTP",
+                );
+                sendNewEmail(toList[0], composeDraft.subject, bodyText || sig?.html || "", {
+                  requestReadReceipt: requestReceipt,
+                  smtpMessageId: result.messageId,
+                  cc: ccList,
+                  bcc: bccList,
+                  accountId: sendAccountId,
+                  accountEmail: accounts.find((a) => a.id === sendAccountId)?.email,
+                });
+                setCompose({ to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null });
+                setView("sent");
+              } catch (err) {
+                setToast(err instanceof Error ? err.message : "Send failed");
               } finally {
                 setSending(false);
               }
             }}
           >
-            {sending ? "Sending…" : accountId ? "Send via SMTP" : "Send (local)"}
+            {sending ? "Sending…" : "Send via SMTP"}
           </Button>
-          <Button size="sm" variant="soft" onClick={() => setBulk((b) => !b)}>
+          <Button
+            size="sm"
+            variant="soft"
+            type="button"
+            onClick={() => {
+              setShowCcBcc(true);
+              setToast("Add everyone in Cc — then Send via SMTP");
+            }}
+          >
             Reply to Everyone
           </Button>
         </div>

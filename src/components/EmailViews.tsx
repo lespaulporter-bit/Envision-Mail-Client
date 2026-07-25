@@ -20,6 +20,7 @@ export function MoneyBoxView() {
   const setCoverArt = useMailStore((s) => s.setCoverArt);
   const clearMultiOpen = useMailStore((s) => s.clearMultiOpen);
   const openThread = useMailStore((s) => s.openThread);
+  const [tab, setTab] = useState<"all" | "fresh" | "seen">("all");
 
   const all = useMemo(
     () => selectBoxThreads(threads, "lesbox", { accountId: inboxAccountId }),
@@ -41,8 +42,10 @@ export function MoneyBoxView() {
     });
   }, [fresh]);
 
-  const listNew = powerThrough ? displayFresh : displayFresh;
+  const listNew = displayFresh;
   const inboxLabel = all[0]?.accountEmail || settings.email || "this account";
+  const showFresh = tab === "all" || tab === "fresh";
+  const showSeen = tab === "all" || tab === "seen";
 
   return (
     <div className="px-4 py-6 md:px-8">
@@ -50,7 +53,7 @@ export function MoneyBoxView() {
         title="MoneyBox $"
         subtitle={
           inboxAccountId
-            ? `Only mail for ${inboxLabel}. Switch accounts in the sidebar to see another inbox.`
+            ? `${all.length} messages for ${inboxLabel} — Fresh and previously read stay visible.`
             : "Connect an account in Settings — each account is an isolated workspace."
         }
         actions={
@@ -75,8 +78,31 @@ export function MoneyBoxView() {
         }
       />
 
+      <div className="mb-5 flex flex-wrap gap-2">
+        {(
+          [
+            ["all", `All (${all.length})`],
+            ["fresh", `Fresh (${listNew.length})`],
+            ["seen", `Previously read (${seen.length})`],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={
+              tab === id
+                ? "rounded-full bg-teal px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm"
+                : "rounded-full bg-white px-3.5 py-1.5 text-sm font-medium text-ink ring-1 ring-line hover:bg-[#e6f7f3]"
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {multiOpenIds.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-blurple/30 bg-[#f7f4ff] px-4 py-3 text-sm">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-teal/30 bg-[#e6f7f3] px-4 py-3 text-sm">
           <span>
             <strong>{multiOpenIds.length}</strong> emails open together — scroll like a feed.
           </span>
@@ -89,9 +115,9 @@ export function MoneyBoxView() {
         </div>
       )}
 
-      {bubbled.length > 0 && (
+      {bubbled.length > 0 && tab !== "seen" && (
         <section className="mb-6">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Bubbled up</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Bumped</h2>
           <div className="overflow-hidden rounded-2xl border border-line">
             {bubbled.map((t) => (
               <ThreadRow key={t.id} thread={t} openBody={multiOpenIds.includes(t.id)} />
@@ -100,46 +126,51 @@ export function MoneyBoxView() {
         </section>
       )}
 
-      <section className="mb-6">
-        <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
-          Fresh <Badge tone="blurple">{listNew.length}</Badge>
-        </h2>
-        {listNew.length === 0 ? (
-          <EmptyState
-            title="You're caught up"
-            body={
-              all.length === 0
-                ? "Sync an account in Settings. Allowed contacts land here; new senders go to New Senders first."
-                : "No unread mail in this inbox."
-            }
-          />
-        ) : (
-          <div className="overflow-hidden rounded-2xl border border-line">
-            {listNew.map((t) => (
-              <ThreadRow key={t.id} thread={t} openBody={powerThrough || multiOpenIds.includes(t.id)} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {!powerThrough && settings.coverArt !== "none" ? <CoverArt /> : null}
-
-      {!powerThrough && (
-        <section className="mt-6">
-          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
-            Seen <Badge>{seen.length}</Badge>
+      {showFresh && (
+        <section className="mb-6">
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
+            Fresh <Badge tone="blurple">{listNew.length}</Badge>
           </h2>
-          {seen.length === 0 ? (
-            <EmptyState title="Nothing here yet" body="Read mail shows up in this list." />
+          {listNew.length === 0 ? (
+            <EmptyState
+              title="You're caught up on new mail"
+              body={
+                all.length === 0
+                  ? "Sync an account in Settings. Allowed contacts land here; new senders go to New Senders first."
+                  : "No unread mail — your previously read emails are listed below."
+              }
+            />
           ) : (
             <div className="overflow-hidden rounded-2xl border border-line">
-              {seen.map((t) => (
-                <ThreadRow key={t.id} thread={t} compact openBody={multiOpenIds.includes(t.id)} />
+              {listNew.map((t) => (
+                <ThreadRow key={t.id} thread={t} openBody={powerThrough || multiOpenIds.includes(t.id)} />
               ))}
             </div>
           )}
         </section>
       )}
+
+      {showSeen && (
+        <section className="mb-6 rounded-2xl border-2 border-teal/25 bg-[#f3fbf8] p-4">
+          <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-teal">
+            Previously read <Badge tone="soft">{seen.length}</Badge>
+          </h2>
+          <p className="mb-3 text-xs text-muted">
+            Every email you’ve already opened stays here — always visible, never tucked away.
+          </p>
+          {seen.length === 0 ? (
+            <EmptyState title="No previously read mail yet" body="After you open a message, it appears in this list." />
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-line bg-white">
+              {seen.map((t) => (
+                <ThreadRow key={t.id} thread={t} openBody={multiOpenIds.includes(t.id)} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "all" && !powerThrough && settings.coverArt !== "none" ? <CoverArt /> : null}
     </div>
   );
 }
@@ -374,7 +405,7 @@ export function SentView() {
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="Sent"
-        subtitle="Mail you’ve sent — synced from your provider’s Sent folder, plus messages sent from Envision Mail."
+        subtitle="Green ✓ = recipient opened a message when you requested a read receipt. Sync to refresh status."
       />
       {list.length === 0 ? (
         <EmptyState
@@ -384,7 +415,7 @@ export function SentView() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
           {list.map((t) => (
-            <ThreadRow key={t.id} thread={t} />
+            <ThreadRow key={t.id} thread={t} showReadReceipt />
           ))}
         </div>
       )}

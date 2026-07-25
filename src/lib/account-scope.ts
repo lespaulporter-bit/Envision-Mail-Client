@@ -1,8 +1,14 @@
 import type { Contact, Thread } from "@/lib/types";
 
-/** Strict: thread belongs only to this IMAP account. */
+/**
+ * Account isolation with legacy tolerance:
+ * - Matching accountId always included
+ * - Threads with no accountId (pre-isolation / migrated Les Mail) stay visible
+ *   so users never lose previously read mail after upgrade
+ */
 export function threadBelongsToAccount(thread: Thread, accountId: string | null | undefined) {
   if (!accountId) return true;
+  if (!thread.accountId) return true;
   return thread.accountId === accountId;
 }
 

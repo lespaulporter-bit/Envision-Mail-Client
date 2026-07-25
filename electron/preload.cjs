@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld("lesMail", {
   removeAccount: (id) => ipcRenderer.invoke("mail:removeAccount", id),
   testAccount: (payload) => ipcRenderer.invoke("mail:testAccount", payload),
   syncAccount: (id) => ipcRenderer.invoke("mail:syncAccount", id),
+  loadAppState: () => ipcRenderer.invoke("app:loadState"),
+  saveAppState: (payload) => ipcRenderer.invoke("app:saveState", payload),
   sendMail: (payload) => ipcRenderer.invoke("mail:send", payload),
   moveMessages: (payload) => ipcRenderer.invoke("mail:moveMessages", payload),
   deleteMessages: (payload) => ipcRenderer.invoke("mail:deleteMessages", payload),

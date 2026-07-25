@@ -103,7 +103,7 @@ export interface Thread {
   setAside: boolean;
   bubbleUpAt?: string | null;
   bundled: boolean;
-  muteed: boolean;
+  muted: boolean;
   stickyNotes: StickyNote[];
   privateNotes: PrivateNote[];
   collectionIds: string[];

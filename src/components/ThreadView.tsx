@@ -464,13 +464,19 @@ export function ThreadView() {
         </label>
         <div className="flex flex-wrap gap-2">
           <Button
-            disabled={sending || !reply.trim()}
+            disabled={sending}
             onClick={async () => {
+              if (sending) return;
               setSending(true);
               try {
                 const api = desktopApi();
                 const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
-                const bodyHtml = `${bodyToHtml(reply)}${
+                const bodyText = reply.trim();
+                if (!bodyText && !sig?.html) {
+                  setToast("Write a reply or choose a signature");
+                  return;
+                }
+                const bodyHtml = `${bodyText ? bodyToHtml(bodyText) : ""}${
                   sig
                     ? `<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${
                         sig.imageDataUrl
@@ -486,32 +492,51 @@ export function ThreadView() {
                     .filter((s) => s.includes("@"));
                 const ccJoined = parseAddrs(replyCc).join(", ") || undefined;
                 const bccJoined = parseAddrs(replyBcc).join(", ") || undefined;
-                if (api && accountId) {
-                  const result = await api.sendMail({
-                    accountId,
-                    to: thread.contactEmail,
-                    cc: ccJoined,
-                    bcc: bccJoined,
-                    subject: `Re: ${thread.customSubject || thread.subject}`,
-                    text: reply,
-                    html: bodyHtml,
-                    requestReadReceipt: requestReceipt,
-                  });
-                  if (!result.ok) {
-                    setToast(result.error || "SMTP send failed");
-                    return;
-                  }
+                const sendAccountId = accountId || inboxAccountId || thread.accountId || "";
+                if (!api) {
+                  setToast("Open the Envision Mail desktop app to send via SMTP");
+                  return;
                 }
-                sendReply(thread.id, reply);
+                if (!sendAccountId) {
+                  setToast("Select an account before sending");
+                  return;
+                }
+                const result = await api.sendMail({
+                  accountId: sendAccountId,
+                  to: thread.contactEmail,
+                  cc: ccJoined,
+                  bcc: bccJoined,
+                  subject: `Re: ${thread.customSubject || thread.subject}`,
+                  text: bodyText || "(see HTML signature)",
+                  html: bodyHtml,
+                  requestReadReceipt: requestReceipt,
+                });
+                if (!result.ok) {
+                  const err = result.error || "SMTP send failed";
+                  const authHint =
+                    /auth|password|credentials|login|535|534/i.test(err)
+                      ? " — re-enter your app password in Settings → Accounts"
+                      : "";
+                  setToast(err + authHint);
+                  return;
+                }
+                setToast(
+                  requestReceipt
+                    ? "Reply sent · read receipt requested"
+                    : "Reply sent via SMTP",
+                );
+                sendReply(thread.id, bodyText || " ");
                 setReply("");
                 setReplyCc("");
                 setReplyBcc("");
+              } catch (err) {
+                setToast(err instanceof Error ? err.message : "SMTP send failed");
               } finally {
                 setSending(false);
               }
             }}
           >
-            {sending ? "Sending…" : accountId ? "Send reply via SMTP" : "Send reply"}
+            {sending ? "Sending…" : "Send via SMTP"}
           </Button>
           <Button
             variant="soft"

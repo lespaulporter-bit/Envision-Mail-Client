@@ -103,11 +103,23 @@ function startStaticServer() {
       }
     });
 
-    staticServer.listen(0, "127.0.0.1", () => {
+    // Fixed port — random ports made localStorage look "wiped" on every launch
+    const FIXED_PORT = Number(process.env.ENVISION_MAIL_PORT) || 17885;
+    let port = FIXED_PORT;
+    const onError = (err) => {
+      if (err && err.code === "EADDRINUSE" && port < FIXED_PORT + 20) {
+        port += 1;
+        staticServer.listen(port, "127.0.0.1");
+        return;
+      }
+      reject(err);
+    };
+    staticServer.on("error", onError);
+    staticServer.listen(port, "127.0.0.1", () => {
+      staticServer.off("error", onError);
       staticPort = staticServer.address().port;
       resolve(staticPort);
     });
-    staticServer.on("error", reject);
   });
 }
 

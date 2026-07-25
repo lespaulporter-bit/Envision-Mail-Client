@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { createEmptyState } from "./seed";
 import type {
   AppStateData,
@@ -224,19 +224,88 @@ function backfillImapAccountIds(threads: Thread[], messages: Record<string, Mess
 }
 
 
-function migrateLegacyPersistKeys() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  const modern = "envision-mail-v1";
-  if (localStorage.getItem(modern)) return;
-  for (const key of ["les-mail-v4", "les-mail-v3", "les-mail-v2", "les-mail-v1"]) {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      localStorage.setItem(modern, raw);
-      break;
-    }
-  }
+
+const PERSIST_NAME = "envision-mail-v1";
+
+/** Durable storage: userData JSON file (via Electron) + localStorage mirror. Survives updates & port changes. */
+function createDurableStorage() {
+  let memory: string | null = null;
+  let hydratedFromFile = false;
+
+  return {
+    getItem: async (name: string): Promise<string | null> => {
+      try {
+        const api = typeof window !== "undefined" ? window.lesMail : undefined;
+        if (api?.loadAppState) {
+          const file = (await api.loadAppState()) as { state?: unknown; version?: number } | null;
+          if (file && file.state && typeof file.state === "object") {
+            const threads = (file.state as { threads?: unknown[] }).threads;
+            const collections = (file.state as { collections?: unknown[] }).collections;
+            const hasData =
+              (Array.isArray(threads) && threads.length > 0) ||
+              (Array.isArray(collections) && collections.length > 0);
+            if (hasData || !localStorage.getItem(name)) {
+              const wrapped = JSON.stringify({ state: file.state, version: file.version ?? 0 });
+              memory = wrapped;
+              try {
+                localStorage.setItem(name, wrapped);
+              } catch {
+                /* quota */
+              }
+              hydratedFromFile = true;
+              return wrapped;
+            }
+          }
+        }
+      } catch {
+        /* fall through */
+      }
+      if (typeof window !== "undefined" && window.localStorage) {
+        for (const key of [name, "les-mail-v4", "les-mail-v3", "les-mail-v2", "les-mail-v1"]) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            if (key !== name) {
+              try {
+                localStorage.setItem(name, raw);
+              } catch {
+                /* ignore */
+              }
+            }
+            memory = raw;
+            return raw;
+          }
+        }
+      }
+      return memory;
+    },
+    setItem: async (name: string, value: string): Promise<void> => {
+      memory = value;
+      try {
+        localStorage.setItem(name, value);
+      } catch {
+        /* ignore quota */
+      }
+      try {
+        const api = typeof window !== "undefined" ? window.lesMail : undefined;
+        if (api?.saveAppState) {
+          const parsed = JSON.parse(value) as { state?: unknown; version?: number };
+          await api.saveAppState(parsed);
+        }
+      } catch (err) {
+        console.warn("saveAppState failed", err);
+      }
+    },
+    removeItem: async (name: string): Promise<void> => {
+      memory = null;
+      try {
+        localStorage.removeItem(name);
+      } catch {
+        /* ignore */
+      }
+    },
+  };
 }
-migrateLegacyPersistKeys();
+
 
 export const useMailStore = create<MailStore>()(
   persist(
@@ -446,7 +515,7 @@ export const useMailStore = create<MailStore>()(
       muteThread: (threadId) =>
         set({
           threads: get().threads.map((t) =>
-            t.id === threadId ? bumpThread({ ...t, muteed: true, seen: true }) : t,
+            t.id === threadId ? bumpThread({ ...t, muted: true, seen: true }) : t,
           ),
           toast: "Muted thread",
         }),
@@ -751,7 +820,7 @@ export const useMailStore = create<MailStore>()(
           replyLater: false,
           setAside: false,
           bundled: false,
-          muteed: false,
+          muted: false,
           stickyNotes: [],
           privateNotes: [],
           collectionIds: [],
@@ -797,21 +866,32 @@ export const useMailStore = create<MailStore>()(
             /Disposition-Notification/i.test(item.bodyText || "") ||
             /was read on|has been read/i.test(item.bodyText || "");
           if (isReceipt) {
-            const original = Object.values(get().messages).find(
-              (m) =>
-                m.isOutgoing &&
-                m.requestReadReceipt &&
-                item.inReplyTo &&
-                m.smtpMessageId &&
-                String(item.inReplyTo).includes(String(m.smtpMessageId).replace(/[<>]/g, "")),
-            );
-            const fallback =
-              original ||
-              Object.values(get().messages)
-                .filter((m) => m.isOutgoing && m.requestReadReceipt && m.to?.includes?.(item.from))
-                .sort((a, b) => +new Date(b.sentAt) - +new Date(a.sentAt))[0];
-            if (fallback) {
-              get().recordReadReceipt(fallback.id, item.from, item.fromName);
+            const cleanId = (v: string) => String(v || "").replace(/[<>]/g, "").trim();
+            const inReply = cleanId(item.inReplyTo || "");
+            const allMsgs = Object.entries(get().messages);
+            let matchId: string | null = null;
+            for (const [id, m] of allMsgs) {
+              if (!m.isOutgoing || !m.requestReadReceipt) continue;
+              if (inReply && m.smtpMessageId && inReply.includes(cleanId(m.smtpMessageId))) {
+                matchId = id;
+                break;
+              }
+            }
+            if (!matchId) {
+              const subj = String(item.subject || "").replace(/^((Re|RE|Fwd|FW):\s*)+/i, "").trim().toLowerCase();
+              const hit = allMsgs
+                .filter(
+                  ([, m]) =>
+                    m.isOutgoing &&
+                    m.requestReadReceipt &&
+                    (m.to || []).some((addr) => String(addr).toLowerCase().includes(String(item.from || "").toLowerCase())) &&
+                    (!subj || String(m.subject || "").toLowerCase().includes(subj) || subj.includes(String(m.subject || "").toLowerCase())),
+                )
+                .sort((a, b) => +new Date(b[1].sentAt) - +new Date(a[1].sentAt))[0];
+              if (hit) matchId = hit[0];
+            }
+            if (matchId) {
+              get().recordReadReceipt(matchId, item.from, item.fromName || item.from);
             }
           }
 
@@ -935,7 +1015,7 @@ export const useMailStore = create<MailStore>()(
               replyLater: false,
               setAside: false,
               bundled: contact.bundled,
-              muteed: false,
+              muted: false,
               stickyNotes: [],
               privateNotes: [],
               collectionIds: [],
@@ -1219,32 +1299,38 @@ export const useMailStore = create<MailStore>()(
       },
     }),
     {
-      name: "envision-mail-v1",
-      partialize: (state) => ({
-        threads: state.threads,
-        messages: state.messages,
-        contacts: state.contacts,
-        collections: state.collections,
-        workflows: state.workflows,
-        snippets: state.snippets,
-        signatures: state.signatures,
-        emailTemplates: state.emailTemplates,
-        clips: state.clips,
-        events: state.events,
-        calendars: state.calendars,
-        habits: state.habits,
-        journal: state.journal,
-        dayLabels: state.dayLabels,
-        sometimeTasks: state.sometimeTasks,
-        settings: state.settings,
-        inboxAccountId: state.inboxAccountId,
-      }),
+      name: PERSIST_NAME,
+      storage: createJSONStorage(() => createDurableStorage()),
+      partialize: (state) =>
+        ({
+          threads: state.threads,
+          messages: state.messages,
+          contacts: state.contacts,
+          collections: state.collections,
+          workflows: state.workflows,
+          snippets: state.snippets,
+          signatures: state.signatures,
+          emailTemplates: state.emailTemplates,
+          clips: state.clips,
+          events: state.events,
+          calendars: state.calendars,
+          habits: state.habits,
+          journal: state.journal,
+          dayLabels: state.dayLabels,
+          sometimeTasks: state.sometimeTasks,
+          settings: state.settings,
+          inboxAccountId: state.inboxAccountId,
+        }) as MailStore,
       merge: (persisted, current) => {
         const p = (persisted || {}) as Partial<AppStateData> & { inboxAccountId?: string | null };
-        const threads = (p.threads || current.threads).map((t) => ({
-          ...t,
-          box: normalizeBox(t.box),
-        }));
+        const threads = (p.threads || current.threads).map((t) => {
+          const legacy = t as Thread & { muteed?: boolean };
+          return {
+            ...t,
+            box: normalizeBox(t.box),
+            muted: Boolean(legacy.muted ?? legacy.muteed),
+          };
+        });
         const contactsRaw = (p.contacts || current.contacts).map((c) => ({
           ...c,
           defaultBox: normalizeMailBox(c.defaultBox),
@@ -1273,6 +1359,9 @@ export const useMailStore = create<MailStore>()(
           contacts,
           messages,
           signatures: p.signatures || current.signatures || [],
+          collections: p.collections?.length ? p.collections : current.collections || [],
+          workflows: p.workflows?.length ? p.workflows : current.workflows || [],
+          snippets: p.snippets?.length ? p.snippets : current.snippets || [],
           emailTemplates: p.emailTemplates?.length
             ? p.emailTemplates
             : current.emailTemplates || [],
@@ -1296,9 +1385,10 @@ export function selectBoxThreads(
       if (normalizeBox(t.box) !== want) return false;
       // Strict account isolation — never leak another account’s mail
       if (opts?.accountId) {
-        if (t.accountId !== opts.accountId) return false;
+        // Keep legacy threads (no accountId) visible so upgrades never hide read mail
+        if (t.accountId && t.accountId !== opts.accountId) return false;
       }
-      if (t.muteed && t.seen) return want === "lesbox" ? false : true;
+      if (t.muted && t.seen) return want === "lesbox" ? false : true;
       if (t.bubbleUpAt && +new Date(t.bubbleUpAt) > now && t.seen) return false;
       if (opts?.onlyNew && t.seen) return false;
       return true;
@@ -1312,6 +1402,6 @@ export function selectAccountThreads(
   accountId: string | null | undefined,
 ) {
   if (!accountId) return threads;
-  return threads.filter((t) => t.accountId === accountId);
+  return threads.filter((t) => !t.accountId || t.accountId === accountId);
 }
 

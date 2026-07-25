@@ -32,7 +32,7 @@ export function BrandLogo({ href = "/", showVersion = false, size = "md", classN
       </span>
       <span className="min-w-0">
         <span className={`envision-mail-logo__wordmark ${wordClass}`}>Envision Mail</span>
-        {showVersion ? <span className="envision-mail-logo__sub">Version 2.3</span> : null}
+        {showVersion ? <span className="envision-mail-logo__sub">Version 2.5</span> : null}
       </span>
     </>
   );

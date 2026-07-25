@@ -5,6 +5,7 @@ const { PRESETS } = require("./presets.cjs");
 const accounts = require("./accounts-store.cjs");
 const { testImap, fetchMail, moveMessages, deleteMessages, emptyFolder } = require("./imap.cjs");
 const { testSmtp, sendMail, sendCalendarInvites } = require("./smtp.cjs");
+const appState = require("./app-state.cjs");
 const { generateTeamsMeetingUrl } = require("./calendar-invite.cjs");
 const { discoverMailSettings } = require("./discover.cjs");
 const { syncMacCalendars } = require("./mac-calendar.cjs");
@@ -124,6 +125,9 @@ function registerMailIpc() {
       return { ok: false, error: message };
     }
   });
+
+  ipcMain.handle("app:loadState", async () => appState.loadAppState());
+  ipcMain.handle("app:saveState", async (_e, payload) => appState.saveAppState(payload));
 
   ipcMain.handle("mail:send", async (_e, payload) => {
     const account = accounts.getAccountSecret(payload.accountId);
