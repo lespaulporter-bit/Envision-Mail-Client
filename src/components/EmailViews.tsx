@@ -5,6 +5,8 @@ import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
 import { selectBoxThreads, useHeyStore } from "@/lib/store";
+import type { Message, Thread } from "@/lib/types";
+import { previewText } from "@/lib/utils";
 import { useMemo, useState } from "react";
 
 export function LesBoxView() {
@@ -198,6 +200,82 @@ export function PaperTrailView() {
   );
 }
 
+function ScreenerCard({
+  thread,
+  last,
+  expanded,
+  onToggleExpand,
+  boxChoice,
+  spamCorps,
+  onAllow,
+  onBlock,
+  onSpam,
+}: {
+  thread: Thread;
+  last?: Message;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  boxChoice: "lesbox" | "feed" | "paper_trail";
+  spamCorps: boolean;
+  onAllow: () => void;
+  onBlock: () => void;
+  onSpam: () => void;
+}) {
+  const bodyHtml = last?.bodyHtml?.trim() ?? "";
+  const hasBody = Boolean(bodyHtml);
+  const plainSummary = hasBody ? previewText(bodyHtml, 220) : "";
+
+  return (
+    <article className="rounded-2xl border border-line bg-white p-5 animate-slide-up">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold">{thread.contactName}</h3>
+          <p className="text-sm text-muted">{thread.contactEmail}</p>
+          <p className="mt-2 font-medium">{thread.subject}</p>
+          {thread.accountEmail ? (
+            <p className="mt-1">
+              <Badge tone="blurple">{thread.accountEmail}</Badge>
+            </p>
+          ) : null}
+        </div>
+        {last?.trackersBlocked.length ? (
+          <Badge tone="salmon">Spy trackers blocked</Badge>
+        ) : null}
+      </div>
+      {hasBody ? (
+        expanded ? (
+          <div
+            className="prose-mail mt-3 rounded-xl bg-soft p-4 text-sm"
+            dangerouslySetInnerHTML={{ __html: bodyHtml }}
+          />
+        ) : (
+          <div className="mt-3 rounded-xl bg-soft p-4 text-sm text-ink">
+            <p className="line-clamp-4 whitespace-pre-wrap">{plainSummary}</p>
+          </div>
+        )
+      ) : null}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {hasBody ? (
+          <Button size="sm" variant="soft" onClick={onToggleExpand}>
+            {expanded ? "Collapse" : "Expand"}
+          </Button>
+        ) : null}
+        <Button onClick={onAllow}>
+          Allow → {boxChoice === "lesbox" ? "LesBox" : boxChoice === "feed" ? "Feed" : "Paper Trail"}
+        </Button>
+        <Button variant="danger" onClick={onBlock}>
+          Block
+        </Button>
+        {spamCorps ? (
+          <Button variant="soft" onClick={onSpam}>
+            Spam Corps
+          </Button>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 export function ScreenerView() {
   const threads = useHeyStore((s) => s.threads);
   const messages = useHeyStore((s) => s.messages);
@@ -210,6 +288,7 @@ export function ScreenerView() {
     [threads, inboxAccountId],
   );
   const [boxChoice, setBoxChoice] = useState<"lesbox" | "feed" | "paper_trail">("lesbox");
+  const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
   const allowAllVisible = () => {
     const seen = new Set<string>();
@@ -219,6 +298,10 @@ export function ScreenerView() {
       seen.add(email);
       screenContact(t.contactEmail, "allow", "lesbox");
     }
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedById((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -259,42 +342,18 @@ export function ScreenerView() {
           {list.map((t) => {
             const last = messages[t.messageIds[t.messageIds.length - 1]];
             return (
-              <article key={t.id} className="rounded-2xl border border-line bg-white p-5 animate-slide-up">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold">{t.contactName}</h3>
-                    <p className="text-sm text-muted">{t.contactEmail}</p>
-                    <p className="mt-2 font-medium">{t.subject}</p>
-                    {t.accountEmail ? (
-                      <p className="mt-1">
-                        <Badge tone="blurple">{t.accountEmail}</Badge>
-                      </p>
-                    ) : null}
-                  </div>
-                  {last?.trackersBlocked.length ? (
-                    <Badge tone="salmon">Spy trackers blocked</Badge>
-                  ) : null}
-                </div>
-                {last ? (
-                  <div
-                    className="prose-mail mt-3 rounded-xl bg-soft p-4 text-sm"
-                    dangerouslySetInnerHTML={{ __html: last.bodyHtml }}
-                  />
-                ) : null}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button onClick={() => screenContact(t.contactEmail, "allow", boxChoice)}>
-                    Allow → {boxChoice === "lesbox" ? "LesBox" : boxChoice === "feed" ? "Feed" : "Paper Trail"}
-                  </Button>
-                  <Button variant="danger" onClick={() => screenContact(t.contactEmail, "block")}>
-                    Block
-                  </Button>
-                  {settings.spamCorps ? (
-                    <Button variant="soft" onClick={() => markSpam(t.id)}>
-                      Spam Corps
-                    </Button>
-                  ) : null}
-                </div>
-              </article>
+              <ScreenerCard
+                key={t.id}
+                thread={t}
+                last={last}
+                expanded={Boolean(expandedById[t.id])}
+                onToggleExpand={() => toggleExpanded(t.id)}
+                boxChoice={boxChoice}
+                spamCorps={settings.spamCorps}
+                onAllow={() => screenContact(t.contactEmail, "allow", boxChoice)}
+                onBlock={() => screenContact(t.contactEmail, "block")}
+                onSpam={() => markSpam(t.id)}
+              />
             );
           })}
         </div>
