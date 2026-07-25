@@ -60,18 +60,38 @@ export function Avatar({
   name,
   color,
   size = 36,
+  letter,
+  imageUrl,
 }: {
   name: string;
   color: string;
   size?: number;
+  /** Override initials (e.g. brand letter “E”) */
+  letter?: string;
+  imageUrl?: string | null;
 }) {
+  if (imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={imageUrl}
+        alt=""
+        width={size}
+        height={size}
+        className="shrink-0 rounded-full object-cover"
+        style={{ width: size, height: size }}
+        aria-hidden
+      />
+    );
+  }
+  const mark = (letter || initials(name)).slice(0, 2);
   return (
     <div
       className="flex shrink-0 items-center justify-center rounded-full font-semibold text-white"
       style={{ width: size, height: size, background: color, fontSize: size * 0.34 }}
       aria-hidden
     >
-      {initials(name)}
+      {mark}
     </div>
   );
 }

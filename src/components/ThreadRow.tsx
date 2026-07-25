@@ -4,7 +4,8 @@ import { Avatar, Badge, Button } from "@/components/ui";
 import { useHeyStore } from "@/lib/store";
 import type { Thread } from "@/lib/types";
 import { cn, formatThreadTime, previewText } from "@/lib/utils";
-import { Bell, Bookmark, Clock3, Layers } from "lucide-react";
+import { Bell, Bookmark, Clock3, Layers, Trash2 } from "lucide-react";
+import { deleteThreadSmart } from "@/lib/mail-delete";
 
 export function ThreadRow({
   thread,
@@ -87,6 +88,16 @@ export function ThreadRow({
         </Button>
         <Button size="sm" variant="soft" onClick={() => toggleSetAside(thread.id)}>
           Set aside
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
+          title={thread.box === "trash" || thread.box === "spam" ? "Delete forever" : "Move to Trash"}
+          onClick={() => {
+            void deleteThreadSmart(thread.id);
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
     </article>

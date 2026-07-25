@@ -17,20 +17,41 @@ export function ContactsView() {
   const updateContactNotify = useHeyStore((s) => s.updateContactNotify);
   const openThread = useHeyStore((s) => s.openThread);
   const threads = useHeyStore((s) => s.threads);
-  const [selected, setSelected] = useState(contacts[0]?.id || "");
-  const contact = contacts.find((c) => c.id === selected);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const scopedThreads = useMemo(
+    () => threads.filter((t) => !inboxAccountId || t.accountId === inboxAccountId),
+    [threads, inboxAccountId],
+  );
+  const scopedContacts = useMemo(() => {
+    if (!inboxAccountId) return contacts;
+    const emails = new Set(scopedThreads.map((t) => t.contactEmail.toLowerCase()));
+    return contacts.filter((c) => emails.has(c.email.toLowerCase()));
+  }, [contacts, scopedThreads, inboxAccountId]);
+  const [selected, setSelected] = useState("");
+  useEffect(() => {
+    if (!scopedContacts.some((c) => c.id === selected)) {
+      setSelected(scopedContacts[0]?.id || "");
+    }
+  }, [scopedContacts, selected]);
+  const contact = scopedContacts.find((c) => c.id === selected);
 
   return (
     <div className="px-4 py-6 md:px-8">
-      <SectionHeader title="Contacts" subtitle="Searchable notes, notification preferences, and screening status." />
+      <SectionHeader
+        title="Contacts"
+        subtitle="People from this account only. Switch accounts in the sidebar to see another set."
+      />
+      {scopedContacts.length === 0 ? (
+        <EmptyState title="No contacts for this account" body="Sync mail or allow senders from Screener." />
+      ) : (
       <div className="grid gap-4 md:grid-cols-[280px_1fr]">
         <div className="overflow-hidden rounded-2xl border border-line bg-white">
-          {contacts.map((c) => (
+          {scopedContacts.map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => setSelected(c.id)}
-              className={`flex w-full items-center gap-3 border-b border-line px-3 py-3 text-left hover:bg-soft ${selected === c.id ? "bg-[#f7f4ff]" : ""}`}
+              className={`flex w-full items-center gap-3 border-b border-line px-3 py-3 text-left hover:bg-soft ${selected === c.id ? "bg-[#e6f7f3]" : ""}`}
             >
               <Avatar name={c.name} color={c.avatarColor} size={34} />
               <div className="min-w-0">
@@ -66,7 +87,7 @@ export function ContactsView() {
             />
             <h3 className="mb-2 mt-4 text-sm font-semibold">Recent threads</h3>
             <ul className="space-y-1 text-sm">
-              {threads
+              {scopedThreads
                 .filter((t) => t.contactEmail === contact.email)
                 .slice(0, 6)
                 .map((t) => (
@@ -80,6 +101,7 @@ export function ContactsView() {
           </div>
         ) : null}
       </div>
+      )}
     </div>
   );
 }
@@ -87,7 +109,15 @@ export function ContactsView() {
 export function AttachmentsView() {
   const getAttachments = useHeyStore((s) => s.getAttachments);
   const openThread = useHeyStore((s) => s.openThread);
-  const attachments = getAttachments();
+  const threads = useHeyStore((s) => s.threads);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const allowedThreadIds = useMemo(() => {
+    if (!inboxAccountId) return null;
+    return new Set(threads.filter((t) => t.accountId === inboxAccountId).map((t) => t.id));
+  }, [threads, inboxAccountId]);
+  const attachments = getAttachments().filter(
+    (a) => !allowedThreadIds || allowedThreadIds.has(a.threadId),
+  );
 
   return (
     <div className="px-4 py-6 md:px-8">
@@ -373,6 +403,21 @@ export function SettingsView() {
           />
           <span className="mt-1 block text-xs text-muted">Also fetches when the window regains focus.</span>
         </label>
+        <label className="block text-sm">
+          Auto-purge Trash after (days)
+          <Input
+            className="mt-1"
+            type="number"
+            min={0}
+            value={settings.autoPurgeTrashDays ?? 30}
+            onChange={(e) =>
+              updateSettings({ autoPurgeTrashDays: Math.max(0, Number(e.target.value) || 0) })
+            }
+          />
+          <span className="mt-1 block text-xs text-muted">
+            Default 30. Permanently deletes Trash older than this on sync. Set 0 to disable.
+          </span>
+        </label>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -435,11 +480,13 @@ export function SearchView() {
   const threads = useHeyStore((s) => s.threads);
   const messages = useHeyStore((s) => s.messages);
   const openThread = useHeyStore((s) => s.openThread);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
 
   const results = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
     return threads.filter((t) => {
+      if (inboxAccountId && t.accountId !== inboxAccountId) return false;
       const hay = [
         t.subject,
         t.customSubject,
@@ -451,11 +498,14 @@ export function SearchView() {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [searchQuery, threads, messages]);
+  }, [searchQuery, threads, messages, inboxAccountId]);
 
   return (
     <div className="px-4 py-6 md:px-8">
-      <SectionHeader title="Search" subtitle="Find people, subjects, and body text across every box." />
+      <SectionHeader
+        title="Search"
+        subtitle="Search only within the active account’s mail."
+      />
       <Input
         className="mb-4 max-w-xl"
         placeholder="Search mail…"
@@ -498,7 +548,9 @@ export function ComposeView() {
   const setToast = useHeyStore((s) => s.setToast);
   const [bulk, setBulk] = useState(false);
   const [sending, setSending] = useState(false);
+  const [showCcBcc, setShowCcBcc] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
   const [accountId, setAccountId] = useState("");
   const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
   const [requestReceipt, setRequestReceipt] = useState(settings.requestReadReceiptsByDefault ?? true);
@@ -508,9 +560,26 @@ export function ComposeView() {
     if (!api) return;
     void api.listAccounts().then((list) => {
       setAccounts(list.map((a) => ({ id: a.id, email: a.email, name: a.name })));
-      if (list[0]) setAccountId(list[0].id);
+      const preferred = inboxAccountId && list.some((a) => a.id === inboxAccountId)
+        ? inboxAccountId
+        : list[0]?.id || "";
+      setAccountId(preferred);
     });
-  }, []);
+  }, [inboxAccountId]);
+
+  useEffect(() => {
+    if (inboxAccountId) setAccountId(inboxAccountId);
+  }, [inboxAccountId]);
+
+  useEffect(() => {
+    if ((composeDraft.cc || composeDraft.bcc) && !showCcBcc) setShowCcBcc(true);
+  }, [composeDraft.cc, composeDraft.bcc, showCcBcc]);
+
+  const parseAddrs = (raw: string) =>
+    String(raw || "")
+      .split(/[,;]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.includes("@"));
 
   const buildHtml = () => {
     const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
@@ -524,25 +593,55 @@ export function ComposeView() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 md:px-8">
-      <SectionHeader title="Compose" subtitle="SMTP send, signatures with images, and optional read receipts." />
+      <SectionHeader title="Compose" subtitle="SMTP send with To, Cc, Bcc, signatures, and optional read receipts." />
       <div className="space-y-3 rounded-2xl border border-line bg-white/90 p-5">
         {accounts.length > 0 ? (
           <label className="block text-sm">
-            Send from (unlimited accounts in Settings)
+            Send from (active account)
             <select
               className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2"
               value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
+              disabled
+              title="Switch accounts in the sidebar to write from another address"
             >
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name || a.email} ({a.email})
-                </option>
-              ))}
+              {accounts
+                .filter((a) => a.id === accountId)
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name || a.email} ({a.email})
+                  </option>
+                ))}
             </select>
+            <span className="mt-1 block text-xs text-muted">
+              To send as another address, switch the active account in the sidebar first.
+            </span>
           </label>
         ) : null}
-        <Input placeholder="To" value={composeDraft.to} onChange={(e) => setCompose({ to: e.target.value })} />
+        <div className="flex flex-wrap items-start gap-2">
+          <Input
+            className="min-w-0 flex-1"
+            placeholder="To (comma-separated ok)"
+            value={composeDraft.to}
+            onChange={(e) => setCompose({ to: e.target.value })}
+          />
+          <Button type="button" size="sm" variant="soft" onClick={() => setShowCcBcc((v) => !v)}>
+            {showCcBcc ? "Hide Cc/Bcc" : "Cc / Bcc"}
+          </Button>
+        </div>
+        {showCcBcc ? (
+          <>
+            <Input
+              placeholder="Cc — carbon copy (comma-separated)"
+              value={composeDraft.cc || ""}
+              onChange={(e) => setCompose({ cc: e.target.value })}
+            />
+            <Input
+              placeholder="Bcc — blind carbon copy (hidden from To/Cc)"
+              value={composeDraft.bcc || ""}
+              onChange={(e) => setCompose({ bcc: e.target.value })}
+            />
+          </>
+        ) : null}
         <Input
           placeholder="Subject"
           value={composeDraft.subject}
@@ -592,10 +691,22 @@ export function ComposeView() {
               try {
                 const api = desktopApi();
                 const html = buildHtml();
+                const toList = parseAddrs(composeDraft.to);
+                const ccList = parseAddrs(composeDraft.cc || "");
+                const bccList = parseAddrs(composeDraft.bcc || "");
+                if (!toList.length) {
+                  setToast("Add at least one To address");
+                  return;
+                }
+                const toJoined = toList.join(", ");
+                const ccJoined = ccList.length ? ccList.join(", ") : undefined;
+                const bccJoined = bccList.length ? bccList.join(", ") : undefined;
                 if (api && accountId) {
                   const result = await api.sendMail({
                     accountId,
-                    to: composeDraft.to,
+                    to: toJoined,
+                    cc: ccJoined,
+                    bcc: bccJoined,
                     subject: composeDraft.subject,
                     text: composeDraft.body,
                     html,
@@ -605,14 +716,28 @@ export function ComposeView() {
                     setToast(result.error || "Send failed");
                     return;
                   }
-                  setToast(requestReceipt ? "Sent via SMTP · read receipt requested" : "Sent via SMTP");
-                  sendNewEmail(composeDraft.to, composeDraft.subject, composeDraft.body, {
+                  setToast(
+                    requestReceipt
+                      ? "Sent via SMTP · read receipt requested"
+                      : bccList.length
+                        ? `Sent via SMTP · ${bccList.length} Bcc`
+                        : "Sent via SMTP",
+                  );
+                  sendNewEmail(toList[0], composeDraft.subject, composeDraft.body, {
                     requestReadReceipt: requestReceipt,
                     smtpMessageId: result.messageId,
+                    cc: ccList,
+                    bcc: bccList,
+                    accountId,
+                    accountEmail: accounts.find((a) => a.id === accountId)?.email,
                   });
                 } else {
-                  sendNewEmail(composeDraft.to, composeDraft.subject, composeDraft.body, {
+                  sendNewEmail(toList[0], composeDraft.subject, composeDraft.body, {
                     requestReadReceipt: requestReceipt,
+                    cc: ccList,
+                    bcc: bccList,
+                    accountId: inboxAccountId,
+                    accountEmail: settings.email,
                   });
                 }
               } finally {

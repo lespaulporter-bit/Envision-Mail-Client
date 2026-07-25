@@ -8,6 +8,9 @@ import {
   LesBoxView,
   PaperTrailView,
   ScreenerView,
+  SentView,
+  SpamView,
+  TrashView,
 } from "@/components/EmailViews";
 import {
   AttachmentsView,
@@ -23,13 +26,15 @@ import {
 import { ThreadView } from "@/components/ThreadView";
 import { Button, Toast } from "@/components/ui";
 import { WallpaperBackground } from "@/components/WallpaperBackground";
-import { syncAllDesktopAccounts } from "@/components/AccountsPanel";
+import { syncActiveDesktopAccount } from "@/components/AccountsPanel";
 import { desktopApi, isDesktop } from "@/lib/desktop";
-import { selectBoxThreads, useHeyStore, type AppView } from "@/lib/store";
+import { selectAccountThreads, selectBoxThreads, useHeyStore, type AppView } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { purgeOldTrash } from "@/lib/mail-delete";
 import {
   Bookmark,
   CalendarDays,
+  ChevronDown,
   ClipboardList,
   Clock3,
   ContactRound,
@@ -42,8 +47,11 @@ import {
   Receipt,
   RefreshCw,
   Search,
+  Send,
   Settings,
+  ShieldAlert,
   ShieldCheck,
+  Trash2,
   Workflow,
 } from "lucide-react";
 import { useEffect, useState, type ComponentType } from "react";
@@ -60,6 +68,9 @@ const nav: {
   { id: "feed", label: "The Feed", icon: Newspaper, countKey: "feed", pastel: "bg-[#d8f5e8]", pastelActive: "bg-[#b8ebd4]" },
   { id: "paper_trail", label: "Paper Trail", icon: Receipt, countKey: "paper_trail", pastel: "bg-[#ffe4d6]", pastelActive: "bg-[#ffd0b8]" },
   { id: "screener", label: "Screener", icon: ShieldCheck, countKey: "screener", pastel: "bg-[#fff0c8]", pastelActive: "bg-[#ffe29a]" },
+  { id: "sent", label: "Sent", icon: Send, pastel: "bg-[#e0eefc]", pastelActive: "bg-[#c8dff8]" },
+  { id: "spam", label: "Spam", icon: ShieldAlert, countKey: "spam", pastel: "bg-[#ffe8e4]", pastelActive: "bg-[#ffd4cc]" },
+  { id: "trash", label: "Trash", icon: Trash2, countKey: "trash", pastel: "bg-[#ececec]", pastelActive: "bg-[#dddddd]" },
   { id: "calendar", label: "Calendar", icon: CalendarDays, pastel: "bg-[#e8ddff]", pastelActive: "bg-[#d4c4ff]" },
   { id: "reply_later", label: "Reply Later", icon: Clock3, countKey: "reply_later", pastel: "bg-[#d9f0f7]", pastelActive: "bg-[#bde4f0]" },
   { id: "set_aside", label: "Set Aside", icon: Bookmark, countKey: "set_aside", pastel: "bg-[#fce0eb]", pastelActive: "bg-[#f7c5d8]" },
@@ -91,10 +102,13 @@ export function AppShell() {
   const setSearch = useHeyStore((s) => s.setSearch);
   const settings = useHeyStore((s) => s.settings);
   const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
-  const setInboxAccountId = useHeyStore((s) => s.setInboxAccountId);
+  const switchAccount = useHeyStore((s) => s.switchAccount);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("10.0.0");
+  const [appVersion, setAppVersion] = useState("12.0.0");
+
+  const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
+  const scoped = inboxAccountId;
 
   useEffect(() => {
     if (!toast) return;
@@ -109,9 +123,23 @@ export function AppShell() {
       if (info?.version) setAppVersion(info.version);
     });
     const loadAccounts = () => {
-      void api.listAccounts().then((list) =>
-        setAccounts(list.map((a) => ({ id: a.id, email: a.email, name: a.name }))),
-      );
+      void api.listAccounts().then((list) => {
+        const mapped = list.map((a) => ({ id: a.id, email: a.email, name: a.name }));
+        setAccounts(mapped);
+        const current = useHeyStore.getState().inboxAccountId;
+        if (!mapped.length) {
+          if (current) switchAccount(null, { silent: true });
+          return;
+        }
+        const stillValid = current && mapped.some((a) => a.id === current);
+        if (!stillValid) {
+          switchAccount(mapped[0].id, {
+            email: mapped[0].email,
+            name: mapped[0].name,
+            silent: true,
+          });
+        }
+      });
     };
     loadAccounts();
     const offUninstall = api.onRequestUninstall(() => {
@@ -121,15 +149,8 @@ export function AppShell() {
       void (async () => {
         setSyncing(true);
         try {
-          const result = await syncAllDesktopAccounts();
+          await syncActiveDesktopAccount();
           loadAccounts();
-          if (!(result.screened > 0)) {
-            setInboxAccountId(null);
-          }
-          // Store already sets Screener when screened; otherwise leave / go LesBox
-          if (!(result.screened > 0) && useHeyStore.getState().view !== "screener") {
-            setView("lesbox");
-          }
         } finally {
           setSyncing(false);
         }
@@ -141,19 +162,19 @@ export function AppShell() {
       offSync();
       offSettings();
     };
-  }, [setView, setInboxAccountId]);
+  }, [setView, switchAccount]);
 
-  // Auto-sync on launch + interval (push/fetch style polling)
   useEffect(() => {
     if (!isDesktop()) return;
     const minutes = Math.max(1, useHeyStore.getState().settings.autoFetchMinutes || 2);
     const run = () => {
-      void syncAllDesktopAccounts().then(() => {
+      void syncActiveDesktopAccount().then(() => {
         const api = desktopApi();
         if (!api) return;
         void api.listAccounts().then((list) =>
           setAccounts(list.map((a) => ({ id: a.id, email: a.email, name: a.name }))),
         );
+        void purgeOldTrash();
       });
     };
     const start = setTimeout(run, 1200);
@@ -167,32 +188,82 @@ export function AppShell() {
     };
   }, []);
 
+  const accountThreads = selectAccountThreads(threads, scoped);
   const counts = {
-    lesbox: selectBoxThreads(threads, "lesbox", { onlyNew: true, accountId: null }).length,
-    feed: selectBoxThreads(threads, "feed", { onlyNew: true }).length,
-    paper_trail: selectBoxThreads(threads, "paper_trail", { onlyNew: true }).length,
-    screener: selectBoxThreads(threads, "screener").length,
-    reply_later: threads.filter((t) => t.replyLater).length,
-    set_aside: threads.filter((t) => t.setAside).length,
+    lesbox: selectBoxThreads(threads, "lesbox", { onlyNew: true, accountId: scoped }).length,
+    feed: selectBoxThreads(threads, "feed", { onlyNew: true, accountId: scoped }).length,
+    paper_trail: selectBoxThreads(threads, "paper_trail", { onlyNew: true, accountId: scoped }).length,
+    screener: selectBoxThreads(threads, "screener", { accountId: scoped }).length,
+    spam: selectBoxThreads(threads, "spam", { accountId: scoped }).length,
+    trash: selectBoxThreads(threads, "trash", { accountId: scoped }).length,
+    reply_later: accountThreads.filter((t) => t.replyLater).length,
+    set_aside: accountThreads.filter((t) => t.setAside).length,
   };
 
   if (!hydrated) {
     return (
       <div className="grid min-h-screen place-items-center bg-soft text-muted">
-        Loading Les Mail…
+        Loading Envision Mail…
       </div>
     );
   }
 
   return (
-    <div className="relative flex min-h-screen bg-[linear-gradient(165deg,#efe8ff_0%,#e8f7f2_42%,#fff4eb_100%)]">
+    <div className="relative flex min-h-screen bg-[linear-gradient(165deg,#e8f7f2_0%,#eef8f4_42%,#fff8f0_100%)]">
       <WallpaperBackground />
       <aside className="sticky top-0 flex h-screen w-[240px] shrink-0 flex-col border-r border-line bg-white/70 backdrop-blur">
         <div className="border-b border-line px-4 py-4">
-          <a href="/" className="font-display text-3xl tracking-tight" style={{ backgroundImage: "var(--hey-gradient)", WebkitBackgroundClip: "text", color: "transparent" }}>
-            Les Mail
-          </a>
-          <p className="mt-1 truncate text-xs text-muted">{settings.email}</p>
+          <div className="flex items-center gap-2.5">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white shadow-sm"
+              style={{ background: "var(--hey-gradient)" }}
+              aria-hidden
+            >
+              E
+            </div>
+            <a
+              href="/"
+              className="font-display text-2xl tracking-tight"
+              style={{
+                backgroundImage: "var(--hey-gradient)",
+                WebkitBackgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              Envision Mail
+            </a>
+          </div>
+          {accounts.length > 0 ? (
+            <label className="relative mt-3 block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted">
+                Active account
+              </span>
+              <div className="relative">
+                <select
+                  className="w-full appearance-none rounded-lg border border-line bg-white py-2 pl-3 pr-8 text-xs font-medium text-ink outline-none focus:border-blurple"
+                  value={inboxAccountId || accounts[0]?.id || ""}
+                  onChange={(e) => {
+                    const a = accounts.find((x) => x.id === e.target.value);
+                    if (!a) return;
+                    switchAccount(a.id, { email: a.email, name: a.name });
+                  }}
+                  title="Switch account — only this account’s mail is shown"
+                >
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.email}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+              </div>
+              <p className="mt-1 text-[10px] text-muted">Isolated workspace · other accounts hidden</p>
+            </label>
+          ) : (
+            <p className="mt-2 truncate text-xs text-muted">
+              {settings.email || "Add an account in Settings"}
+            </p>
+          )}
         </div>
         <div className="space-y-1 p-2">
           <Button className="w-full justify-start" onClick={() => setView("compose")}>
@@ -202,22 +273,16 @@ export function AppShell() {
             <Button
               className="w-full justify-start"
               variant="soft"
-              disabled={syncing}
+              disabled={syncing || !inboxAccountId}
               onClick={() => {
                 void (async () => {
                   setSyncing(true);
                   try {
-                    const result = await syncAllDesktopAccounts();
+                    await syncActiveDesktopAccount();
                     const api = desktopApi();
                     if (api) {
                       const list = await api.listAccounts();
                       setAccounts(list.map((a) => ({ id: a.id, email: a.email, name: a.name })));
-                    }
-                    if (!(result.screened > 0)) {
-                      setInboxAccountId(null);
-                      if (useHeyStore.getState().view !== "screener") {
-                        setView("lesbox");
-                      }
                     }
                   } finally {
                     setSyncing(false);
@@ -225,7 +290,8 @@ export function AppShell() {
                 })();
               }}
             >
-              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Syncing…" : "Sync mail"}
+              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />{" "}
+              {syncing ? "Syncing…" : "Sync this account"}
             </Button>
           ) : null}
           <Button
@@ -244,17 +310,12 @@ export function AppShell() {
             const Icon = item.icon;
             const count = item.countKey ? counts[item.countKey as keyof typeof counts] : 0;
             const isLesBox = item.id === "lesbox";
-            const active = isLesBox
-              ? (view === "lesbox" || view === "thread") && !inboxAccountId
-              : view === item.id;
+            const active = isLesBox ? view === "lesbox" || view === "thread" : view === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  if (isLesBox) setInboxAccountId(null);
-                  else setView(item.id);
-                }}
+                onClick={() => setView(item.id)}
                 className={cn(
                   "mb-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
                   item.pastel
@@ -262,75 +323,31 @@ export function AppShell() {
                       ? `${item.pastelActive} font-semibold text-ink`
                       : `${item.pastel} text-ink hover:brightness-[0.97]`
                     : active
-                      ? "bg-[#f0ebff] font-semibold text-blurple"
+                      ? "bg-[#e6f7f3] font-semibold text-blurple"
                       : "text-ink hover:bg-soft/80",
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0 opacity-80" />
-                <span
-                  className={cn(
-                    "flex-1 truncate",
-                    isLesBox && "font-bold text-hey-blue",
-                  )}
-                >
+                <span className={cn("flex-1 truncate", isLesBox && "font-bold text-hey-blue")}>
                   {item.label}
                 </span>
                 {count ? (
-                  <span className="rounded-md bg-blurple px-1.5 py-0.5 text-[10px] font-bold text-white">{count}</span>
+                  <span className="rounded-md bg-blurple px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {count}
+                  </span>
                 ) : null}
               </button>
             );
           })}
-
-          {accounts.length > 0 ? (
-            <div className="mt-3 border-t border-line pt-3">
-              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
-                Inboxes
-              </div>
-              {accounts.map((a) => {
-                const newCount = selectBoxThreads(threads, "lesbox", {
-                  onlyNew: true,
-                  accountId: a.id,
-                }).length;
-                const screenerCount = selectBoxThreads(threads, "screener", {
-                  accountId: a.id,
-                }).length;
-                const active = view === "lesbox" && inboxAccountId === a.id;
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => setInboxAccountId(a.id)}
-                    className={cn(
-                      "mb-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
-                      active ? "bg-[#f0ebff] font-semibold text-blurple" : "text-ink hover:bg-soft",
-                    )}
-                    title={a.email}
-                  >
-                    <Inbox className="h-4 w-4 shrink-0 opacity-80" />
-                    <span className="flex-1 truncate">{a.email}</span>
-                    {screenerCount ? (
-                      <span
-                        className="rounded-md bg-amber px-1.5 py-0.5 text-[10px] font-bold text-white"
-                        title="In Screener"
-                      >
-                        {screenerCount}
-                      </span>
-                    ) : null}
-                    {newCount ? (
-                      <span className="rounded-md bg-blurple px-1.5 py-0.5 text-[10px] font-bold text-white">
-                        {newCount}
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
         </nav>
         <div className="border-t border-line p-3 text-[11px] leading-relaxed text-muted">
-          Les Mail {appVersion} — Screener for new mail, LesBox when you allow. Menu → Uninstall to
-          remove.
+          Envision Mail {appVersion}
+          {activeAccount ? (
+            <>
+              <br />
+              <span className="font-medium text-ink">{activeAccount.email}</span>
+            </>
+          ) : null}
         </div>
       </aside>
 
@@ -339,6 +356,9 @@ export function AppShell() {
         {view === "feed" && <FeedView />}
         {view === "paper_trail" && <PaperTrailView />}
         {view === "screener" && <ScreenerView />}
+        {view === "sent" && <SentView />}
+        {view === "spam" && <SpamView />}
+        {view === "trash" && <TrashView />}
         {view === "calendar" && <CalendarView />}
         {view === "reply_later" && <DockListView mode="reply_later" />}
         {view === "set_aside" && <DockListView mode="set_aside" />}

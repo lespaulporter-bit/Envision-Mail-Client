@@ -24,6 +24,9 @@ export type AppView =
   | "feed"
   | "paper_trail"
   | "screener"
+  | "sent"
+  | "spam"
+  | "trash"
   | "calendar"
   | "contacts"
   | "attachments"
@@ -50,6 +53,8 @@ interface UiState {
   inboxAccountId: string | null;
   composeDraft: {
     to: string;
+    cc: string;
+    bcc: string;
     subject: string;
     body: string;
     replyToThreadId?: string | null;
@@ -68,6 +73,11 @@ interface Actions {
   toggleMultiOpen: (id: string) => void;
   clearMultiOpen: () => void;
   setInboxAccountId: (accountId: string | null) => void;
+  /** Switch active account — UI shows only that account’s mail/contacts. */
+  switchAccount: (
+    accountId: string | null,
+    meta?: { email?: string; name?: string; silent?: boolean },
+  ) => void;
   setCompose: (draft: Partial<UiState["composeDraft"]>) => void;
   setCalendarDate: (isoDate: string) => void;
   setCalendarView: (v: UiState["calendarView"]) => void;
@@ -79,6 +89,9 @@ interface Actions {
   ) => void;
   markSpam: (threadId: string) => void;
   moveThread: (threadId: string, box: Box) => void;
+  deleteThreadsToTrash: (threadIds: string[]) => void;
+  permanentlyDeleteThreads: (threadIds: string[]) => void;
+  restoreThreadsFromTrash: (threadIds: string[]) => void;
   markSeen: (threadId: string, seen?: boolean) => void;
   markAllSeenInBox: (box: Box) => void;
   toggleReplyLater: (threadId: string) => void;
@@ -112,7 +125,19 @@ interface Actions {
   setCoverArt: (mode: CoverArtMode) => void;
 
   sendReply: (threadId: string, body: string) => void;
-  sendNewEmail: (to: string, subject: string, body: string, opts?: { requestReadReceipt?: boolean; smtpMessageId?: string | null }) => void;
+  sendNewEmail: (
+    to: string,
+    subject: string,
+    body: string,
+    opts?: {
+      requestReadReceipt?: boolean;
+      smtpMessageId?: string | null;
+      cc?: string[];
+      bcc?: string[];
+      accountId?: string | null;
+      accountEmail?: string | null;
+    },
+  ) => void;
   replyToEveryone: (threadIds: string[], body: string) => void;
   importSyncedMail: (payload: {
     accountId: string;
@@ -120,6 +145,7 @@ interface Actions {
     displayName?: string;
     messages: Array<{
       uid: number;
+      folder?: "inbox" | "sent" | string;
       from: string;
       fromName: string;
       to: string[];
@@ -208,7 +234,7 @@ export const useHeyStore = create<HeyStore>()(
       powerThrough: false,
       multiOpenIds: [],
       inboxAccountId: null,
-      composeDraft: { to: "", subject: "", body: "", replyToThreadId: null },
+      composeDraft: { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
       calendarDate: new Date().toISOString().slice(0, 10),
       calendarView: "week",
       toast: null,
@@ -217,6 +243,11 @@ export const useHeyStore = create<HeyStore>()(
       openThread: (id) => {
         const thread = get().threads.find((t) => t.id === id);
         if (!thread) return;
+        const active = get().inboxAccountId;
+        if (active && thread.accountId && thread.accountId !== active) {
+          set({ toast: "That email belongs to another account — switch accounts to open it." });
+          return;
+        }
         set({
           view: "thread",
           selectedThreadId: id,
@@ -233,12 +264,44 @@ export const useHeyStore = create<HeyStore>()(
         });
       },
       clearMultiOpen: () => set({ multiOpenIds: [] }),
-      setInboxAccountId: (inboxAccountId) => set({ inboxAccountId, view: "lesbox" }),
+      setInboxAccountId: (inboxAccountId) =>
+        get().switchAccount(inboxAccountId, { silent: true }),
+      switchAccount: (accountId, meta) => {
+        const prev = get().inboxAccountId;
+        if (prev === accountId && !meta?.email) {
+          set({ view: "lesbox" });
+          return;
+        }
+        set({
+          inboxAccountId: accountId,
+          selectedThreadId: null,
+          multiOpenIds: [],
+          searchQuery: "",
+          selectedContactId: null,
+          composeDraft: { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
+          view: "lesbox",
+          settings: meta?.email
+            ? {
+                ...get().settings,
+                email: meta.email,
+                displayName: meta.name || meta.email.split("@")[0] || get().settings.displayName,
+              }
+            : get().settings,
+          toast: meta?.silent
+            ? get().toast
+            : accountId && meta?.email
+              ? `Switched to ${meta.email}`
+              : accountId
+                ? "Account switched"
+                : null,
+        });
+      },
       setCompose: (draft) => set({ composeDraft: { ...get().composeDraft, ...draft } }),
       setCalendarDate: (calendarDate) => set({ calendarDate }),
       setCalendarView: (calendarView) => set({ calendarView }),
 
       screenContact: (email, decision, box = "lesbox") => {
+        const activeId = get().inboxAccountId;
         const contacts = get().contacts.map((c) =>
           c.email === email
             ? {
@@ -250,6 +313,7 @@ export const useHeyStore = create<HeyStore>()(
         );
         const threads = get().threads.map((t) => {
           if (t.contactEmail !== email || t.box !== "screener") return t;
+          if (activeId && t.accountId && t.accountId !== activeId) return t;
           if (decision === "block") return { ...t, box: "spam" as Box, seen: true };
           return bumpThread({ ...t, box });
         });
@@ -273,6 +337,46 @@ export const useHeyStore = create<HeyStore>()(
           threads: get().threads.map((t) => (t.id === threadId ? bumpThread({ ...t, box }) : t)),
           toast: `Moved to ${box.replace("_", " ")}`,
         }),
+
+      deleteThreadsToTrash: (threadIds) => {
+        const ids = new Set(threadIds);
+        set({
+          threads: get().threads.map((t) =>
+            ids.has(t.id)
+              ? { ...t, box: "trash" as Box, seen: true, replyLater: false, setAside: false }
+              : t,
+          ),
+          toast: threadIds.length > 1 ? `Moved ${threadIds.length} to Trash` : "Moved to Trash",
+          view: get().view === "thread" && ids.has(get().selectedThreadId || "") ? "lesbox" : get().view,
+        });
+      },
+
+      permanentlyDeleteThreads: (threadIds) => {
+        const ids = new Set(threadIds);
+        const msgs = { ...get().messages };
+        for (const t of get().threads) {
+          if (!ids.has(t.id)) continue;
+          for (const mid of t.messageIds) delete msgs[mid];
+        }
+        set({
+          threads: get().threads.filter((t) => !ids.has(t.id)),
+          messages: msgs,
+          toast: threadIds.length > 1 ? `Deleted ${threadIds.length} forever` : "Deleted forever",
+          view: get().view === "thread" && ids.has(get().selectedThreadId || "") ? "trash" : get().view,
+          selectedThreadId:
+            ids.has(get().selectedThreadId || "") ? null : get().selectedThreadId,
+        });
+      },
+
+      restoreThreadsFromTrash: (threadIds) => {
+        const ids = new Set(threadIds);
+        set({
+          threads: get().threads.map((t) =>
+            ids.has(t.id) ? bumpThread({ ...t, box: "lesbox" as Box, seen: false }) : t,
+          ),
+          toast: "Restored to LesBox",
+        });
+      },
 
       markSeen: (threadId, seen = true) =>
         set({
@@ -583,6 +687,8 @@ export const useHeyStore = create<HeyStore>()(
         const threadId = uid("t");
         const messageId = uid("m");
         const name = to.split("@")[0] || to;
+        const ccList = (opts?.cc || []).map((e) => e.trim()).filter(Boolean);
+        const bccList = (opts?.bcc || []).map((e) => e.trim()).filter(Boolean);
         let contacts = get().contacts;
         if (!contacts.some((c) => c.email === to)) {
           contacts = [
@@ -606,7 +712,8 @@ export const useHeyStore = create<HeyStore>()(
           from: get().settings.email,
           fromName: get().settings.displayName,
           to: [to],
-          cc: [],
+          cc: ccList,
+          bcc: bccList,
           subject,
           bodyHtml: `<p>${body.replace(/\n/g, "<br/>")}</p>`,
           bodyText: body,
@@ -621,7 +728,7 @@ export const useHeyStore = create<HeyStore>()(
         const thread: Thread = {
           id: threadId,
           subject,
-          box: "lesbox",
+          box: "sent",
           contactEmail: to,
           contactName: name,
           messageIds: [messageId],
@@ -634,6 +741,8 @@ export const useHeyStore = create<HeyStore>()(
           privateNotes: [],
           collectionIds: [],
           notify: false,
+          accountId: opts?.accountId || get().inboxAccountId || null,
+          accountEmail: opts?.accountEmail || get().settings.email || null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -643,8 +752,8 @@ export const useHeyStore = create<HeyStore>()(
           threads: [thread, ...get().threads],
           view: "thread",
           selectedThreadId: threadId,
-          toast: "Email sent",
-          composeDraft: { to: "", subject: "", body: "", replyToThreadId: null },
+          toast: "Email sent — view it under Sent",
+          composeDraft: { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
         });
       },
 
@@ -691,10 +800,19 @@ export const useHeyStore = create<HeyStore>()(
             }
           }
 
-          const messageId = `imap_${accountId}_${item.uid}`;
+          const fromSentFolder = item.folder === "sent";
+          const fromSpamFolder = item.folder === "spam";
+          const fromTrashFolder = item.folder === "trash";
+          const messageId = fromSentFolder
+            ? `imap_${accountId}_sent_${item.uid}`
+            : fromSpamFolder
+              ? `imap_${accountId}_spam_${item.uid}`
+              : fromTrashFolder
+                ? `imap_${accountId}_trash_${item.uid}`
+                : `imap_${accountId}_${item.uid}`;
           if (msgs[messageId]) continue;
 
-          const isOutgoing = item.from.toLowerCase() === own;
+          const isOutgoing = fromSentFolder || item.from.toLowerCase() === own;
           // Thread by counterparty (sender for inbound, recipient for outbound)
           const counterpartyEmail = (
             isOutgoing
@@ -711,35 +829,55 @@ export const useHeyStore = create<HeyStore>()(
             const bypass =
               Boolean(speakeasy) &&
               item.subject.toUpperCase().includes(String(speakeasy).toUpperCase());
-            // Outgoing: you chose this recipient → LesBox. Inbound unknown → Screener (unless Speakeasy).
             const autoAllow = isOutgoing || bypass;
             contact = {
               id: uid("c"),
               email: counterpartyEmail,
               name: counterpartyName,
-              status: autoAllow ? ("allowed" as const) : ("pending" as const),
+              status: fromSpamFolder
+                ? ("blocked" as const)
+                : autoAllow
+                  ? ("allowed" as const)
+                  : ("pending" as const),
               defaultBox: "lesbox",
-              notes: bypass ? "Speakeasy bypass" : "",
+              notes: bypass
+                ? "Speakeasy bypass"
+                : fromSpamFolder
+                  ? "From Spam folder"
+                  : fromTrashFolder
+                    ? "From Trash"
+                    : "",
               notify: Boolean(bypass),
               avatarColor: `#${((counterpartyEmail.length * 37) % 0xffffff).toString(16).padStart(6, "0")}`,
               bundled: false,
             };
             contacts = [...contacts, contact];
           }
-          // Do NOT auto-promote pending → allowed on sync
 
-          const box: Box =
-            contact.status === "blocked"
+          const box: Box = fromSentFolder
+            ? "sent"
+            : fromSpamFolder
               ? "spam"
-              : contact.status === "pending"
-                ? "screener"
-                : contact.defaultBox || "lesbox";
+              : fromTrashFolder
+                ? "trash"
+                : contact.status === "blocked"
+                  ? "spam"
+                  : contact.status === "pending"
+                    ? "screener"
+                    : contact.defaultBox || "lesbox";
 
           const subjectKey = item.subject.replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase();
           let thread = threads.find(
             (t) =>
               t.contactEmail.toLowerCase() === counterpartyEmail &&
               (t.accountId === accountId || !t.accountId) &&
+              (fromSentFolder
+                ? t.box === "sent"
+                : fromSpamFolder
+                  ? t.box === "spam"
+                  : fromTrashFolder
+                    ? t.box === "trash"
+                    : t.box !== "sent" && t.box !== "spam" && t.box !== "trash") &&
               (t.subject.replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase() === subjectKey ||
                 (t.customSubject || "").replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase() ===
                   subjectKey),
@@ -797,12 +935,17 @@ export const useHeyStore = create<HeyStore>()(
           } else {
             message.threadId = thread.id;
             message.attachments = attachmentList.map((a) => ({ ...a, threadId: thread!.id }));
-            const nextBox: Box =
-              thread.box === "spam" || box === "spam"
-                ? "spam"
-                : thread.box === "screener"
-                  ? "screener"
-                  : thread.box;
+            const nextBox: Box = fromSentFolder
+              ? "sent"
+              : fromTrashFolder || thread.box === "trash" || box === "trash"
+                ? "trash"
+                : thread.box === "spam" || box === "spam"
+                  ? "spam"
+                  : thread.box === "screener"
+                    ? "screener"
+                    : thread.box === "sent"
+                      ? "sent"
+                      : thread.box;
             if (nextBox === "screener" && thread.box !== "screener") screened += 1;
             else if (box === "screener" && thread.box === "screener") screened += 1;
             threads = threads.map((t) =>
@@ -830,6 +973,7 @@ export const useHeyStore = create<HeyStore>()(
         }
 
         threads = backfillImapAccountIds(threads, msgs);
+        const keepActive = get().inboxAccountId;
 
         if (screened > 0) {
           set({
@@ -837,6 +981,8 @@ export const useHeyStore = create<HeyStore>()(
             contacts,
             messages: msgs,
             settings,
+            // Stay on active account workspace; jump to Screener for this account
+            inboxAccountId: keepActive || accountId,
             view: "screener",
             toast: `Synced ${imported} · ${screened} need Screener review`,
           });
@@ -846,9 +992,9 @@ export const useHeyStore = create<HeyStore>()(
             contacts,
             messages: msgs,
             settings,
-            view: "lesbox",
-            inboxAccountId: accountId,
-            toast: `Synced ${imported} message${imported === 1 ? "" : "s"} → LesBox${email ? ` (${email})` : ""}`,
+            inboxAccountId: keepActive || accountId,
+            view: keepActive && keepActive !== accountId ? get().view : "lesbox",
+            toast: `Synced ${imported} message${imported === 1 ? "" : "s"}${email ? ` (${email})` : ""}`,
           });
         } else {
           set({
@@ -1076,9 +1222,10 @@ export const useHeyStore = create<HeyStore>()(
         dayLabels: state.dayLabels,
         sometimeTasks: state.sometimeTasks,
         settings: state.settings,
+        inboxAccountId: state.inboxAccountId,
       }),
       merge: (persisted, current) => {
-        const p = (persisted || {}) as Partial<AppStateData>;
+        const p = (persisted || {}) as Partial<AppStateData> & { inboxAccountId?: string | null };
         const threads = (p.threads || current.threads).map((t) => ({
           ...t,
           box: normalizeBox(t.box),
@@ -1097,6 +1244,8 @@ export const useHeyStore = create<HeyStore>()(
           wallpaperRotateMinutes:
             p.settings?.wallpaperRotateMinutes ?? current.settings.wallpaperRotateMinutes ?? 8,
           autoFetchMinutes: p.settings?.autoFetchMinutes ?? current.settings.autoFetchMinutes ?? 2,
+          autoPurgeTrashDays:
+            p.settings?.autoPurgeTrashDays ?? current.settings.autoPurgeTrashDays ?? 30,
           requestReadReceiptsByDefault:
             p.settings?.requestReadReceiptsByDefault ??
             current.settings.requestReadReceiptsByDefault ??
@@ -1113,6 +1262,7 @@ export const useHeyStore = create<HeyStore>()(
             ? p.emailTemplates
             : current.emailTemplates || [],
           settings,
+          inboxAccountId: p.inboxAccountId ?? current.inboxAccountId ?? null,
         };
       },
     },
@@ -1129,8 +1279,9 @@ export function selectBoxThreads(
   return threads
     .filter((t) => {
       if (normalizeBox(t.box) !== want) return false;
+      // Strict account isolation — never leak another account’s mail
       if (opts?.accountId) {
-        if (t.accountId !== opts.accountId && t.accountEmail !== opts.accountId) return false;
+        if (t.accountId !== opts.accountId) return false;
       }
       if (t.unfollowed && t.seen) return want === "lesbox" ? false : true;
       if (t.bubbleUpAt && +new Date(t.bubbleUpAt) > now && t.seen) return false;
@@ -1138,5 +1289,14 @@ export function selectBoxThreads(
       return true;
     })
     .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+}
+
+/** Threads for the active account across any box (Reply Later, Search, etc.). */
+export function selectAccountThreads(
+  threads: Thread[],
+  accountId: string | null | undefined,
+) {
+  if (!accountId) return threads;
+  return threads.filter((t) => t.accountId === accountId);
 }
 

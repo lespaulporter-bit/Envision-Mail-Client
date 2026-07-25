@@ -1,10 +1,36 @@
 "use client";
 
-import { Button, Input } from "@/components/ui";
+import { Avatar, Button, Input } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
 import { useHeyStore } from "@/lib/store";
 import type { DesktopAccount } from "@/types/desktop";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+function defaultBrandLetter(email: string, name: string) {
+  const domain = (email || "").split("@")[1] || "";
+  const fromDomain = domain.replace(/\.(com|net|org|io|co|us|uk)$/i, "").charAt(0);
+  const fromName = (name || email || "?").charAt(0);
+  return (fromDomain || fromName || "L").toUpperCase();
+}
+
+function makeLetterLogoDataUrl(letter: string, color: string) {
+  if (typeof document === "undefined") return "";
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+  ctx.fillStyle = color || "#0d9488";
+  ctx.beginPath();
+  ctx.arc(64, 64, 64, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.font = "700 64px Georgia, Times New Roman, serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText((letter || "L").slice(0, 2).toUpperCase(), 64, 68);
+  return canvas.toDataURL("image/png");
+}
 
 type Preset = {
   id: string;
@@ -33,6 +59,10 @@ const emptyForm = {
   smtpSecure: true,
   username: "",
   password: "",
+  brandColor: "#0d9488",
+  brandLetter: "",
+  brandLogoDataUrl: "" as string,
+  customLogo: false,
 };
 
 const QUICK_PROVIDERS = ["gmail", "yahoo", "aol"] as const;
@@ -43,6 +73,9 @@ function normalizePassword(raw: string) {
 }
 
 function loadAccountIntoForm(a: DesktopAccount) {
+  const letter = a.brandLetter || defaultBrandLetter(a.email, a.name);
+  const color = a.brandColor || "#0d9488";
+  const hasStoredLogo = Boolean(a.brandLogoDataUrl);
   return {
     id: a.id,
     name: a.name,
@@ -56,6 +89,11 @@ function loadAccountIntoForm(a: DesktopAccount) {
     smtpSecure: a.smtpSecure,
     username: a.username,
     password: "",
+    brandColor: color,
+    brandLetter: letter,
+    brandLogoDataUrl: a.brandLogoDataUrl || makeLetterLogoDataUrl(letter, color),
+    // Treat existing uploaded/generated logo as custom until user regenerates letter mark
+    customLogo: hasStoredLogo,
   };
 }
 
@@ -215,13 +253,16 @@ export function AccountsPanel() {
       });
       updateSettings({ email: result.email!, displayName: result.displayName || result.email! });
       setStatusTone("ok");
+      useHeyStore.getState().switchAccount(id, {
+        email: result.email!,
+        name: result.displayName || result.email!,
+        silent: true,
+      });
       if (stats.screened > 0) {
         setStatus(`Imported ${stats.imported} · ${stats.screened} in Screener`);
+        useHeyStore.getState().setView("screener");
       } else {
-        setStatus(stats.imported ? `Imported ${stats.imported} → LesBox` : "Already up to date");
-        if (stats.imported > 0) {
-          useHeyStore.getState().setInboxAccountId(id);
-        }
+        setStatus(stats.imported ? `Imported ${stats.imported} for this account` : "Already up to date");
       }
       await refresh();
     } finally {
@@ -236,11 +277,28 @@ export function AccountsPanel() {
     }
   };
 
-  const payloadFromForm = () => ({
-    ...form,
-    username: form.username || form.email,
-    password: form.password ? normalizePassword(form.password) : undefined,
-  });
+  const brandPreviewUrl = useMemo(() => {
+    if (form.customLogo && form.brandLogoDataUrl) return form.brandLogoDataUrl;
+    const letter = form.brandLetter || defaultBrandLetter(form.email, form.name);
+    return makeLetterLogoDataUrl(letter, form.brandColor || "#0d9488");
+  }, [form.brandColor, form.brandLetter, form.brandLogoDataUrl, form.customLogo, form.email, form.name]);
+
+  const payloadFromForm = () => {
+    const letter = form.brandLetter || defaultBrandLetter(form.email, form.name);
+    const color = form.brandColor || "#0d9488";
+    const logo =
+      form.customLogo && form.brandLogoDataUrl
+        ? form.brandLogoDataUrl
+        : makeLetterLogoDataUrl(letter, color);
+    return {
+      ...form,
+      username: form.username || form.email,
+      password: form.password ? normalizePassword(form.password) : undefined,
+      brandLetter: letter,
+      brandColor: color,
+      brandLogoDataUrl: logo,
+    };
+  };
 
   const selectedAccountLabel = useMemo(() => {
     if (!form.id) return "";
@@ -384,6 +442,10 @@ export function AccountsPanel() {
             setStatusTone("ok");
             setStatus(`Saved ${saved.account.email}`);
             setForm(loadAccountIntoForm(saved.account));
+            useHeyStore.getState().switchAccount(saved.account.id, {
+              email: saved.account.email,
+              name: saved.account.name,
+            });
             await refresh();
             await syncOne(saved.account.id);
           } finally {
@@ -469,7 +531,16 @@ export function AccountsPanel() {
             value={form.email}
             onChange={(e) => {
               const email = e.target.value;
-              setForm({ ...form, email, username: form.username && form.username !== form.email ? form.username : email });
+              const nextLetter =
+                form.brandLetter && form.id
+                  ? form.brandLetter
+                  : defaultBrandLetter(email, form.name);
+              setForm({
+                ...form,
+                email,
+                username: form.username && form.username !== form.email ? form.username : email,
+                brandLetter: nextLetter || form.brandLetter,
+              });
             }}
           />
           <Input
@@ -489,6 +560,90 @@ export function AccountsPanel() {
             required={!form.id}
             autoComplete="off"
           />
+        </div>
+
+        <div className="rounded-xl border border-line bg-soft/50 p-3">
+          <p className="text-sm font-medium">Brand mark (outgoing mail)</p>
+          <p className="mt-1 text-xs text-muted">
+            Recipients see this logo at the top of messages you send. Gmail/Apple From circles still use their own
+            avatars — this mark travels in the email body.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-4">
+            <Avatar
+              name={form.name || form.email || "L"}
+              color={form.brandColor}
+              letter={form.brandLetter || defaultBrandLetter(form.email, form.name)}
+              imageUrl={brandPreviewUrl}
+              size={56}
+            />
+            <label className="text-sm">
+              Color
+              <input
+                type="color"
+                className="ml-2 h-9 w-12 cursor-pointer rounded border border-line bg-white"
+                value={form.brandColor || "#0d9488"}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    brandColor: e.target.value,
+                    customLogo: false,
+                  })
+                }
+              />
+            </label>
+            <label className="text-sm">
+              Letter
+              <Input
+                className="ml-2 w-16 inline-flex"
+                maxLength={2}
+                value={form.brandLetter}
+                placeholder="E"
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    brandLetter: e.target.value.toUpperCase().slice(0, 2),
+                    customLogo: false,
+                  })
+                }
+              />
+            </label>
+            <label className="text-sm">
+              <span className="sr-only">Upload logo</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="text-xs"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 400_000) {
+                    setStatusTone("err");
+                    setStatus("Logo too large — use an image under ~400KB.");
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    setForm((f) => ({
+                      ...f,
+                      brandLogoDataUrl: String(reader.result || ""),
+                      customLogo: true,
+                    }));
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </label>
+            {form.customLogo ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setForm({ ...form, customLogo: false, brandLogoDataUrl: "" })}
+              >
+                Use letter mark
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -607,12 +762,59 @@ export function AccountsPanel() {
   );
 }
 
+export async function syncDesktopAccount(accountId: string) {
+  const api = desktopApi();
+  if (!api) return { synced: 0, screened: 0, imported: 0, ok: false as const };
+  const importSyncedMail = useHeyStore.getState().importSyncedMail;
+  const updateSettings = useHeyStore.getState().updateSettings;
+  const activeId = useHeyStore.getState().inboxAccountId;
+  const result = await api.syncAccount(accountId);
+  if (!result.ok || !result.messages) {
+    return { synced: 0, screened: 0, imported: 0, ok: false as const, error: result.error };
+  }
+  const stats = importSyncedMail({
+    accountId: result.accountId!,
+    email: result.email!,
+    displayName: result.displayName,
+    messages: result.messages,
+  });
+  // Only update profile display when syncing the active account
+  if (!activeId || activeId === accountId) {
+    updateSettings({ email: result.email!, displayName: result.displayName || result.email! });
+  }
+  return {
+    synced: result.messages.length,
+    screened: stats.screened,
+    imported: stats.imported,
+    ok: true as const,
+  };
+}
+
+/** Sync only the active account (isolated workspace). */
+export async function syncActiveDesktopAccount() {
+  const activeId = useHeyStore.getState().inboxAccountId;
+  const api = desktopApi();
+  if (!api) return { synced: 0, screened: 0, imported: 0 };
+  if (!activeId) {
+    const list = await api.listAccounts();
+    if (!list[0]) return { synced: 0, screened: 0, imported: 0 };
+    useHeyStore.getState().switchAccount(list[0].id, {
+      email: list[0].email,
+      name: list[0].name,
+      silent: true,
+    });
+    return syncDesktopAccount(list[0].id);
+  }
+  return syncDesktopAccount(activeId);
+}
+
+/** Background: sync every account’s mail into storage, without changing active workspace. */
 export async function syncAllDesktopAccounts() {
   const api = desktopApi();
   if (!api) return { synced: 0, screened: 0, imported: 0 };
   const list = await api.listAccounts();
   const importSyncedMail = useHeyStore.getState().importSyncedMail;
-  const updateSettings = useHeyStore.getState().updateSettings;
+  const activeId = useHeyStore.getState().inboxAccountId;
   let synced = 0;
   let screened = 0;
   let imported = 0;
@@ -625,10 +827,19 @@ export async function syncAllDesktopAccounts() {
         displayName: result.displayName,
         messages: result.messages,
       });
-      updateSettings({ email: result.email!, displayName: result.displayName || result.email! });
       synced += result.messages.length;
-      screened += stats.screened;
+      if (!activeId || a.id === activeId) screened += stats.screened;
       imported += stats.imported;
+    }
+  }
+  // Refresh display name from active account only
+  if (activeId) {
+    const active = list.find((a) => a.id === activeId);
+    if (active) {
+      useHeyStore.getState().updateSettings({
+        email: active.email,
+        displayName: active.name || active.email,
+      });
     }
   }
   return { synced, screened, imported };

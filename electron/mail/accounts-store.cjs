@@ -45,9 +45,31 @@ function decryptSecret(blob) {
   return "";
 }
 
+function defaultBrandLetter(email, name) {
+  const domain = String(email || "").split("@")[1] || "";
+  const fromDomain = domain.replace(/\.(com|net|org|io|co|us|uk)$/i, "").charAt(0);
+  const fromName = String(name || email || "?").charAt(0);
+  return (fromDomain || fromName || "L").toUpperCase();
+}
+
+function defaultBrandColor(email) {
+  // Stable pastel-ish brand hues from email hash (avoid purple bias cluster)
+  const s = String(email || "les");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  const palette = ["#0d9488", "#0891b2", "#2563eb", "#059669", "#c2410c", "#b45309", "#be123c", "#0f766e"];
+  return palette[h % palette.length];
+}
+
 function publicAccount(account) {
   const { passwordEnc: _p, ...rest } = account;
-  return { ...rest, hasPassword: Boolean(_p?.value) };
+  return {
+    ...rest,
+    hasPassword: Boolean(_p?.value),
+    brandColor: account.brandColor || defaultBrandColor(account.email),
+    brandLetter: account.brandLetter || defaultBrandLetter(account.email, account.name),
+    brandLogoDataUrl: account.brandLogoDataUrl || null,
+  };
 }
 
 function listAccounts() {
@@ -90,6 +112,27 @@ function upsertAccount(input) {
   account.lastSyncAt = input.lastSyncAt ?? account.lastSyncAt ?? null;
   account.lastError = input.lastError ?? account.lastError ?? null;
   account.enabled = input.enabled ?? account.enabled ?? true;
+
+  // Brand mark recipients see in HTML (letter avatar or uploaded logo)
+  if (input.brandColor !== undefined) account.brandColor = String(input.brandColor || "").trim() || null;
+  if (input.brandLetter !== undefined) {
+    const letter = String(input.brandLetter || "")
+      .trim()
+      .slice(0, 2)
+      .toUpperCase();
+    account.brandLetter = letter || null;
+  }
+  if (input.brandLogoDataUrl !== undefined) {
+    const raw = input.brandLogoDataUrl;
+    account.brandLogoDataUrl =
+      typeof raw === "string" && raw.startsWith("data:image/") && raw.length < 900_000 ? raw : null;
+  }
+  if (!account.brandColor) {
+    account.brandColor = defaultBrandColor(account.email);
+  }
+  if (!account.brandLetter) {
+    account.brandLetter = defaultBrandLetter(account.email, account.name);
+  }
 
   if (input.password) {
     account.passwordEnc = encryptSecret(input.password);

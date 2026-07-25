@@ -5,6 +5,11 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { useHeyStore } from "@/lib/store";
 import { formatBytes, relativeTime } from "@/lib/utils";
 import { desktopApi } from "@/lib/desktop";
+import {
+  deleteThreadSmart,
+  permanentlyDeleteThread,
+  restoreThreadFromTrash,
+} from "@/lib/mail-delete";
 import { useEffect, useMemo, useState } from "react";
 
 export function ThreadView() {
@@ -35,31 +40,43 @@ export function ThreadView() {
   const setToast = useHeyStore((s) => s.setToast);
 
   const [reply, setReply] = useState("");
+  const [replyCc, setReplyCc] = useState("");
+  const [replyBcc, setReplyBcc] = useState("");
+  const [showReplyCcBcc, setShowReplyCcBcc] = useState(false);
   const [sticky, setSticky] = useState("");
   const [note, setNote] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [subjectDraft, setSubjectDraft] = useState("");
   const [accountId, setAccountId] = useState("");
   const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [signatureId, setSignatureId] = useState("");
   const [requestReceipt, setRequestReceipt] = useState(true);
   const signatures = useHeyStore((s) => s.signatures || []);
   const settings = useHeyStore((s) => s.settings);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const thread = threads.find((t) => t.id === threadId);
 
   useEffect(() => {
     const api = desktopApi();
     if (!api) return;
     void api.listAccounts().then((list) => {
-      if (list[0]) setAccountId(list[0].id);
+      const threadAccountId = thread?.accountId;
+      const preferred =
+        threadAccountId && list.some((a) => a.id === threadAccountId)
+          ? threadAccountId
+          : inboxAccountId && list.some((a) => a.id === inboxAccountId)
+            ? inboxAccountId
+            : list[0]?.id || "";
+      if (preferred) setAccountId(preferred);
     });
-  }, []);
+  }, [thread?.accountId, inboxAccountId]);
 
   useEffect(() => {
     setSignatureId(settings.defaultSignatureId || "");
     setRequestReceipt(settings.requestReadReceiptsByDefault ?? true);
   }, [settings.defaultSignatureId, settings.requestReadReceiptsByDefault]);
 
-  const thread = threads.find((t) => t.id === threadId);
   const messages = useMemo(
     () => (threadId ? getThreadMessages(threadId) : []),
     [threadId, getThreadMessages, threads],
@@ -170,6 +187,55 @@ export function ThreadView() {
         <Button size="sm" variant="soft" onClick={() => moveThread(thread.id, "paper_trail")}>
           → Paper Trail
         </Button>
+        {thread.box === "trash" ? (
+          <>
+            <Button
+              size="sm"
+              variant="soft"
+              disabled={deleting}
+              onClick={() => {
+                void restoreThreadFromTrash(thread.id);
+              }}
+            >
+              Restore
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={deleting}
+              onClick={() => {
+                void (async () => {
+                  setDeleting(true);
+                  try {
+                    await permanentlyDeleteThread(thread.id);
+                  } finally {
+                    setDeleting(false);
+                  }
+                })();
+              }}
+            >
+              Delete forever
+            </Button>
+          </>
+        ) : (
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={deleting}
+            onClick={() => {
+              void (async () => {
+                setDeleting(true);
+                try {
+                  await deleteThreadSmart(thread.id);
+                } finally {
+                  setDeleting(false);
+                }
+              })();
+            }}
+          >
+            {thread.box === "spam" ? "Delete forever" : "Delete"}
+          </Button>
+        )}
       </div>
 
       {(workflow || collections.length > 0 || mergeCandidates.length > 0) && (
@@ -252,6 +318,13 @@ export function ThreadView() {
                 <div className="text-xs text-muted">
                   {m.from} · {relativeTime(m.sentAt)}
                 </div>
+                {(m.to?.length || m.cc?.length || (m.bcc && m.bcc.length)) ? (
+                  <div className="mt-0.5 text-[11px] text-muted">
+                    {m.to?.length ? <span>To: {m.to.join(", ")} </span> : null}
+                    {m.cc?.length ? <span>· Cc: {m.cc.join(", ")} </span> : null}
+                    {m.bcc && m.bcc.length ? <span>· Bcc: {m.bcc.join(", ")}</span> : null}
+                  </div>
+                ) : null}
               </div>
               {m.trackersBlocked.length > 0 ? (
                 <Badge tone="salmon">{m.trackersBlocked.length} tracker{m.trackersBlocked.length > 1 ? "s" : ""} blocked</Badge>
@@ -346,6 +419,44 @@ export function ThreadView() {
           value={reply}
           onChange={(e) => setReply(e.target.value)}
         />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" variant="soft" onClick={() => setShowReplyCcBcc((v) => !v)}>
+            {showReplyCcBcc ? "Hide Cc/Bcc" : "Cc / Bcc"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              const last = messages[messages.length - 1];
+              const own = (settings.email || "").toLowerCase();
+              const extras = [
+                ...(last?.to || []),
+                ...(last?.cc || []),
+              ]
+                .map((e) => e.trim())
+                .filter((e) => e.includes("@") && e.toLowerCase() !== own && e.toLowerCase() !== thread.contactEmail.toLowerCase());
+              setReplyCc([...new Set(extras)].join(", "));
+              setShowReplyCcBcc(true);
+            }}
+          >
+            Reply all (fill Cc)
+          </Button>
+        </div>
+        {showReplyCcBcc ? (
+          <div className="space-y-2">
+            <Input
+              placeholder="Cc (comma-separated)"
+              value={replyCc}
+              onChange={(e) => setReplyCc(e.target.value)}
+            />
+            <Input
+              placeholder="Bcc (comma-separated)"
+              value={replyBcc}
+              onChange={(e) => setReplyBcc(e.target.value)}
+            />
+          </div>
+        ) : null}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={requestReceipt} onChange={(e) => setRequestReceipt(e.target.checked)} />
           Request read receipt
@@ -367,10 +478,19 @@ export function ThreadView() {
                       }</div>`
                     : ""
                 }`;
+                const parseAddrs = (raw: string) =>
+                  String(raw || "")
+                    .split(/[,;]+/)
+                    .map((s) => s.trim())
+                    .filter((s) => s.includes("@"));
+                const ccJoined = parseAddrs(replyCc).join(", ") || undefined;
+                const bccJoined = parseAddrs(replyBcc).join(", ") || undefined;
                 if (api && accountId) {
                   const result = await api.sendMail({
                     accountId,
                     to: thread.contactEmail,
+                    cc: ccJoined,
+                    bcc: bccJoined,
                     subject: `Re: ${thread.customSubject || thread.subject}`,
                     text: reply,
                     html: bodyHtml,
@@ -383,6 +503,8 @@ export function ThreadView() {
                 }
                 sendReply(thread.id, reply);
                 setReply("");
+                setReplyCc("");
+                setReplyBcc("");
               } finally {
                 setSending(false);
               }

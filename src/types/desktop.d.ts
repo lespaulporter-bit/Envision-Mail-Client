@@ -14,6 +14,12 @@ export interface DesktopAccount {
   hasPassword?: boolean;
   lastSyncAt?: string | null;
   lastError?: string | null;
+  /** Hex color for letter avatar shown in outgoing mail */
+  brandColor?: string | null;
+  /** 1–2 letter mark (e.g. E for envisiondms.com) */
+  brandLetter?: string | null;
+  /** Optional uploaded logo as data URL (embedded in sent HTML) */
+  brandLogoDataUrl?: string | null;
 }
 
 export interface DesktopSyncedMessage {
@@ -21,6 +27,7 @@ export interface DesktopSyncedMessage {
   messageIdHeader?: string | null;
   inReplyTo?: string | null;
   references?: string[] | string;
+  folder?: "inbox" | "sent" | "spam" | "trash" | string;
   from: string;
   fromName: string;
   to: string[];
@@ -86,6 +93,7 @@ export interface LesMailDesktopApi {
     accountId: string;
     to: string;
     cc?: string;
+    bcc?: string;
     subject: string;
     text: string;
     html?: string;
@@ -93,6 +101,21 @@ export interface LesMailDesktopApi {
     references?: string;
     requestReadReceipt?: boolean;
   }) => Promise<{ ok: boolean; error?: string; messageId?: string }>;
+  moveMessages: (payload: {
+    accountId: string;
+    sourceFolder: string;
+    destFolder: string;
+    uids: number[];
+  }) => Promise<{ ok: boolean; error?: string; moved?: number }>;
+  deleteMessages: (payload: {
+    accountId: string;
+    folder: string;
+    uids: number[];
+  }) => Promise<{ ok: boolean; error?: string; deleted?: number }>;
+  emptyFolder: (payload: {
+    accountId: string;
+    folder: "spam" | "trash";
+  }) => Promise<{ ok: boolean; error?: string; deleted?: number }>;
   sendCalendarInvites: (payload: {
     accountId: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

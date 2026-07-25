@@ -20,7 +20,6 @@ export function LesBoxView() {
   const setCoverArt = useHeyStore((s) => s.setCoverArt);
   const clearMultiOpen = useHeyStore((s) => s.clearMultiOpen);
   const openThread = useHeyStore((s) => s.openThread);
-  const setInboxAccountId = useHeyStore((s) => s.setInboxAccountId);
 
   const all = useMemo(
     () => selectBoxThreads(threads, "lesbox", { accountId: inboxAccountId }),
@@ -43,26 +42,19 @@ export function LesBoxView() {
   }, [fresh]);
 
   const listNew = powerThrough ? displayFresh : displayFresh;
-  const inboxLabel = inboxAccountId
-    ? all[0]?.accountEmail || inboxAccountId
-    : "All accounts";
+  const inboxLabel = all[0]?.accountEmail || settings.email || "this account";
 
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
-        title={inboxAccountId ? "Inbox" : "LesBox"}
+        title="LesBox"
         subtitle={
           inboxAccountId
-            ? `Mail for ${inboxLabel} — synced from IMAP.`
-            : "All synced accounts plus LesBox mail. Pick an address in the sidebar for a single inbox."
+            ? `Only mail for ${inboxLabel}. Switch accounts in the sidebar to see another inbox.`
+            : "Connect an account in Settings — each account is an isolated workspace."
         }
         actions={
           <>
-            {inboxAccountId ? (
-              <Button size="sm" variant="soft" onClick={() => setInboxAccountId(null)}>
-                Show all accounts
-              </Button>
-            ) : null}
             <Button size="sm" variant={powerThrough ? "primary" : "soft"} onClick={togglePowerThrough}>
               Power Through New
             </Button>
@@ -154,7 +146,11 @@ export function LesBoxView() {
 
 export function FeedView() {
   const threads = useHeyStore((s) => s.threads);
-  const list = useMemo(() => selectBoxThreads(threads, "feed"), [threads]);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const list = useMemo(
+    () => selectBoxThreads(threads, "feed", { accountId: inboxAccountId }),
+    [threads, inboxAccountId],
+  );
 
   return (
     <div className="px-4 py-6 md:px-8">
@@ -179,7 +175,11 @@ export function FeedView() {
 
 export function PaperTrailView() {
   const threads = useHeyStore((s) => s.threads);
-  const list = useMemo(() => selectBoxThreads(threads, "paper_trail"), [threads]);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const list = useMemo(
+    () => selectBoxThreads(threads, "paper_trail", { accountId: inboxAccountId }),
+    [threads, inboxAccountId],
+  );
 
   return (
     <div className="px-4 py-6 md:px-8">
@@ -362,9 +362,223 @@ export function ScreenerView() {
   );
 }
 
+export function SentView() {
+  const threads = useHeyStore((s) => s.threads);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const list = useMemo(
+    () => selectBoxThreads(threads, "sent", { accountId: inboxAccountId }),
+    [threads, inboxAccountId],
+  );
+
+  return (
+    <div className="px-4 py-6 md:px-8">
+      <SectionHeader
+        title="Sent"
+        subtitle="Mail you’ve sent — synced from your provider’s Sent folder, plus messages sent from Les Mail."
+      />
+      {list.length === 0 ? (
+        <EmptyState
+          title="No sent mail yet"
+          body="Sync an account to pull Sent from IMAP, or write a new message."
+        />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-line">
+          {list.map((t) => (
+            <ThreadRow key={t.id} thread={t} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SpamView() {
+  const threads = useHeyStore((s) => s.threads);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const screenContact = useHeyStore((s) => s.screenContact);
+  const [busy, setBusy] = useState(false);
+  const list = useMemo(
+    () => selectBoxThreads(threads, "spam", { accountId: inboxAccountId }),
+    [threads, inboxAccountId],
+  );
+
+  return (
+    <div className="px-4 py-6 md:px-8">
+      <SectionHeader
+        title="Spam"
+        subtitle="Junk from your provider’s Spam/Junk folder, plus senders you’ve blocked."
+        actions={
+          list.length > 0 ? (
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={busy}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  try {
+                    const { emptySpamFolder } = await import("@/lib/mail-delete");
+                    await emptySpamFolder();
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+            >
+              Empty Spam
+            </Button>
+          ) : null
+        }
+      />
+      {list.length === 0 ? (
+        <EmptyState
+          title="Spam is empty"
+          body="Sync to load your Spam/Junk mailbox, or block senders from Screener."
+        />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-line">
+          {list.map((t) => (
+            <div key={t.id} className="border-b border-line last:border-b-0">
+              <ThreadRow thread={t} />
+              <div className="flex flex-wrap gap-2 px-4 pb-3">
+                <Button
+                  size="sm"
+                  variant="soft"
+                  onClick={() => screenContact(t.contactEmail, "allow", "lesbox")}
+                >
+                  Not spam → LesBox
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={busy}
+                  onClick={() => {
+                    void (async () => {
+                      setBusy(true);
+                      try {
+                        const { permanentlyDeleteThread } = await import("@/lib/mail-delete");
+                        await permanentlyDeleteThread(t.id);
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  Delete forever
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TrashView() {
+  const threads = useHeyStore((s) => s.threads);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const settings = useHeyStore((s) => s.settings);
+  const [busy, setBusy] = useState(false);
+  const list = useMemo(
+    () => selectBoxThreads(threads, "trash", { accountId: inboxAccountId }),
+    [threads, inboxAccountId],
+  );
+  const days = settings.autoPurgeTrashDays ?? 30;
+
+  return (
+    <div className="px-4 py-6 md:px-8">
+      <SectionHeader
+        title="Trash"
+        subtitle={
+          days > 0
+            ? `Deleted mail lives here. Items older than ${days} days are purged automatically.`
+            : "Deleted mail lives here. Auto-purge is off (set days in Settings)."
+        }
+        actions={
+          list.length > 0 ? (
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={busy}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  try {
+                    const { emptyTrashFolder } = await import("@/lib/mail-delete");
+                    await emptyTrashFolder();
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+            >
+              Empty Trash
+            </Button>
+          ) : null
+        }
+      />
+      {list.length === 0 ? (
+        <EmptyState title="Trash is empty" body="Deleted emails from LesBox and other views land here first." />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-line">
+          {list.map((t) => (
+            <div key={t.id} className="border-b border-line last:border-b-0">
+              <ThreadRow thread={t} />
+              <div className="flex flex-wrap gap-2 px-4 pb-3">
+                <Button
+                  size="sm"
+                  variant="soft"
+                  disabled={busy}
+                  onClick={() => {
+                    void (async () => {
+                      setBusy(true);
+                      try {
+                        const { restoreThreadFromTrash } = await import("@/lib/mail-delete");
+                        await restoreThreadFromTrash(t.id);
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  Restore
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={busy}
+                  onClick={() => {
+                    void (async () => {
+                      setBusy(true);
+                      try {
+                        const { permanentlyDeleteThread } = await import("@/lib/mail-delete");
+                        await permanentlyDeleteThread(t.id);
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  Delete forever
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
   const threads = useHeyStore((s) => s.threads);
-  const list = threads.filter((t) => (mode === "reply_later" ? t.replyLater : t.setAside));
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
+  const list = threads.filter(
+    (t) =>
+      (!inboxAccountId || t.accountId === inboxAccountId) &&
+      (mode === "reply_later" ? t.replyLater : t.setAside),
+  );
   const setView = useHeyStore((s) => s.setView);
 
   return (
@@ -400,8 +614,11 @@ export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
 
 export function FocusReplyView() {
   const threads = useHeyStore((s) => s.threads);
+  const inboxAccountId = useHeyStore((s) => s.inboxAccountId);
   const sendReply = useHeyStore((s) => s.sendReply);
-  const queue = threads.filter((t) => t.replyLater);
+  const queue = threads.filter(
+    (t) => t.replyLater && (!inboxAccountId || t.accountId === inboxAccountId),
+  );
   const [index, setIndex] = useState(0);
   const [body, setBody] = useState("");
   const current = queue[index];

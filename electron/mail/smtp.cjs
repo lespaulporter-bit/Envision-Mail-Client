@@ -65,11 +65,41 @@ async function testSmtp(account) {
   }
 }
 
+function parseDataUrl(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) return null;
+  const match = /^data:([^;]+);base64,([\s\S]+)$/.exec(dataUrl);
+  if (!match) return null;
+  return { contentType: match[1], content: Buffer.from(match[2], "base64") };
+}
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c]);
+}
+
+function buildBrandHeaderHtml(account, useCid) {
+  const name = account.name || account.email;
+  const letter = escapeHtml((account.brandLetter || name.charAt(0) || "L").toUpperCase().slice(0, 2));
+  const color = escapeHtml(account.brandColor || "#0d9488");
+  const img = useCid
+    ? `<img src="cid:lesmail-brand" width="48" height="48" alt="${letter}" style="display:block;width:48px;height:48px;border-radius:50%;object-fit:cover;" />`
+    : `<div style="width:48px;height:48px;border-radius:50%;background:${color};color:#fff;font:700 22px Georgia,Times,serif;line-height:48px;text-align:center;">${letter}</div>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px 0;border-collapse:collapse;">
+  <tr>
+    <td style="vertical-align:middle;padding:0 12px 0 0;">${img}</td>
+    <td style="vertical-align:middle;font:600 15px system-ui,sans-serif;color:#111;">
+      ${escapeHtml(name)}
+      <div style="font:400 12px system-ui,sans-serif;color:#666;">${escapeHtml(account.email)}</div>
+    </td>
+  </tr>
+</table>`;
+}
+
 async function sendMail(
   account,
   {
     to,
     cc,
+    bcc,
     subject,
     text,
     html,
@@ -88,17 +118,36 @@ async function sendMail(
     headers["X-Confirm-Reading-To"] = account.email;
   }
 
+  const bodyHtml = html || `<p>${String(text || "").replace(/\n/g, "<br/>")}</p>`;
+  const logoParsed = parseDataUrl(account.brandLogoDataUrl);
+  const brandAttachments = [];
+  let useCid = false;
+  // Raster only — many clients (Gmail) strip SVG CIDs
+  if (logoParsed && /^image\/(png|jpe?g|gif|webp)$/i.test(logoParsed.contentType)) {
+    brandAttachments.push({
+      filename: "brand-logo.png",
+      content: logoParsed.content,
+      contentType: logoParsed.contentType,
+      cid: "lesmail-brand",
+      contentDisposition: "inline",
+    });
+    useCid = true;
+  }
+  const brandHtml = buildBrandHeaderHtml(account, useCid);
+  const finalHtml = `${brandHtml}${bodyHtml}`;
+
   const mail = {
     from: `"${account.name || account.email}" <${account.email}>`,
     to,
     cc: cc || undefined,
+    bcc: bcc || undefined,
     subject,
     text,
-    html: html || `<p>${String(text || "").replace(/\n/g, "<br/>")}</p>`,
+    html: finalHtml,
     inReplyTo: inReplyTo || undefined,
     references: references || undefined,
     headers,
-    attachments: attachments || [],
+    attachments: [...(attachments || []), ...brandAttachments],
   };
 
   if (icalEvent) {

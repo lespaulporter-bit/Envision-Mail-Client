@@ -1,6 +1,6 @@
-export type MailBox = "lesbox" | "feed" | "paper_trail";
+export type MailBox = "lesbox" | "feed" | "paper_trail" | "sent" | "spam" | "trash";
 
-export type Box = MailBox | "imbox" | "screener" | "spam" | "trash";
+export type Box = MailBox | "imbox" | "screener";
 
 export type ContactStatus = "pending" | "allowed" | "blocked";
 
@@ -77,6 +77,7 @@ export interface Message {
   fromName: string;
   to: string[];
   cc: string[];
+  bcc?: string[];
   subject: string;
   bodyHtml: string;
   bodyText: string;
@@ -227,6 +228,8 @@ export interface Settings {
   wallpaper: WallpaperTheme;
   wallpaperRotateMinutes: number;
   autoFetchMinutes: number;
+  /** Permanently delete Trash older than this many days. Default 30. Set 0 to disable. */
+  autoPurgeTrashDays: number;
   requestReadReceiptsByDefault: boolean;
   defaultSignatureId?: string | null;
 }
@@ -258,7 +261,7 @@ export function normalizeBox(box: string): Box {
 
 export function normalizeMailBox(box: string): MailBox {
   const b = normalizeBox(box);
-  if (b === "feed" || b === "paper_trail") return b;
+  if (b === "feed" || b === "paper_trail" || b === "sent" || b === "spam" || b === "trash") return b;
   return "lesbox";
 }
 
@@ -268,5 +271,8 @@ export function boxLabel(box: Box | string): string {
   if (b === "paper_trail") return "Paper Trail";
   if (b === "feed") return "The Feed";
   if (b === "screener") return "Screener";
+  if (b === "sent") return "Sent";
+  if (b === "spam") return "Spam";
+  if (b === "trash") return "Trash";
   return b;
 }

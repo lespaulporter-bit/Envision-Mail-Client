@@ -221,57 +221,229 @@ function sanitizeHtml(html) {
     .replace(/src=["']https?:\/\/[^"']*(?:track|pixel|beacon)[^"']*["']/gi, 'src=""');
 }
 
-async function fetchInbox(account, { limit = 40 } = {}) {
+async function fetchFolderMessages(client, mailboxPath, account, { limit = 40, folder = "inbox" } = {}) {
+  const messages = [];
+  const lock = await client.getMailboxLock(mailboxPath);
+  try {
+    const total = client.mailbox.exists || 0;
+    if (!total) return [];
+    const start = Math.max(1, total - limit + 1);
+    const idPrefix =
+      folder === "sent"
+        ? `imap_${account.id}_sent`
+        : folder === "spam"
+          ? `imap_${account.id}_spam`
+          : folder === "trash"
+            ? `imap_${account.id}_trash`
+            : `imap_${account.id}`;
+    for await (const msg of client.fetch(`${start}:${total}`, {
+      envelope: true,
+      source: true,
+      uid: true,
+      flags: true,
+      internalDate: true,
+    })) {
+      const parsed = await simpleParser(msg.source);
+      const fromAddr = parsed.from?.value?.[0] || {};
+      const toAddrs = (parsed.to?.value || []).map((v) => v.address).filter(Boolean);
+      const html = sanitizeHtml(parsed.html || `<p>${(parsed.text || "").replace(/\n/g, "<br/>")}</p>`);
+      const messageId = `${idPrefix}_${msg.uid}`;
+      const attachments = (parsed.attachments || []).map((a, idx) => ({
+        id: `att_${folder}_${msg.uid}_${idx}`,
+        name: a.filename || `attachment-${idx + 1}`,
+        size: a.size || 0,
+        mimeType: a.contentType || "application/octet-stream",
+        messageId,
+        threadId: "",
+        receivedAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
+      }));
+
+      messages.push({
+        uid: msg.uid,
+        folder,
+        messageIdHeader: parsed.messageId || null,
+        inReplyTo: parsed.inReplyTo || null,
+        references: parsed.references || [],
+        from: fromAddr.address || "unknown@unknown",
+        fromName: fromAddr.name || (fromAddr.address || "Unknown").split("@")[0],
+        to: toAddrs.length ? toAddrs : [account.email],
+        subject: parsed.subject || "(no subject)",
+        bodyHtml: html,
+        bodyText: parsed.text || stripHtml(html),
+        sentAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
+        seen: Boolean(msg.flags?.has("\\Seen")),
+        attachments,
+        trackersBlocked: extractTrackers(parsed.html || ""),
+      });
+    }
+  } finally {
+    lock.release();
+  }
+  return messages;
+}
+
+function findSpecialMailbox(boxes, specialUse, nameHints, fuzzyRe) {
+  const special = boxes.find(
+    (b) => b.specialUse === specialUse || (b.specialUseFlags || []).includes(specialUse),
+  );
+  if (special?.path) return special.path;
+  for (const name of nameHints) {
+    const hit = boxes.find((b) => b.path === name || b.path?.toLowerCase() === name.toLowerCase());
+    if (hit?.path) return hit.path;
+  }
+  const fuzzy = boxes.find((b) => fuzzyRe.test(b.path || ""));
+  return fuzzy?.path || null;
+}
+
+async function findSentMailboxPath(client) {
+  try {
+    const boxes = await client.list();
+    return findSpecialMailbox(
+      boxes,
+      "\\Sent",
+      ["Sent", "Sent Messages", "Sent Items", "INBOX.Sent", "INBOX/Sent", "[Gmail]/Sent Mail", "Sent Mail"],
+      /^(\[Gmail\]\/)?sent/i,
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function findSpamMailboxPath(client) {
+  try {
+    const boxes = await client.list();
+    return findSpecialMailbox(
+      boxes,
+      "\\Junk",
+      [
+        "Junk",
+        "Spam",
+        "Junk E-mail",
+        "Junk Email",
+        "INBOX.Junk",
+        "INBOX/Junk",
+        "INBOX.Spam",
+        "INBOX/Spam",
+        "[Gmail]/Spam",
+        "Bulk Mail",
+      ],
+      /(junk|spam|bulk)/i,
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function findTrashMailboxPath(client) {
+  try {
+    const boxes = await client.list();
+    return findSpecialMailbox(
+      boxes,
+      "\\Trash",
+      [
+        "Trash",
+        "Deleted",
+        "Deleted Items",
+        "Deleted Messages",
+        "INBOX.Trash",
+        "INBOX/Trash",
+        "[Gmail]/Trash",
+        "Bin",
+      ],
+      /(trash|deleted|bin)/i,
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function resolveFolderPath(client, folder) {
+  const key = String(folder || "inbox").toLowerCase();
+  if (key === "inbox") return "INBOX";
+  if (key === "sent") return findSentMailboxPath(client);
+  if (key === "spam") return findSpamMailboxPath(client);
+  if (key === "trash") return findTrashMailboxPath(client);
+  return key;
+}
+
+function uidRange(uids) {
+  const list = [...new Set((uids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+  if (!list.length) return null;
+  return list.sort((a, b) => a - b).join(",");
+}
+
+/** Move messages between folders (e.g. inbox → trash, inbox → spam). */
+async function moveMessages(account, { sourceFolder = "inbox", destFolder = "trash", uids = [] } = {}) {
+  const range = uidRange(uids);
+  if (!range) return { ok: false, error: "No message UIDs to move." };
   try {
     return await withClient(account, async (client) => {
-      const messages = [];
-      const lock = await client.getMailboxLock("INBOX");
+      const source = await resolveFolderPath(client, sourceFolder);
+      const dest = await resolveFolderPath(client, destFolder);
+      if (!source) return { ok: false, error: `Source folder not found (${sourceFolder}).` };
+      if (!dest) return { ok: false, error: `Destination folder not found (${destFolder}).` };
+      if (source === dest) return { ok: true, moved: 0, skipped: true };
+      const lock = await client.getMailboxLock(source);
       try {
-        const total = client.mailbox.exists || 0;
-        if (!total) return [];
-        const start = Math.max(1, total - limit + 1);
-        for await (const msg of client.fetch(`${start}:${total}`, {
-          envelope: true,
-          source: true,
-          uid: true,
-          flags: true,
-          internalDate: true,
-        })) {
-          const parsed = await simpleParser(msg.source);
-          const fromAddr = parsed.from?.value?.[0] || {};
-          const toAddrs = (parsed.to?.value || []).map((v) => v.address).filter(Boolean);
-          const html = sanitizeHtml(parsed.html || `<p>${(parsed.text || "").replace(/\n/g, "<br/>")}</p>`);
-          const attachments = (parsed.attachments || []).map((a, idx) => ({
-            id: `att_${msg.uid}_${idx}`,
-            name: a.filename || `attachment-${idx + 1}`,
-            size: a.size || 0,
-            mimeType: a.contentType || "application/octet-stream",
-            messageId: `imap_${account.id}_${msg.uid}`,
-            threadId: "",
-            receivedAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
-          }));
-
-          messages.push({
-            uid: msg.uid,
-            messageIdHeader: parsed.messageId || null,
-            inReplyTo: parsed.inReplyTo || null,
-            references: parsed.references || [],
-            from: fromAddr.address || "unknown@unknown",
-            fromName: fromAddr.name || (fromAddr.address || "Unknown").split("@")[0],
-            to: toAddrs.length ? toAddrs : [account.email],
-            subject: parsed.subject || "(no subject)",
-            bodyHtml: html,
-            bodyText: parsed.text || stripHtml(html),
-            sentAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
-            seen: Boolean(msg.flags?.has("\\Seen")),
-            attachments,
-            trackersBlocked: extractTrackers(parsed.html || ""),
-          });
-        }
+        const result = await client.messageMove(range, dest, { uid: true });
+        const moved = result?.uidMap ? result.uidMap.size : uids.length;
+        return { ok: true, moved, source, dest };
       } finally {
         lock.release();
       }
-      return messages.sort((a, b) => +new Date(b.sentAt) - +new Date(a.sentAt));
+    });
+  } catch (err) {
+    return { ok: false, error: formatImapError(err) };
+  }
+}
+
+/** Permanently delete messages (\\Deleted + expunge) in a folder. */
+async function deleteMessages(account, { folder = "trash", uids = [] } = {}) {
+  const range = uidRange(uids);
+  if (!range) return { ok: false, error: "No message UIDs to delete." };
+  try {
+    return await withClient(account, async (client) => {
+      const path = await resolveFolderPath(client, folder);
+      if (!path) return { ok: false, error: `Folder not found (${folder}).` };
+      const lock = await client.getMailboxLock(path);
+      try {
+        await client.messageDelete(range, { uid: true });
+        return { ok: true, deleted: uids.length, path };
+      } finally {
+        lock.release();
+      }
+    });
+  } catch (err) {
+    return { ok: false, error: formatImapError(err) };
+  }
+}
+
+/** Empty Spam or Trash on the server (all messages). */
+async function emptyFolder(account, { folder = "trash" } = {}) {
+  try {
+    return await withClient(account, async (client) => {
+      const path = await resolveFolderPath(client, folder);
+      if (!path) return { ok: false, error: `Folder not found (${folder}).` };
+      const lock = await client.getMailboxLock(path);
+      try {
+        const total = client.mailbox.exists || 0;
+        if (!total) return { ok: true, deleted: 0, path };
+        await client.messageDelete("1:*", { uid: true });
+        return { ok: true, deleted: total, path };
+      } finally {
+        lock.release();
+      }
+    });
+  } catch (err) {
+    return { ok: false, error: formatImapError(err) };
+  }
+}
+
+async function fetchInbox(account, { limit = 40 } = {}) {
+  try {
+    return await withClient(account, async (client) => {
+      const inbox = await fetchFolderMessages(client, "INBOX", account, { limit, folder: "inbox" });
+      return inbox.sort((a, b) => +new Date(b.sentAt) - +new Date(a.sentAt));
     });
   } catch (err) {
     const wrapped = new Error(formatImapError(err));
@@ -280,4 +452,70 @@ async function fetchInbox(account, { limit = 40 } = {}) {
   }
 }
 
-module.exports = { testImap, fetchInbox, formatImapError };
+/** Fetch INBOX + Sent + Spam/Junk + Trash when available */
+async function fetchMail(
+  account,
+  { inboxLimit = 50, sentLimit = 40, spamLimit = 40, trashLimit = 40 } = {},
+) {
+  try {
+    return await withClient(account, async (client) => {
+      const inbox = await fetchFolderMessages(client, "INBOX", account, {
+        limit: inboxLimit,
+        folder: "inbox",
+      });
+      let sent = [];
+      let spam = [];
+      let trash = [];
+      const sentPath = await findSentMailboxPath(client);
+      if (sentPath) {
+        try {
+          sent = await fetchFolderMessages(client, sentPath, account, {
+            limit: sentLimit,
+            folder: "sent",
+          });
+        } catch {
+          sent = [];
+        }
+      }
+      const spamPath = await findSpamMailboxPath(client);
+      if (spamPath) {
+        try {
+          spam = await fetchFolderMessages(client, spamPath, account, {
+            limit: spamLimit,
+            folder: "spam",
+          });
+        } catch {
+          spam = [];
+        }
+      }
+      const trashPath = await findTrashMailboxPath(client);
+      if (trashPath) {
+        try {
+          trash = await fetchFolderMessages(client, trashPath, account, {
+            limit: trashLimit,
+            folder: "trash",
+          });
+        } catch {
+          trash = [];
+        }
+      }
+      return [...inbox, ...sent, ...spam, ...trash].sort(
+        (a, b) => +new Date(b.sentAt) - +new Date(a.sentAt),
+      );
+    });
+  } catch (err) {
+    const wrapped = new Error(formatImapError(err));
+    wrapped.cause = err;
+    throw wrapped;
+  }
+}
+
+module.exports = {
+  testImap,
+  fetchInbox,
+  fetchMail,
+  moveMessages,
+  deleteMessages,
+  emptyFolder,
+  formatImapError,
+};

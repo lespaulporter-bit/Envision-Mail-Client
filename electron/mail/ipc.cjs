@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { PRESETS } = require("./presets.cjs");
 const accounts = require("./accounts-store.cjs");
-const { testImap, fetchInbox } = require("./imap.cjs");
+const { testImap, fetchMail, moveMessages, deleteMessages, emptyFolder } = require("./imap.cjs");
 const { testSmtp, sendMail, sendCalendarInvites } = require("./smtp.cjs");
 const { generateTeamsMeetingUrl } = require("./calendar-invite.cjs");
 const { discoverMailSettings } = require("./discover.cjs");
@@ -104,7 +104,12 @@ function registerMailIpc() {
     const account = accounts.getAccountSecret(id);
     if (!account) return { ok: false, error: "Account not found" };
     try {
-      const messages = await fetchInbox(account, { limit: 50 });
+      const messages = await fetchMail(account, {
+        inboxLimit: 50,
+        sentLimit: 40,
+        spamLimit: 40,
+        trashLimit: 40,
+      });
       accounts.touchAccount(id, { lastSyncAt: new Date().toISOString(), lastError: null });
       return {
         ok: true,
@@ -129,6 +134,32 @@ function registerMailIpc() {
     } catch (err) {
       return { ok: false, error: err.message || String(err) };
     }
+  });
+
+  ipcMain.handle("mail:moveMessages", async (_e, payload) => {
+    const account = accounts.getAccountSecret(payload?.accountId);
+    if (!account) return { ok: false, error: "Account not found" };
+    return moveMessages(account, {
+      sourceFolder: payload.sourceFolder || "inbox",
+      destFolder: payload.destFolder || "trash",
+      uids: payload.uids || [],
+    });
+  });
+
+  ipcMain.handle("mail:deleteMessages", async (_e, payload) => {
+    const account = accounts.getAccountSecret(payload?.accountId);
+    if (!account) return { ok: false, error: "Account not found" };
+    return deleteMessages(account, {
+      folder: payload.folder || "trash",
+      uids: payload.uids || [],
+    });
+  });
+
+  ipcMain.handle("mail:emptyFolder", async (_e, payload) => {
+    const account = accounts.getAccountSecret(payload?.accountId);
+    if (!account) return { ok: false, error: "Account not found" };
+    const folder = payload?.folder === "spam" ? "spam" : "trash";
+    return emptyFolder(account, { folder });
   });
 
   ipcMain.handle("mail:sendCalendarInvites", async (_e, payload) => {

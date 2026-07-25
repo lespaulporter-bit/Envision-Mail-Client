@@ -891,6 +891,7 @@ export function createSeed(): AppStateData {
       wallpaper: "rotate",
       wallpaperRotateMinutes: 8,
       autoFetchMinutes: 2,
+      autoPurgeTrashDays: 30,
       requestReadReceiptsByDefault: true,
       defaultSignatureId: "sig1",
     },
