@@ -3,7 +3,27 @@
 import { Button } from "@/components/ui";
 import { useHeyStore } from "@/lib/store";
 import { format, parseISO } from "date-fns";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+function formatCountdown(targetIso: string, nowMs: number) {
+  const diff = +new Date(targetIso) - nowMs;
+  if (diff <= 0) return { label: "Now", urgent: true };
+  const totalSec = Math.floor(diff / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+  if (days >= 1) {
+    return {
+      label: `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`,
+      urgent: days < 2,
+    };
+  }
+  return {
+    label: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`,
+    urgent: hours < 6,
+  };
+}
 
 export function CoverArt() {
   const settings = useHeyStore((s) => s.settings);
@@ -16,7 +36,13 @@ export function CoverArt() {
   const addEvent = useHeyStore((s) => s.addEvent);
   const setView = useHeyStore((s) => s.setView);
   const [task, setTask] = useState("");
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const today = new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const upcoming = useMemo(
     () =>
@@ -105,10 +131,12 @@ export function CoverArt() {
               <ul className="space-y-2 text-sm">
                 {countdowns.length === 0 ? <li className="text-white/70">None yet</li> : null}
                 {countdowns.map((e) => {
-                  const days = Math.ceil((+new Date(e.start) - Date.now()) / 86400_000);
+                  const cd = formatCountdown(e.start, nowMs);
                   return (
-                    <li key={e.id}>
-                      <strong>{days}d</strong> · {e.title}
+                    <li key={e.id} className={cd.urgent ? "text-amber-200" : ""}>
+                      <div className="font-mono text-base font-semibold tracking-tight">{cd.label}</div>
+                      <div className="text-white/80">{e.title}</div>
+                      <div className="text-[11px] text-white/55">{format(parseISO(e.start), "EEE MMM d · h:mm a")}</div>
                     </li>
                   );
                 })}

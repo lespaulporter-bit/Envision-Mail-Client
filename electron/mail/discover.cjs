@@ -63,7 +63,7 @@ const MX_HINTS = [
     smtpHost: "smtp.aol.com",
     smtpPort: 465,
     smtpSecure: true,
-    hint: "Generate an AOL app password, then paste it into Les Mail.",
+    hint: "Generate an AOL app password, then paste it into Envision Mail.",
   },
   {
     match: /icloud|me\.com|apple/i,

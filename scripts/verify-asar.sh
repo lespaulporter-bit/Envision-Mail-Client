@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Verify packaged Les Mail asar contains critical mail modules
+# Verify packaged Envision Mail asar contains critical mail modules
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ASAR="${1:-$ROOT/release/mac-arm64/Les Mail.app/Contents/Resources/app.asar}"
+ASAR="${1:-$ROOT/release/mac-arm64/Envision Mail.app/Contents/Resources/app.asar}"
 
 if [[ ! -f "$ASAR" ]]; then
   echo "Missing asar: $ASAR"
   exit 1
 fi
 
-npx --yes @electron/asar list "$ASAR" > /tmp/les-mail-asar.txt
+npx --yes @electron/asar list "$ASAR" > /tmp/envision-mail-asar.txt
 
 REQUIRED=(
   "node_modules/encoding-japanese/src/index.js"
@@ -23,7 +23,7 @@ REQUIRED=(
 
 ok=1
 for path in "${REQUIRED[@]}"; do
-  if rg -F -q "$path" /tmp/les-mail-asar.txt; then
+  if rg -F -q "$path" /tmp/envision-mail-asar.txt; then
     echo "OK  $path"
   else
     echo "MISSING  $path"

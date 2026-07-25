@@ -35,10 +35,10 @@ function createPng(size) {
       const i = row + 1 + x * 4;
       const nx = x / (size - 1);
       const ny = y / (size - 1);
-      // HEY-like blue → blurple gradient
-      const r = Math.round(0 + (85 - 0) * nx);
-      const g = Math.round(116 + (34 - 116) * nx + 20 * (1 - ny));
-      const b = Math.round(228 + (250 - 228) * nx);
+      // Envision teal → emerald gradient
+      const r = Math.round(13 + (4 - 13) * nx + 8 * ny);
+      const g = Math.round(148 + (120 - 148) * nx + 20 * (1 - ny));
+      const b = Math.round(136 + (80 - 136) * nx);
       // rounded square mask
       const pad = size * 0.08;
       const rx = size * 0.22;
@@ -56,13 +56,15 @@ function createPng(size) {
         const dy = ly - cy;
         if (dx * dx + dy * dy > rx * rx) alpha = 0;
       }
-      // simple "L" glyph for Les Mail
+      // White "E" glyph for Envision Mail
       if (alpha) {
         const gx = (x - size * 0.30) / (size * 0.40);
         const gy = (y - size * 0.22) / (size * 0.56);
-        const stem = gx >= 0 && gx <= 0.28 && gy >= 0 && gy <= 1;
-        const base = gy >= 0.78 && gy <= 1 && gx >= 0 && gx <= 1;
-        if (gx >= 0 && gx <= 1 && gy >= 0 && gy <= 1 && (stem || base)) {
+        const stem = gx >= 0 && gx <= 0.26 && gy >= 0 && gy <= 1;
+        const top = gy >= 0 && gy <= 0.16 && gx >= 0 && gx <= 1;
+        const mid = gy >= 0.42 && gy <= 0.58 && gx >= 0 && gx <= 0.82;
+        const bot = gy >= 0.84 && gy <= 1 && gx >= 0 && gx <= 1;
+        if (gx >= 0 && gx <= 1 && gy >= 0 && gy <= 1 && (stem || top || mid || bot)) {
           raw[i] = 255;
           raw[i + 1] = 255;
           raw[i + 2] = 255;

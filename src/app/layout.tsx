@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Les Mail — Email + Calendar",
+  title: "Envision Mail — Email + Calendar",
   description:
-    "Les Mail: LesBox-style email and calendar with real IMAP/SMTP accounts, Screener, Feed, Paper Trail, and more.",
+    "Envision Mail: LesBox-style email and calendar with real IMAP/SMTP accounts, Screener, Feed, Paper Trail, and more.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

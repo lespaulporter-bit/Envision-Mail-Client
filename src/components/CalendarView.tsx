@@ -262,7 +262,7 @@ export function CalendarView() {
                   </div>
                   <div className="flex flex-wrap gap-1">
                     <Button size="sm" variant="soft" onClick={() => updateEvent(e.id, { countdown: !e.countdown })}>
-                      {e.countdown ? "Countdown on" : "Countdown"}
+                      {e.countdown ? "Countdown ✓" : "Countdown"}
                     </Button>
                     {isDesktop() && accountId && (e.invitees?.length || 0) > 0 ? (
                       <Button

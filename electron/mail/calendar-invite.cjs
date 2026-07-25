@@ -4,7 +4,7 @@ const { randomUUID } = require("crypto");
  * Build a Microsoft Teams-style meeting join URL.
  * Uses a generated meeting id so invites are unique; users can also paste a real Teams link.
  */
-function generateTeamsMeetingUrl(title = "Les Mail meeting") {
+function generateTeamsMeetingUrl(title = "Envision Mail meeting") {
   const id = randomUUID().replace(/-/g, "").slice(0, 12);
   const slug = encodeURIComponent(title.slice(0, 40));
   return `https://teams.microsoft.com/l/meetup-join/19%3ameeting_${id}%40thread.v2/0?context=%7b%22slug%22%3a%22${slug}%22%7d`;
@@ -57,7 +57,7 @@ function buildInviteIcs({
 
   return [
     "BEGIN:VCALENDAR",
-    "PRODID:-//Les Mail//EN",
+    "PRODID:-//Envision Mail//EN",
     "VERSION:2.0",
     "CALSCALE:GREGORIAN",
     "METHOD:REQUEST",

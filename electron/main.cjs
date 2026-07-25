@@ -13,15 +13,15 @@ try {
 } catch (err) {
   app.whenReady().then(() => {
     dialog.showErrorBox(
-      "Les Mail failed to start",
-      `A required mail module is missing from the app package.\n\n${err.message}\n\nReinstall Les Mail 3.0+ from the release folder.`,
+      "Envision Mail failed to start",
+      `A required mail module is missing from the app package.\n\n${err.message}\n\nReinstall Envision Mail 3.0+ from the release folder.`,
     );
     app.quit();
   });
 }
 
 // Product identity
-app.setName("Les Mail");
+app.setName("Envision Mail");
 
 const isDev = !app.isPackaged;
 const DEFAULT_WIDTH = 1180;
@@ -110,7 +110,7 @@ function createWindow(startUrl) {
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#1d2d35" : "#fbfcfd",
-    title: "Les Mail",
+    title: "Envision Mail",
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -141,7 +141,7 @@ function buildMenu() {
               { role: "about" },
               { type: "separator" },
               {
-                label: "Uninstall Les Mail…",
+                label: "Uninstall Envision Mail…",
                 click: async () => {
                   if (mainWindow) mainWindow.webContents.send("app:request-uninstall");
                 },
@@ -178,7 +178,7 @@ function buildMenu() {
         },
         { type: "separator" },
         {
-          label: "Uninstall Les Mail…",
+          label: "Uninstall Envision Mail…",
           click: () => mainWindow?.webContents.send("app:request-uninstall"),
         },
         process.platform === "darwin" ? { role: "close" } : { role: "quit" },
@@ -250,7 +250,7 @@ if (!gotLock) {
       }
       createWindow(startUrl);
     } catch (err) {
-      dialog.showErrorBox("Les Mail failed to start", String(err));
+      dialog.showErrorBox("Envision Mail failed to start", String(err));
       app.quit();
     }
 

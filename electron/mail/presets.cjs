@@ -1,4 +1,4 @@
-/** Common provider presets for Les Mail */
+/** Common provider presets for Envision Mail */
 const PRESETS = {
   gmail: {
     id: "gmail",
@@ -11,7 +11,7 @@ const PRESETS = {
     smtpSecure: true,
     needsAppPassword: true,
     appPasswordUrl: "https://myaccount.google.com/apppasswords",
-    hint: "Gmail needs an App Password (not your normal login). Click “Open App Password page”, create one named Les Mail, then paste it here.",
+    hint: "Gmail needs an App Password (not your normal login). Click “Open App Password page”, create one named Envision Mail, then paste it here.",
   },
   yahoo: {
     id: "yahoo",

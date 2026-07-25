@@ -105,7 +105,7 @@ export function AppShell() {
   const switchAccount = useHeyStore((s) => s.switchAccount);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("12.0.0");
+  const [appVersion, setAppVersion] = useState("11.7.0");
 
   const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
   const scoped = inboxAccountId;
@@ -341,13 +341,8 @@ export function AppShell() {
           })}
         </nav>
         <div className="border-t border-line p-3 text-[11px] leading-relaxed text-muted">
-          Envision Mail {appVersion}
-          {activeAccount ? (
-            <>
-              <br />
-              <span className="font-medium text-ink">{activeAccount.email}</span>
-            </>
-          ) : null}
+          <div className="font-medium text-ink">{appVersion}</div>
+          <div className="mt-1">Thank you for using Envision DMS.</div>
         </div>
       </aside>
 

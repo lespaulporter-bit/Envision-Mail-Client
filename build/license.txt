@@ -1,4 +1,4 @@
-Les Mail
+Envision Mail
 
 Email + calendar client with Imbox-style workflows and real IMAP/SMTP accounts.
 

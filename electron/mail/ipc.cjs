@@ -174,7 +174,7 @@ function registerMailIpc() {
 
   ipcMain.handle("mail:generateTeamsUrl", async (_e, title) => ({
     ok: true,
-    url: generateTeamsMeetingUrl(title || "Les Mail meeting"),
+    url: generateTeamsMeetingUrl(title || "Envision Mail meeting"),
   }));
 
   ipcMain.handle("calendar:syncMac", async () => syncMacCalendars());
@@ -194,7 +194,7 @@ function registerMailIpc() {
       buttons: ["Cancel", "Quit & Uninstall"],
       defaultId: 0,
       cancelId: 0,
-      title: "Uninstall Les Mail",
+      title: "Uninstall Envision Mail",
       message: "Remove Les Mail and all local app data?",
       detail:
         "This deletes saved IMAP/SMTP accounts, preferences, and cache for Les Mail. Your actual email on the server is not deleted.",
@@ -203,7 +203,7 @@ function registerMailIpc() {
 
     const targets = [
       app.getPath("userData"),
-      path.join(app.getPath("appData"), "les-mail"),
+      path.join(app.getPath("appData"), "envision-mail"),
       path.join(app.getPath("cache"), app.getName()),
     ];
 

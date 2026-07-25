@@ -1,6 +1,6 @@
-appId: app.lesmail.desktop
-productName: Les Mail
-copyright: Copyright © 2026 Les Mail
+appId: app.envisionmail.desktop
+productName: Envision Mail
+copyright: Copyright © 2026 Envision Mail
 asar: true
 asarUnpack:
   - "**/*.{node,dll,dylib,so}"
@@ -42,10 +42,10 @@ mac:
   artifactName: ${productName}-${version}-mac-${arch}.${ext}
   extendInfo:
     LSMinimumSystemVersion: "12.0"
-    NSHumanReadableCopyright: "Copyright © 2026 Les Mail"
-    NSAppleEventsUsageDescription: Les Mail reads your Mac Calendar.app events when you click Sync Mac Calendars.
-    NSCalendarsUsageDescription: Les Mail can show your Mac calendars alongside Les Mail events.
-    NSCalendarsFullAccessUsageDescription: Les Mail syncs events from Calendar.app into the Calendar view.
+    NSHumanReadableCopyright: "Copyright © 2026 Envision Mail"
+    NSAppleEventsUsageDescription: Envision Mail reads your Mac Calendar.app events when you click Sync Mac Calendars.
+    NSCalendarsUsageDescription: Envision Mail can show your Mac calendars alongside Envision Mail events.
+    NSCalendarsFullAccessUsageDescription: Envision Mail syncs events from Calendar.app into the Calendar view.
 dmg:
   title: ${productName} ${version}
   writeUpdateInfo: false
@@ -70,7 +70,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Les Mail
+  shortcutName: Envision Mail
   deleteAppDataOnUninstall: true
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico

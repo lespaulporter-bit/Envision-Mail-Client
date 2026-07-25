@@ -4,7 +4,10 @@ const { app, safeStorage } = require("electron");
 const { randomUUID } = require("crypto");
 
 function accountsPath() {
-  return path.join(app.getPath("userData"), "les-mail-accounts.json");
+  const modern = path.join(app.getPath("userData"), "envision-mail-accounts.json");
+  const legacy = path.join(app.getPath("userData"), "les-mail-accounts.json");
+  if (fs.existsSync(modern) || !fs.existsSync(legacy)) return modern;
+  return legacy;
 }
 
 function readRaw() {

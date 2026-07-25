@@ -333,143 +333,300 @@ export function SettingsView() {
   const settings = useHeyStore((s) => s.settings);
   const updateSettings = useHeyStore((s) => s.updateSettings);
   const resetDemo = useHeyStore((s) => s.resetDemo);
+  const [tab, setTab] = useState<"accounts" | "general" | "mail" | "appearance" | "templates" | "about">(
+    "accounts",
+  );
+  const [appVersion, setAppVersion] = useState("11.7.0");
+
+  useEffect(() => {
+    const api = desktopApi();
+    if (!api?.getAppInfo) return;
+    void api.getAppInfo().then((info) => {
+      if (info?.version) setAppVersion(info.version);
+    });
+  }, []);
+
+  const tabs: Array<{ id: typeof tab; label: string }> = [
+    { id: "accounts", label: "Accounts" },
+    { id: "general", label: "General" },
+    { id: "mail", label: "Mail" },
+    { id: "appearance", label: "Appearance" },
+    { id: "templates", label: "Templates" },
+    { id: "about", label: "About" },
+  ];
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 md:px-8">
-      <SectionHeader title="Settings" subtitle="Accounts, backgrounds, templates, signatures, auto-fetch, and uninstall." />
+    <div className="mx-auto max-w-4xl px-4 py-6 md:px-8">
+      <SectionHeader
+        title="Settings"
+        subtitle="Configure Envision Mail for your dealership workflow — accounts, mail behavior, and appearance."
+      />
 
-      <div className="mb-6 rounded-2xl border border-line bg-white/90 p-5">
-        <AccountsPanel />
-      </div>
-
-      <div className="mb-6">
-        <EmailTemplatesPanel />
-      </div>
-
-      <div className="mb-6 rounded-2xl border border-line bg-white/90 p-5">
-        <SignaturesPanel />
-      </div>
-
-      <div className="mb-6 space-y-3 rounded-2xl border border-line bg-white/90 p-5">
-        <h3 className="font-display text-xl">Backgrounds</h3>
-        <p className="text-sm text-muted">Ocean, national forests, stars — or rotate through all automatically.</p>
-        <label className="block text-sm">
-          Theme
-          <select
-            className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2"
-            value={settings.wallpaper || "rotate"}
-            onChange={(e) => updateSettings({ wallpaper: e.target.value as typeof settings.wallpaper })}
+      <div className="mb-6 flex flex-wrap gap-1 rounded-2xl border border-line bg-white/90 p-1.5">
+        {tabs.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setTab(item.id)}
+            className={`rounded-xl px-3.5 py-2 text-sm font-medium transition ${
+              tab === item.id
+                ? "bg-blurple text-white shadow-sm"
+                : "text-muted hover:bg-soft hover:text-ink"
+            }`}
           >
-            <option value="none">None (clean)</option>
-            <option value="ocean">Ocean</option>
-            <option value="forest">National forests</option>
-            <option value="stars">Stars in the sky</option>
-            <option value="rotate">Alternate all (recommended)</option>
-          </select>
-        </label>
-        <label className="block text-sm">
-          Rotate every (minutes)
-          <Input
-            className="mt-1"
-            type="number"
-            min={1}
-            value={settings.wallpaperRotateMinutes ?? 8}
-            onChange={(e) => updateSettings({ wallpaperRotateMinutes: Math.max(1, Number(e.target.value) || 8) })}
-          />
-        </label>
+            {item.label}
+          </button>
+        ))}
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-line bg-white/90 p-5">
-        <label className="block text-sm">
-          Display name
-          <Input
-            className="mt-1"
-            value={settings.displayName}
-            onChange={(e) => updateSettings({ displayName: e.target.value })}
-          />
-        </label>
-        <label className="block text-sm">
-          Email
-          <Input className="mt-1" value={settings.email} onChange={(e) => updateSettings({ email: e.target.value })} />
-        </label>
-        <label className="block text-sm">
-          Auto-fetch new mail every (minutes)
-          <Input
-            className="mt-1"
-            type="number"
-            min={1}
-            value={settings.autoFetchMinutes ?? 2}
-            onChange={(e) => updateSettings({ autoFetchMinutes: Math.max(1, Number(e.target.value) || 2) })}
-          />
-          <span className="mt-1 block text-xs text-muted">Also fetches when the window regains focus.</span>
-        </label>
-        <label className="block text-sm">
-          Auto-purge Trash after (days)
-          <Input
-            className="mt-1"
-            type="number"
-            min={0}
-            value={settings.autoPurgeTrashDays ?? 30}
-            onChange={(e) =>
-              updateSettings({ autoPurgeTrashDays: Math.max(0, Number(e.target.value) || 0) })
-            }
-          />
-          <span className="mt-1 block text-xs text-muted">
-            Default 30. Permanently deletes Trash older than this on sync. Set 0 to disable.
-          </span>
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={settings.requestReadReceiptsByDefault ?? true}
-            onChange={(e) => updateSettings({ requestReadReceiptsByDefault: e.target.checked })}
-          />
-          Request read receipts by default
-        </label>
-        <label className="block text-sm">
-          Speakeasy code
-          <Input
-            className="mt-1"
-            value={settings.speakeasyCode}
-            onChange={(e) => updateSettings({ speakeasyCode: e.target.value.toUpperCase() })}
-          />
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={settings.autoresponderOn}
-            onChange={(e) => updateSettings({ autoresponderOn: e.target.checked })}
-          />
-          Autoresponder on
-        </label>
-        <Textarea
-          rows={3}
-          value={settings.autoresponderMessage}
-          onChange={(e) => updateSettings({ autoresponderMessage: e.target.value })}
-        />
-        <label className="block text-sm">
-          Timezone
-          <Input className="mt-1" value={settings.timezone} onChange={(e) => updateSettings({ timezone: e.target.value })} />
-        </label>
-        <div className="flex flex-wrap gap-2 pt-2">
-          <Button variant="soft" onClick={resetDemo}>
-            Reset demo sample data
-          </Button>
-          <Button
-            variant="danger"
-            onClick={async () => {
-              const api = desktopApi();
-              if (!api) {
-                alert("Uninstall is in the Les Mail desktop app menu.");
-                return;
+      {tab === "accounts" ? (
+        <section className="rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
+          <div className="mb-4">
+            <h3 className="font-display text-xl text-ink">Email accounts</h3>
+            <p className="mt-1 text-sm text-muted">
+              Connect IMAP/SMTP accounts. Switch the active account in the sidebar — each workspace stays isolated.
+            </p>
+          </div>
+          <AccountsPanel />
+        </section>
+      ) : null}
+
+      {tab === "general" ? (
+        <section className="space-y-5 rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
+          <div>
+            <h3 className="font-display text-xl text-ink">Profile</h3>
+            <p className="mt-1 text-sm text-muted">How you appear when composing and in the sidebar.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block text-sm font-medium">
+              Display name
+              <Input
+                className="mt-1.5"
+                value={settings.displayName}
+                onChange={(e) => updateSettings({ displayName: e.target.value })}
+                placeholder="Your name"
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Primary email
+              <Input
+                className="mt-1.5"
+                value={settings.email}
+                onChange={(e) => updateSettings({ email: e.target.value })}
+                placeholder="you@company.com"
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Work email (optional)
+              <Input
+                className="mt-1.5"
+                value={settings.workEmail || ""}
+                onChange={(e) => updateSettings({ workEmail: e.target.value })}
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Timezone
+              <Input
+                className="mt-1.5"
+                value={settings.timezone}
+                onChange={(e) => updateSettings({ timezone: e.target.value })}
+                placeholder="America/New_York"
+              />
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.linkedAccounts}
+              onChange={(e) => updateSettings({ linkedAccounts: e.target.checked })}
+            />
+            Show personal / work marks on threads
+          </label>
+        </section>
+      ) : null}
+
+      {tab === "mail" ? (
+        <section className="space-y-5 rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
+          <div>
+            <h3 className="font-display text-xl text-ink">Mail behavior</h3>
+            <p className="mt-1 text-sm text-muted">Sync, Screener, receipts, and cleanup.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block text-sm font-medium">
+              Auto-fetch every (minutes)
+              <Input
+                className="mt-1.5"
+                type="number"
+                min={1}
+                value={settings.autoFetchMinutes ?? 2}
+                onChange={(e) => updateSettings({ autoFetchMinutes: Math.max(1, Number(e.target.value) || 2) })}
+              />
+              <span className="mt-1 block text-xs font-normal text-muted">Also syncs when the window regains focus.</span>
+            </label>
+            <label className="block text-sm font-medium">
+              Auto-purge Trash after (days)
+              <Input
+                className="mt-1.5"
+                type="number"
+                min={0}
+                value={settings.autoPurgeTrashDays ?? 30}
+                onChange={(e) =>
+                  updateSettings({ autoPurgeTrashDays: Math.max(0, Number(e.target.value) || 0) })
+                }
+              />
+              <span className="mt-1 block text-xs font-normal text-muted">Default 30. Use 0 to disable.</span>
+            </label>
+            <label className="block text-sm font-medium md:col-span-2">
+              Speakeasy code
+              <Input
+                className="mt-1.5"
+                value={settings.speakeasyCode}
+                onChange={(e) => updateSettings({ speakeasyCode: e.target.value.toUpperCase() })}
+                placeholder="Optional bypass code in subject"
+              />
+            </label>
+          </div>
+          <div className="space-y-3 rounded-xl bg-soft/80 p-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={settings.requestReadReceiptsByDefault ?? false}
+                onChange={(e) => updateSettings({ requestReadReceiptsByDefault: e.target.checked })}
+              />
+              Request read receipts by default
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={settings.spamCorps}
+                onChange={(e) => updateSettings({ spamCorps: e.target.checked })}
+              />
+              Enable Spam Corps actions in Screener
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={settings.autoresponderOn}
+                onChange={(e) => updateSettings({ autoresponderOn: e.target.checked })}
+              />
+              Autoresponder on
+            </label>
+            <Textarea
+              rows={3}
+              value={settings.autoresponderMessage}
+              onChange={(e) => updateSettings({ autoresponderMessage: e.target.value })}
+              placeholder="Away message…"
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "appearance" ? (
+        <section className="space-y-5 rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
+          <div>
+            <h3 className="font-display text-xl text-ink">Appearance</h3>
+            <p className="mt-1 text-sm text-muted">Background atmosphere and LesBox cover art.</p>
+          </div>
+          <label className="block text-sm font-medium">
+            Wallpaper theme
+            <select
+              className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2"
+              value={settings.wallpaper || "none"}
+              onChange={(e) => updateSettings({ wallpaper: e.target.value as typeof settings.wallpaper })}
+            >
+              <option value="none">None (clean)</option>
+              <option value="ocean">Ocean</option>
+              <option value="forest">National forests</option>
+              <option value="stars">Stars in the sky</option>
+              <option value="rotate">Alternate all</option>
+            </select>
+          </label>
+          <label className="block text-sm font-medium">
+            Rotate every (minutes)
+            <Input
+              className="mt-1.5"
+              type="number"
+              min={1}
+              value={settings.wallpaperRotateMinutes ?? 8}
+              onChange={(e) =>
+                updateSettings({ wallpaperRotateMinutes: Math.max(1, Number(e.target.value) || 8) })
               }
-              await api.uninstall();
-            }}
-          >
-            Uninstall Les Mail…
-          </Button>
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Default LesBox cover art
+            <select
+              className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2"
+              value={settings.coverArt}
+              onChange={(e) => updateSettings({ coverArt: e.target.value as typeof settings.coverArt })}
+            >
+              <option value="none">None</option>
+              <option value="gradient">Gradient</option>
+              <option value="photo">Photo</option>
+              <option value="calendar">Calendar (countdowns & habits)</option>
+            </select>
+          </label>
+        </section>
+      ) : null}
+
+      {tab === "templates" ? (
+        <div className="space-y-6">
+          <section className="rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
+            <h3 className="mb-3 font-display text-xl text-ink">Email templates</h3>
+            <EmailTemplatesPanel />
+          </section>
+          <section className="rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
+            <h3 className="mb-3 font-display text-xl text-ink">Signatures</h3>
+            <SignaturesPanel />
+          </section>
         </div>
-      </div>
+      ) : null}
+
+      {tab === "about" ? (
+        <section className="space-y-5 rounded-2xl border border-line bg-white/95 p-5 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div
+              className="flex h-14 w-14 items-center justify-center rounded-2xl text-2xl font-bold text-white shadow"
+              style={{ background: "var(--hey-gradient)" }}
+              aria-hidden
+            >
+              E
+            </div>
+            <div>
+              <h3 className="font-display text-2xl text-ink">Envision Mail</h3>
+              <p className="text-sm text-muted">Version {appVersion}</p>
+              <p className="mt-1 text-sm text-ink">Thank you for using Envision DMS.</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-line bg-soft/70 p-4 text-sm text-muted">
+            New installs start empty — no sample contacts or demo email. Connect a real account under Accounts to sync
+            mail.
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="soft"
+              onClick={() => {
+                if (confirm("Clear all local mail, contacts, and calendar data on this device?")) resetDemo();
+              }}
+            >
+              Clear local data
+            </Button>
+            <Button
+              variant="danger"
+              onClick={async () => {
+                const api = desktopApi();
+                if (!api) {
+                  alert("Uninstall is available in the Envision Mail desktop app menu.");
+                  return;
+                }
+                await api.uninstall();
+              }}
+            >
+              Uninstall Envision Mail…
+            </Button>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

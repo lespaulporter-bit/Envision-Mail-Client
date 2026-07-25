@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { createSeed } from "./seed";
+import { createEmptyState } from "./seed";
 import type {
   AppStateData,
   Box,
@@ -193,7 +193,7 @@ interface Actions {
 
 export type HeyStore = AppStateData & UiState & Actions;
 
-const seed = createSeed();
+const seed = createEmptyState();
 
 function bumpThread(t: Thread): Thread {
   return { ...t, updatedAt: new Date().toISOString() };
@@ -1177,7 +1177,7 @@ export const useHeyStore = create<HeyStore>()(
         }),
 
       resetDemo: () => {
-        const fresh = createSeed();
+        const fresh = createEmptyState();
         set({
           ...fresh,
           view: "lesbox",
@@ -1185,7 +1185,7 @@ export const useHeyStore = create<HeyStore>()(
           searchQuery: "",
           powerThrough: false,
           multiOpenIds: [],
-          toast: "Demo data reset",
+          toast: "Local mail data cleared",
         });
       },
 
@@ -1204,7 +1204,7 @@ export const useHeyStore = create<HeyStore>()(
       },
     }),
     {
-      name: "les-mail-v4",
+      name: "envision-mail-v1",
       partialize: (state) => ({
         threads: state.threads,
         messages: state.messages,

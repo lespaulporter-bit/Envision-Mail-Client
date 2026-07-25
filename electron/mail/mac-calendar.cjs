@@ -151,7 +151,7 @@ async function syncMacCalendars() {
         return {
           ok: false,
           error:
-            "Calendar access denied. Grant Automation permission: System Settings → Privacy & Security → Automation → Les Mail → Calendar.",
+            "Calendar access denied. Grant Automation permission: System Settings → Privacy & Security → Automation → Envision Mail → Calendar.",
         };
       }
       return { ok: false, error: err || "Calendar.app returned no data." };
@@ -165,7 +165,7 @@ async function syncMacCalendars() {
         return {
           ok: false,
           error:
-            "Calendar access denied. Grant Automation permission: System Settings → Privacy & Security → Automation → Les Mail → Calendar.",
+            "Calendar access denied. Grant Automation permission: System Settings → Privacy & Security → Automation → Envision Mail → Calendar.",
         };
       }
       return { ok: false, error: "Could not parse Calendar.app response." };
@@ -189,7 +189,7 @@ async function syncMacCalendars() {
       return {
         ok: false,
         error:
-          "Calendar access denied. Grant Automation permission: System Settings → Privacy & Security → Automation → Les Mail → Calendar.",
+          "Calendar access denied. Grant Automation permission: System Settings → Privacy & Security → Automation → Envision Mail → Calendar.",
       };
     }
     return {
