@@ -4,6 +4,7 @@ import { CoverArt } from "@/components/CoverArt";
 import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
+import { desktopApi } from "@/lib/desktop";
 import { selectBoxThreads, useMailStore } from "@/lib/store";
 import type { Message, Thread } from "@/lib/types";
 import { previewText } from "@/lib/utils";
@@ -237,7 +238,7 @@ function ScreenerCard({
   expanded,
   onToggleExpand,
   boxChoice,
-  spamCorps,
+  spamCentral,
   onAllow,
   onBlock,
   onSpam,
@@ -247,7 +248,7 @@ function ScreenerCard({
   expanded: boolean;
   onToggleExpand: () => void;
   boxChoice: "lesbox" | "feed" | "paper_trail";
-  spamCorps: boolean;
+  spamCentral: boolean;
   onAllow: () => void;
   onBlock: () => void;
   onSpam: () => void;
@@ -297,9 +298,9 @@ function ScreenerCard({
         <Button variant="danger" onClick={onBlock}>
           Block
         </Button>
-        {spamCorps ? (
-          <Button variant="soft" onClick={onSpam}>
-            Spam Corps
+        {spamCentral ? (
+          <Button variant="soft" onClick={onSpam} title="Spam Central — block sender and move to Spam">
+            Block & report
           </Button>
         ) : null}
       </div>
@@ -380,10 +381,34 @@ export function ScreenerView() {
                 expanded={Boolean(expandedById[t.id])}
                 onToggleExpand={() => toggleExpanded(t.id)}
                 boxChoice={boxChoice}
-                spamCorps={settings.spamCorps}
+                spamCentral={settings.spamCentral ?? settings.spamCorps ?? true}
                 onAllow={() => screenContact(t.contactEmail, "allow", boxChoice)}
                 onBlock={() => screenContact(t.contactEmail, "block")}
-                onSpam={() => markSpam(t.id)}
+                onSpam={() => {
+                  markSpam(t.id);
+                  // Best-effort: also move IMAP messages into the server Spam folder
+                  void (async () => {
+                    const api = desktopApi();
+                    if (!api || !t.accountId) return;
+                    const uids = t.messageIds
+                      .map((id) => {
+                        const m = /^imap_[^_]+_(?:inbox_)?(\d+)$/.exec(id) || /^imap_[^_]+_(\d+)$/.exec(id);
+                        return m ? Number(m[1]) : 0;
+                      })
+                      .filter((u) => u > 0);
+                    if (!uids.length) return;
+                    try {
+                      await api.moveMessages({
+                        accountId: t.accountId,
+                        sourceFolder: "inbox",
+                        destFolder: "spam",
+                        uids,
+                      });
+                    } catch {
+                      /* local spam box already updated */
+                    }
+                  })();
+                }}
               />
             );
           })}

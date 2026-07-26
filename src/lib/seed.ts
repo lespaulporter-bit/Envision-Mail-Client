@@ -33,7 +33,7 @@ export function createEmptyState(): AppStateData {
       speakeasyCode: "",
       autoresponderOn: false,
       autoresponderMessage: "I'm away and will get back to you soon.",
-      spamCorps: true,
+      spamCentral: true,
       coverArt: "none",
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York",
       secondaryTimezone: "",

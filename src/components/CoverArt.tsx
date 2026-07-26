@@ -91,7 +91,7 @@ export function CoverArt() {
                 title: "New event",
                 start: start.toISOString(),
                 end: end.toISOString(),
-                calendarId: "cal1",
+                calendarId: "cal_default",
               });
               setView("calendar");
             }}

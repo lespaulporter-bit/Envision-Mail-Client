@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.5
+- **Spam Central**: renamed from Spam Corps; button is **Block & report** (local + IMAP spam when possible).
+- **Calendar**: agenda view, week/day time grid, search, calendar toggles, edit/duplicate, all-day, location, countdowns, click-to-create slots.
+- **Updates**: stop using dead `updates.envisiondms.com` feed (404); use GitHub Releases and auto-migrate stale feed URLs.
+
 ## 2.6.4
 - Upload an account **avatar / logo** to replace initials (e.g. “LP”) in threads; also used in outgoing mail.
 - Contacts can upload a photo/logo too.

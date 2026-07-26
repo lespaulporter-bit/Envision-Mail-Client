@@ -556,10 +556,10 @@ export function SettingsView() {
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={settings.spamCorps}
-                onChange={(e) => updateSettings({ spamCorps: e.target.checked })}
+                checked={settings.spamCentral ?? settings.spamCorps ?? true}
+                onChange={(e) => updateSettings({ spamCentral: e.target.checked })}
               />
-              Enable Spam Corps actions in New Senders
+              Spam Central — show “Block & report” in New Senders
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input

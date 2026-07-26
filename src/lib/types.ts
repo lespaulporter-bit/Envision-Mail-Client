@@ -6,7 +6,7 @@ export type ContactStatus = "pending" | "allowed" | "blocked";
 
 export type CoverArtMode = "none" | "gradient" | "photo" | "calendar";
 
-export type CalendarView = "day" | "week" | "month";
+export type CalendarView = "day" | "week" | "month" | "agenda";
 
 export type WallpaperTheme = "none" | "ocean" | "forest" | "stars" | "rotate";
 
@@ -220,7 +220,10 @@ export interface Settings {
   speakeasyCode: string;
   autoresponderOn: boolean;
   autoresponderMessage: string;
-  spamCorps: boolean;
+  /** Show “Block & report” (Spam Central) in New Senders */
+  spamCentral: boolean;
+  /** @deprecated migrated to spamCentral */
+  spamCorps?: boolean;
   coverArt: CoverArtMode;
   coverArtImage?: string;
   timezone: string;

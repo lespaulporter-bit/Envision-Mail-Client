@@ -60,7 +60,7 @@ interface UiState {
     replyToThreadId?: string | null;
   };
   calendarDate: string;
-  calendarView: "day" | "week" | "month";
+  calendarView: "day" | "week" | "month" | "agenda";
   toast: string | null;
 }
 
@@ -167,6 +167,8 @@ interface Actions {
   addEvent: (event: Omit<CalendarEvent, "id">) => void;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
   deleteEvent: (id: string) => void;
+  toggleCalendarVisible: (calendarId: string) => void;
+  duplicateEvent: (id: string) => void;
   importMacCalendarData: (payload: {
     calendars: Array<{ id: string; name: string; color?: string }>;
     events: Array<{
@@ -415,7 +417,7 @@ export const useMailStore = create<MailStore>()(
           contacts: get().contacts.map((c) =>
             c.email === thread.contactEmail ? { ...c, status: "blocked" as const } : c,
           ),
-          toast: "Marked as spam — thanks, Spam Corps",
+          toast: "Blocked & reported to Spam Central",
         });
       },
 
@@ -1146,14 +1148,24 @@ export const useMailStore = create<MailStore>()(
         return { imported, screened };
       },
 
-      addEvent: (event) =>
+      addEvent: (event) => {
+        const fallbackCal =
+          get().calendars.find((c) => c.source !== "mac" && c.visible)?.id ||
+          get().calendars[0]?.id ||
+          "cal_default";
         set({
           events: [
             ...get().events,
-            { ...event, id: uid("e"), source: event.source ?? "local" },
+            {
+              ...event,
+              id: uid("e"),
+              calendarId: event.calendarId || fallbackCal,
+              source: event.source ?? "local",
+            },
           ],
           toast: "Event added",
-        }),
+        });
+      },
 
       updateEvent: (id, patch) =>
         set({
@@ -1161,6 +1173,31 @@ export const useMailStore = create<MailStore>()(
         }),
 
       deleteEvent: (id) => set({ events: get().events.filter((e) => e.id !== id) }),
+
+      toggleCalendarVisible: (calendarId) =>
+        set({
+          calendars: get().calendars.map((c) =>
+            c.id === calendarId ? { ...c, visible: !c.visible } : c,
+          ),
+        }),
+
+      duplicateEvent: (id) => {
+        const src = get().events.find((e) => e.id === id);
+        if (!src) return;
+        const start = new Date(src.start);
+        const end = new Date(src.end);
+        start.setDate(start.getDate() + 7);
+        end.setDate(end.getDate() + 7);
+        get().addEvent({
+          ...src,
+          title: `${src.title} (copy)`,
+          start: start.toISOString(),
+          end: end.toISOString(),
+          invitesSentAt: null,
+          externalId: null,
+          source: "local",
+        });
+      },
 
       importMacCalendarData: ({ calendars: macCals, events: macEvents }) => {
         const pastelColors = ["#A78BFA", "#60A5FA", "#34D399", "#F472B6", "#FBBF24", "#FB923C", "#38BDF8"];
@@ -1206,7 +1243,8 @@ export const useMailStore = create<MailStore>()(
             calIdByExternal.get(String(me.calendarId)) ||
             prev?.calendarId ||
             calendars.find((c) => c.source === "mac")?.id ||
-            "cal1";
+            calendars[0]?.id ||
+            "cal_default";
           return {
             id: prev?.id || uid("e"),
             title: me.title || "Untitled",
@@ -1291,7 +1329,8 @@ export const useMailStore = create<MailStore>()(
           title: thread.customSubject || thread.subject,
           start: start.toISOString(),
           end: end.toISOString(),
-          calendarId: "cal2",
+          calendarId:
+            get().calendars.find((c) => c.source !== "mac")?.id || get().calendars[0]?.id || "cal_default",
           fromThreadId: threadId,
           reminderMinutes: [15],
         });
@@ -1381,9 +1420,16 @@ export const useMailStore = create<MailStore>()(
         const messages = p.messages || current.messages;
         const rescued = backfillImapAccountIds(threads, messages);
         const contacts = contactsRaw;
+        const rawSettings = { ...current.settings, ...(p.settings || {}) } as typeof current.settings & {
+          spamCorps?: boolean;
+        };
         const settings = {
-          ...current.settings,
-          ...(p.settings || {}),
+          ...rawSettings,
+          spamCentral:
+            rawSettings.spamCentral ??
+            rawSettings.spamCorps ??
+            current.settings.spamCentral ??
+            true,
           wallpaper: p.settings?.wallpaper ?? current.settings.wallpaper ?? "rotate",
           wallpaperRotateMinutes:
             p.settings?.wallpaperRotateMinutes ?? current.settings.wallpaperRotateMinutes ?? 8,
@@ -1395,6 +1441,7 @@ export const useMailStore = create<MailStore>()(
             current.settings.requestReadReceiptsByDefault ??
             true,
         };
+        delete (settings as { spamCorps?: boolean }).spamCorps;
         return {
           ...current,
           ...p,

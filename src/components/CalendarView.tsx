@@ -3,20 +3,28 @@
 import { Button, Input, SectionHeader, Textarea } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
 import { useMailStore } from "@/lib/store";
-import type { CalendarInvitee } from "@/lib/types";
+import type { CalendarEvent, CalendarInvitee } from "@/lib/types";
 import {
   addDays,
+  addMonths,
   eachDayOfInterval,
+  endOfDay,
   endOfMonth,
   endOfWeek,
   format,
   isSameDay,
   isSameMonth,
+  isToday,
   parseISO,
+  startOfDay,
   startOfMonth,
   startOfWeek,
+  differenceInCalendarDays,
+  differenceInMinutes,
 } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
+
+const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am–8pm
 
 function defaultStartTime(): string {
   const d = new Date();
@@ -31,6 +39,18 @@ function addOneHour(hhmm: string): string {
   d.setHours(h || 0, m || 0, 0, 0);
   d.setHours(d.getHours() + 1);
   return format(d, "HH:mm");
+}
+
+function formatInTz(iso: string, timeZone: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      timeZone,
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return format(parseISO(iso), "h:mm a");
+  }
 }
 
 export function CalendarView() {
@@ -48,6 +68,8 @@ export function CalendarView() {
   const addEvent = useMailStore((s) => s.addEvent);
   const updateEvent = useMailStore((s) => s.updateEvent);
   const deleteEvent = useMailStore((s) => s.deleteEvent);
+  const duplicateEvent = useMailStore((s) => s.duplicateEvent);
+  const toggleCalendarVisible = useMailStore((s) => s.toggleCalendarVisible);
   const importMacCalendarData = useMailStore((s) => s.importMacCalendarData);
   const toggleHabit = useMailStore((s) => s.toggleHabit);
   const setJournal = useMailStore((s) => s.setJournal);
@@ -61,6 +83,9 @@ export function CalendarView() {
   const [eventDate, setEventDate] = useState(calendarDate);
   const [startTime, setStartTime] = useState(defaultStartTime);
   const [endTime, setEndTime] = useState(() => addOneHour(defaultStartTime()));
+  const [allDay, setAllDay] = useState(false);
+  const [location, setLocation] = useState("");
+  const [notes, setNotes] = useState("");
   const [inviteesText, setInviteesText] = useState("");
   const [useTeams, setUseTeams] = useState(true);
   const [teamsUrl, setTeamsUrl] = useState("");
@@ -70,7 +95,15 @@ export function CalendarView() {
   const [labelDraft, setLabelDraft] = useState("");
   const [taskDraft, setTaskDraft] = useState("");
   const [journalDraft, setJournalDraft] = useState("");
+  const [query, setQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedCalId, setSelectedCalId] = useState("");
   const isMacDesktop = isDesktop() && desktopApi()?.platform === "darwin";
+
+  const defaultCalId =
+    calendars.find((c) => c.source !== "mac" && c.visible)?.id ||
+    calendars[0]?.id ||
+    "cal_default";
 
   useEffect(() => {
     setJournalDraft(journal.find((j) => j.date === calendarDate)?.body || "");
@@ -81,6 +114,10 @@ export function CalendarView() {
   }, [calendarDate]);
 
   useEffect(() => {
+    if (!selectedCalId && defaultCalId) setSelectedCalId(defaultCalId);
+  }, [defaultCalId, selectedCalId]);
+
+  useEffect(() => {
     const api = desktopApi();
     if (!api) return;
     void api.listAccounts().then((list) => {
@@ -88,8 +125,29 @@ export function CalendarView() {
     });
   }, []);
 
+  const visibleCalIds = useMemo(
+    () => new Set(calendars.filter((c) => c.visible).map((c) => c.id)),
+    [calendars],
+  );
+
+  const filteredEvents = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return events
+      .filter((e) => visibleCalIds.has(e.calendarId))
+      .filter((e) => {
+        if (!q) return true;
+        return (
+          e.title.toLowerCase().includes(q) ||
+          (e.location || "").toLowerCase().includes(q) ||
+          (e.notes || "").toLowerCase().includes(q) ||
+          (e.invitees || []).some((i) => i.email.toLowerCase().includes(q))
+        );
+      })
+      .sort((a, b) => +new Date(a.start) - +new Date(b.start));
+  }, [events, visibleCalIds, query]);
+
   const days = useMemo(() => {
-    if (calendarView === "day") return [date];
+    if (calendarView === "day" || calendarView === "agenda") return [date];
     if (calendarView === "week") {
       return eachDayOfInterval({ start: startOfWeek(date), end: endOfWeek(date) });
     }
@@ -99,13 +157,27 @@ export function CalendarView() {
     });
   }, [calendarDate, calendarView, date]);
 
-  const visibleCalIds = new Set(calendars.filter((c) => c.visible).map((c) => c.id));
-  const dayEvents = (d: Date) =>
-    events
-      .filter((e) => visibleCalIds.has(e.calendarId) && isSameDay(parseISO(e.start), d))
-      .sort((a, b) => +new Date(a.start) - +new Date(b.start));
+  const agendaDays = useMemo(() => {
+    const start = startOfDay(date);
+    return eachDayOfInterval({ start, end: addDays(start, 13) });
+  }, [date]);
 
-  const colorFor = (calendarId: string) => calendars.find((c) => c.id === calendarId)?.color || "#5522FA";
+  const dayEvents = (d: Date) =>
+    filteredEvents.filter((e) => isSameDay(parseISO(e.start), d));
+
+  const colorFor = (calendarId: string) =>
+    calendars.find((c) => c.id === calendarId)?.color || "#0d9488";
+
+  const countdowns = useMemo(() => {
+    const now = Date.now();
+    return filteredEvents
+      .filter((e) => e.countdown && +new Date(e.start) >= now)
+      .slice(0, 5)
+      .map((e) => ({
+        event: e,
+        days: differenceInCalendarDays(parseISO(e.start), new Date()),
+      }));
+  }, [filteredEvents]);
 
   const parseInvitees = (text: string): CalendarInvitee[] =>
     text
@@ -114,41 +186,212 @@ export function CalendarView() {
       .filter(Boolean)
       .map((email) => ({ email, status: "pending" as const }));
 
+  const beginEdit = (e: CalendarEvent) => {
+    setEditingId(e.id);
+    setTitle(e.title);
+    setEventDate(format(parseISO(e.start), "yyyy-MM-dd"));
+    setStartTime(format(parseISO(e.start), "HH:mm"));
+    setEndTime(format(parseISO(e.end), "HH:mm"));
+    setAllDay(Boolean(e.allDay));
+    setLocation(e.location || "");
+    setNotes(e.notes || "");
+    setInviteesText((e.invitees || []).map((i) => i.email).join(", "));
+    setTeamsUrl(e.meetingUrl || "");
+    setUseTeams(e.meetingProvider === "teams" || Boolean(e.meetingUrl));
+    setSelectedCalId(e.calendarId || defaultCalId);
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setTitle("");
+    setInviteesText("");
+    setTeamsUrl("");
+    setLocation("");
+    setNotes("");
+    setAllDay(false);
+    setStartTime(defaultStartTime());
+    setEndTime(addOneHour(defaultStartTime()));
+    setEventDate(calendarDate);
+    setSelectedCalId(defaultCalId);
+  };
+
+  const saveEvent = async () => {
+    if (!title.trim()) {
+      setToast("Add an event title");
+      return;
+    }
+    if (!eventDate) {
+      setToast("Date is required");
+      return;
+    }
+    let start: Date;
+    let end: Date;
+    if (allDay) {
+      start = startOfDay(parseISO(eventDate));
+      end = endOfDay(parseISO(eventDate));
+    } else {
+      if (!startTime || !endTime) {
+        setToast("Start and end time are required");
+        return;
+      }
+      start = parseISO(`${eventDate}T${startTime}:00`);
+      end = parseISO(`${eventDate}T${endTime}:00`);
+      if (Number.isNaN(+start) || Number.isNaN(+end)) {
+        setToast("Invalid date or time");
+        return;
+      }
+      if (end <= start) {
+        setToast("End time must be after start time");
+        return;
+      }
+    }
+    const invitees = parseInvitees(inviteesText);
+    let meetingUrl = teamsUrl.trim();
+    let meetingProvider: "teams" | "zoom" | "meet" | "none" = meetingUrl ? "teams" : "none";
+    if (/zoom\.us/i.test(meetingUrl)) meetingProvider = "zoom";
+    if (/meet\.google/i.test(meetingUrl)) meetingProvider = "meet";
+    if (useTeams && !meetingUrl) {
+      const api = desktopApi();
+      if (api) {
+        const gen = await api.generateTeamsUrl(title.trim());
+        meetingUrl = gen.url;
+        meetingProvider = "teams";
+      } else {
+        meetingUrl = `https://teams.microsoft.com/l/meetup-join/19%3ameeting_${Date.now()}%40thread.v2/0`;
+        meetingProvider = "teams";
+      }
+    }
+    const payload = {
+      title: title.trim(),
+      start: start.toISOString(),
+      end: end.toISOString(),
+      allDay,
+      calendarId: selectedCalId || defaultCalId,
+      location: location.trim() || undefined,
+      notes: notes.trim() || undefined,
+      reminderMinutes: [15, 60],
+      invitees,
+      meetingUrl: meetingUrl || undefined,
+      meetingProvider,
+      source: "local" as const,
+    };
+    if (editingId) {
+      updateEvent(editingId, payload);
+      setToast("Event updated");
+    } else {
+      addEvent(payload);
+      setToast("Event added — use Email invites to notify people");
+    }
+    resetForm();
+  };
+
+  const shiftDate = (dir: -1 | 1) => {
+    if (calendarView === "month") setCalendarDate(format(addMonths(date, dir), "yyyy-MM-dd"));
+    else if (calendarView === "week" || calendarView === "agenda")
+      setCalendarDate(format(addDays(date, dir * 7), "yyyy-MM-dd"));
+    else setCalendarDate(format(addDays(date, dir), "yyyy-MM-dd"));
+  };
+
+  const renderTimedGrid = (dayList: Date[]) => (
+    <div className="overflow-x-auto rounded-2xl border border-line bg-white/90">
+      <div
+        className="grid min-w-[640px]"
+        style={{ gridTemplateColumns: `56px repeat(${dayList.length}, minmax(0, 1fr))` }}
+      >
+        <div className="border-b border-line bg-soft/50 p-2 text-[10px] text-muted">Time</div>
+        {dayList.map((d) => (
+          <button
+            key={format(d, "yyyy-MM-dd")}
+            type="button"
+            onClick={() => setCalendarDate(format(d, "yyyy-MM-dd"))}
+            className={`border-b border-l border-line p-2 text-left text-xs font-semibold ${
+              isSameDay(d, date) ? "bg-[#ecfdf8] text-teal" : "bg-soft/40"
+            }`}
+          >
+            {format(d, "EEE d")}
+            {isToday(d) ? <span className="ml-1 text-[10px] font-normal">· today</span> : null}
+          </button>
+        ))}
+        {HOURS.map((hour) => (
+          <div key={`row-${hour}`} className="contents">
+            <div className="border-b border-line px-1 py-3 text-[10px] text-muted">
+              {format(new Date(2000, 0, 1, hour), "h a")}
+            </div>
+            {dayList.map((d) => {
+              const key = `${format(d, "yyyy-MM-dd")}-${hour}`;
+              const slotEvents = dayEvents(d).filter((e) => {
+                if (e.allDay) return false;
+                return parseISO(e.start).getHours() === hour;
+              });
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className="min-h-14 border-b border-l border-line p-1 text-left hover:bg-soft/50"
+                  onClick={() => {
+                    setCalendarDate(format(d, "yyyy-MM-dd"));
+                    setEventDate(format(d, "yyyy-MM-dd"));
+                    setStartTime(`${String(hour).padStart(2, "0")}:00`);
+                    setEndTime(`${String(hour + 1).padStart(2, "0")}:00`);
+                    setEditingId(null);
+                    setToast(`New event at ${format(new Date(2000, 0, 1, hour), "h a")}`);
+                  }}
+                >
+                  <ul className="space-y-0.5">
+                    {slotEvents.map((e) => (
+                      <li key={e.id}>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            beginEdit(e);
+                          }}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter") beginEdit(e);
+                          }}
+                          className="block truncate rounded px-1 py-0.5 text-[10px] font-medium text-white"
+                          style={{ background: colorFor(e.calendarId) }}
+                          title={e.title}
+                        >
+                          {format(parseISO(e.start), "h:mm")} {e.title}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="Calendar"
-        subtitle="Events, Teams meeting links, email invites (.ics), habits, journal, and countdowns."
+        subtitle="Day · week · month · agenda — Teams/Zoom invites, Mac sync, habits, journal, and countdowns."
         actions={
           <>
-            {(["day", "week", "month"] as const).map((v) => (
-              <Button key={v} size="sm" variant={calendarView === v ? "primary" : "soft"} onClick={() => setCalendarView(v)}>
+            {(["day", "week", "month", "agenda"] as const).map((v) => (
+              <Button
+                key={v}
+                size="sm"
+                variant={calendarView === v ? "primary" : "soft"}
+                onClick={() => setCalendarView(v)}
+              >
                 {v}
               </Button>
             ))}
-            <Button
-              size="sm"
-              variant="soft"
-              onClick={() =>
-                setCalendarDate(
-                  format(addDays(date, calendarView === "month" ? -30 : calendarView === "week" ? -7 : -1), "yyyy-MM-dd"),
-                )
-              }
-            >
+            <Button size="sm" variant="soft" onClick={() => shiftDate(-1)}>
               ←
             </Button>
             <Button size="sm" variant="soft" onClick={() => setCalendarDate(format(new Date(), "yyyy-MM-dd"))}>
               Today
             </Button>
-            <Button
-              size="sm"
-              variant="soft"
-              onClick={() =>
-                setCalendarDate(
-                  format(addDays(date, calendarView === "month" ? 30 : calendarView === "week" ? 7 : 1), "yyyy-MM-dd"),
-                )
-              }
-            >
+            <Button size="sm" variant="soft" onClick={() => shiftDate(1)}>
               →
             </Button>
             {isMacDesktop ? (
@@ -183,174 +426,300 @@ export function CalendarView() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-3 text-xs text-muted">
-        <span>Primary TZ: {settings.timezone}</span>
-        {settings.secondaryTimezone ? <span>Secondary: {settings.secondaryTimezone}</span> : null}
-        {calendars.some((c) => c.source === "mac") ? (
-          <span>{calendars.filter((c) => c.source === "mac").length} Mac calendar(s)</span>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Input
+          className="max-w-xs"
+          placeholder="Search events, places, people…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <span className="text-xs text-muted">Primary TZ: {settings.timezone}</span>
+        {settings.secondaryTimezone ? (
+          <span className="text-xs text-muted">Secondary: {settings.secondaryTimezone}</span>
         ) : null}
+        <div className="flex flex-wrap gap-2">
+          {calendars.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => toggleCalendarVisible(c.id)}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold text-white transition ${
+                c.visible ? "opacity-100" : "opacity-35 grayscale"
+              }`}
+              style={{ background: c.color }}
+              title={c.visible ? "Hide calendar" : "Show calendar"}
+            >
+              {c.source === "mac" ? "Mac · " : ""}
+              {c.name}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className={`mb-6 grid gap-2 ${calendarView === "month" ? "grid-cols-7" : calendarView === "week" ? "grid-cols-2 md:grid-cols-7" : "grid-cols-1"}`}>
-        {days.map((d) => {
-          const key = format(d, "yyyy-MM-dd");
-          const label = dayLabels.find((x) => x.date === key)?.label;
-          const selected = isSameDay(d, date);
-          return (
+      {countdowns.length > 0 ? (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {countdowns.map(({ event: e, days: d }) => (
             <button
-              key={key}
+              key={e.id}
               type="button"
-              onClick={() => setCalendarDate(key)}
-              className={`min-h-28 rounded-2xl border p-2 text-left transition ${
-                selected ? "border-blurple bg-[#f7f4ff]" : "border-line bg-white/85 hover:bg-soft/60"
-              } ${calendarView === "month" && !isSameMonth(d, date) ? "opacity-40" : ""}`}
+              onClick={() => {
+                setCalendarDate(format(parseISO(e.start), "yyyy-MM-dd"));
+                beginEdit(e);
+              }}
+              className="rounded-xl border border-teal/30 bg-[#ecfdf8] px-3 py-2 text-left text-sm"
             >
-              <div className="mb-1 flex items-center justify-between text-xs">
-                <span className="font-semibold">{format(d, calendarView === "month" ? "d" : "EEE d")}</span>
-                {label ? <span className="truncate text-[10px] text-blurple">{label}</span> : null}
-              </div>
-              <ul className="space-y-1">
-                {dayEvents(d)
-                  .slice(0, calendarView === "month" ? 3 : 8)
-                  .map((e) => (
-                    <li
-                      key={e.id}
-                      className="truncate rounded px-1.5 py-0.5 text-[11px] text-white"
-                      style={{ background: colorFor(e.calendarId) }}
-                      title={e.title}
-                    >
-                      {e.source === "mac" ? "Mac · " : ""}
-                      {e.meetingProvider === "teams" ? "Teams · " : ""}
-                      {e.title}
-                    </li>
-                  ))}
-              </ul>
+              <span className="font-semibold text-teal">
+                {d === 0 ? "Today" : d === 1 ? "Tomorrow" : `${d} days`}
+              </span>
+              <span className="ml-2 text-ink">{e.title}</span>
             </button>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ) : null}
+
+      {calendarView === "month" ? (
+        <div className="mb-6 grid grid-cols-7 gap-2">
+          {days.map((d) => {
+            const key = format(d, "yyyy-MM-dd");
+            const label = dayLabels.find((x) => x.date === key)?.label;
+            const selected = isSameDay(d, date);
+            const allDayCount = dayEvents(d).filter((e) => e.allDay).length;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setCalendarDate(key)}
+                className={`min-h-28 rounded-2xl border p-2 text-left transition ${
+                  selected ? "border-teal bg-[#ecfdf8]" : "border-line bg-white/85 hover:bg-soft/60"
+                } ${!isSameMonth(d, date) ? "opacity-40" : ""} ${isToday(d) ? "ring-1 ring-teal/40" : ""}`}
+              >
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <span className="font-semibold">{format(d, "d")}</span>
+                  {label ? <span className="truncate text-[10px] text-teal">{label}</span> : null}
+                </div>
+                {allDayCount ? (
+                  <div className="mb-1 text-[10px] font-medium text-muted">{allDayCount} all-day</div>
+                ) : null}
+                <ul className="space-y-1">
+                  {dayEvents(d)
+                    .slice(0, 3)
+                    .map((e) => (
+                      <li
+                        key={e.id}
+                        className="truncate rounded px-1.5 py-0.5 text-[11px] text-white"
+                        style={{ background: colorFor(e.calendarId) }}
+                        title={e.title}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          beginEdit(e);
+                        }}
+                      >
+                        {e.allDay ? "" : `${format(parseISO(e.start), "h:mma")} `}
+                        {e.title}
+                      </li>
+                    ))}
+                </ul>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {calendarView === "week" || calendarView === "day" ? (
+        <div className="mb-6">{renderTimedGrid(calendarView === "day" ? [date] : days)}</div>
+      ) : null}
+
+      {calendarView === "agenda" ? (
+        <div className="mb-6 space-y-3">
+          {agendaDays.map((d) => {
+            const list = dayEvents(d);
+            if (!list.length && !isSameDay(d, date)) return null;
+            return (
+              <section key={format(d, "yyyy-MM-dd")} className="rounded-2xl border border-line bg-white/90 p-4">
+                <button
+                  type="button"
+                  className="mb-2 text-left font-display text-lg"
+                  onClick={() => setCalendarDate(format(d, "yyyy-MM-dd"))}
+                >
+                  {format(d, "EEEE, MMM d")}
+                  {isToday(d) ? <span className="ml-2 text-sm font-sans text-teal">Today</span> : null}
+                </button>
+                {list.length === 0 ? (
+                  <p className="text-sm text-muted">Nothing scheduled.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {list.map((e) => (
+                      <li key={e.id}>
+                        <button
+                          type="button"
+                          onClick={() => beginEdit(e)}
+                          className="flex w-full items-start gap-3 rounded-xl border border-line p-3 text-left hover:bg-soft/50"
+                        >
+                          <span
+                            className="mt-1 h-3 w-3 shrink-0 rounded-full"
+                            style={{ background: colorFor(e.calendarId) }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold">{e.title}</div>
+                            <div className="text-sm text-muted">
+                              {e.allDay
+                                ? "All day"
+                                : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
+                              {e.location ? ` · ${e.location}` : ""}
+                              {settings.secondaryTimezone && !e.allDay
+                                ? ` · ${formatInTz(e.start, settings.secondaryTimezone)} ${settings.secondaryTimezone}`
+                                : ""}
+                            </div>
+                          </div>
+                          <span className="text-xs text-muted">
+                            {differenceInMinutes(parseISO(e.end), parseISO(e.start))}m
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="rounded-2xl border border-line bg-white/90 p-4 lg:col-span-2">
-          <h3 className="mb-3 font-display text-xl">Events on {format(date, "MMMM d")}</h3>
-          <ul className="space-y-3">
-            {dayEvents(date).map((e) => (
-              <li key={e.id} className="rounded-xl border border-line p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="font-semibold">
-                      {e.title}
-                      {e.source === "mac" ? (
-                        <span className="ml-2 text-xs font-normal text-muted">Mac</span>
+          <h3 className="mb-3 font-display text-xl">
+            {editingId ? "Edit event" : `Events on ${format(date, "MMMM d")}`}
+          </h3>
+          {!editingId ? (
+            <ul className="mb-4 space-y-3">
+              {dayEvents(date).map((e) => (
+                <li key={e.id} className="rounded-xl border border-line p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="font-semibold">
+                        <span
+                          className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
+                          style={{ background: colorFor(e.calendarId) }}
+                        />
+                        {e.title}
+                        {e.source === "mac" ? (
+                          <span className="ml-2 text-xs font-normal text-muted">Mac</span>
+                        ) : null}
+                        {e.allDay ? (
+                          <span className="ml-2 text-xs font-normal text-muted">All day</span>
+                        ) : null}
+                      </div>
+                      <div className="text-sm text-muted">
+                        {e.allDay
+                          ? "All day"
+                          : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
+                        {e.location ? ` · ${e.location}` : ""}
+                      </div>
+                      {e.meetingUrl ? (
+                        <a
+                          className="text-sm text-teal underline"
+                          href={e.meetingUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {e.meetingProvider === "teams"
+                            ? "Join Teams meeting"
+                            : e.meetingProvider === "zoom"
+                              ? "Join Zoom"
+                              : "Join meeting"}
+                        </a>
+                      ) : null}
+                      {e.invitees?.length ? (
+                        <p className="mt-1 text-xs text-muted">
+                          Invitees: {e.invitees.map((i) => i.email).join(", ")}
+                          {e.invitesSentAt
+                            ? ` · sent ${format(parseISO(e.invitesSentAt), "MMM d h:mm a")}`
+                            : ""}
+                        </p>
+                      ) : null}
+                      {e.notes ? <p className="mt-1 text-xs text-muted">{e.notes}</p> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <Button size="sm" variant="soft" onClick={() => beginEdit(e)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="soft" onClick={() => updateEvent(e.id, { countdown: !e.countdown })}>
+                        {e.countdown ? "Countdown ✓" : "Countdown"}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => duplicateEvent(e.id)}>
+                        Duplicate
+                      </Button>
+                      {isDesktop() && accountId && (e.invitees?.length || 0) > 0 ? (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={sendingInviteId === e.id}
+                          onClick={async () => {
+                            setSendingInviteId(e.id);
+                            try {
+                              const api = desktopApi();
+                              const result = await api?.sendCalendarInvites({ accountId, event: e });
+                              if (!result?.ok) {
+                                setToast(result?.error || "Invite send failed");
+                                return;
+                              }
+                              updateEvent(e.id, { invitesSentAt: new Date().toISOString() });
+                              setToast(`Invites emailed to ${e.invitees?.length} people`);
+                            } finally {
+                              setSendingInviteId(null);
+                            }
+                          }}
+                        >
+                          {sendingInviteId === e.id ? "Sending…" : "Email invites"}
+                        </Button>
+                      ) : null}
+                      {e.source !== "mac" ? (
+                        <Button size="sm" variant="ghost" onClick={() => deleteEvent(e.id)}>
+                          Delete
+                        </Button>
                       ) : null}
                     </div>
-                    <div className="text-sm text-muted">
-                      {format(parseISO(e.start), "h:mm a")} – {format(parseISO(e.end), "h:mm a")}
-                      {e.location ? ` · ${e.location}` : ""}
-                    </div>
-                    {e.meetingUrl ? (
-                      <a className="text-sm text-blurple underline" href={e.meetingUrl} target="_blank" rel="noreferrer">
-                        {e.meetingProvider === "teams" ? "Join Teams meeting" : "Join meeting"}
-                      </a>
-                    ) : null}
-                    {e.invitees?.length ? (
-                      <p className="mt-1 text-xs text-muted">
-                        Invitees: {e.invitees.map((i) => i.email).join(", ")}
-                        {e.invitesSentAt ? ` · sent ${format(parseISO(e.invitesSentAt), "MMM d h:mm a")}` : ""}
-                      </p>
-                    ) : null}
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    <Button size="sm" variant="soft" onClick={() => updateEvent(e.id, { countdown: !e.countdown })}>
-                      {e.countdown ? "Countdown ✓" : "Countdown"}
-                    </Button>
-                    {isDesktop() && accountId && (e.invitees?.length || 0) > 0 ? (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        disabled={sendingInviteId === e.id}
-                        onClick={async () => {
-                          setSendingInviteId(e.id);
-                          try {
-                            const api = desktopApi();
-                            const result = await api?.sendCalendarInvites({ accountId, event: e });
-                            if (!result?.ok) {
-                              setToast(result?.error || "Invite send failed");
-                              return;
-                            }
-                            updateEvent(e.id, { invitesSentAt: new Date().toISOString() });
-                            setToast(`Invites emailed to ${e.invitees?.length} people`);
-                          } finally {
-                            setSendingInviteId(null);
-                          }
-                        }}
-                      >
-                        {sendingInviteId === e.id ? "Sending…" : "Email invites"}
-                      </Button>
-                    ) : null}
-                    <Button size="sm" variant="ghost" onClick={() => deleteEvent(e.id)}>
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </li>
-            ))}
-            {dayEvents(date).length === 0 ? <li className="text-sm text-muted">No events yet.</li> : null}
-          </ul>
+                </li>
+              ))}
+              {dayEvents(date).length === 0 ? (
+                <li className="text-sm text-muted">No events yet — create one below or click a time slot.</li>
+              ) : null}
+            </ul>
+          ) : null}
 
           <form
-            className="mt-4 space-y-2 rounded-xl border border-[#e8d5ff]/60 bg-[linear-gradient(145deg,#fff0e8_0%,#f3e8ff_55%,#e8f4ff_100%)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
-            onSubmit={async (ev) => {
+            className="space-y-2 rounded-xl border border-teal/25 bg-[linear-gradient(145deg,#ecfdf8_0%,#f0f9ff_55%,#fff7ed_100%)] p-3"
+            onSubmit={(ev) => {
               ev.preventDefault();
-              if (!title.trim()) return;
-              if (!eventDate || !startTime || !endTime) {
-                setToast("Date, start time, and end time are required");
-                return;
-              }
-              const start = parseISO(`${eventDate}T${startTime}:00`);
-              const end = parseISO(`${eventDate}T${endTime}:00`);
-              if (Number.isNaN(+start) || Number.isNaN(+end)) {
-                setToast("Invalid date or time");
-                return;
-              }
-              if (end <= start) {
-                setToast("End time must be after start time");
-                return;
-              }
-              const invitees = parseInvitees(inviteesText);
-              let meetingUrl = teamsUrl.trim();
-              let meetingProvider: "teams" | "none" = meetingUrl ? "teams" : "none";
-              if (useTeams && !meetingUrl) {
-                const api = desktopApi();
-                if (api) {
-                  const gen = await api.generateTeamsUrl(title.trim());
-                  meetingUrl = gen.url;
-                  meetingProvider = "teams";
-                } else {
-                  meetingUrl = `https://teams.microsoft.com/l/meetup-join/19%3ameeting_${Date.now()}%40thread.v2/0`;
-                  meetingProvider = "teams";
-                }
-              }
-              addEvent({
-                title: title.trim(),
-                start: start.toISOString(),
-                end: end.toISOString(),
-                calendarId: "cal2",
-                reminderMinutes: [15],
-                invitees,
-                meetingUrl: meetingUrl || undefined,
-                meetingProvider,
-                notes: meetingProvider === "teams" ? "Microsoft Teams meeting" : undefined,
-                source: "local",
-              });
-              setTitle("");
-              setInviteesText("");
-              setTeamsUrl("");
-              setToast("Event added — use Email invites to notify people");
+              void saveEvent();
             }}
           >
-            <h4 className="text-sm font-semibold text-ink">New event + Teams invite</h4>
+            <h4 className="text-sm font-semibold text-ink">
+              {editingId ? "Update event" : "New event"}
+            </h4>
             <Input placeholder="Event title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="block text-xs font-medium text-muted">
+                Calendar
+                <select
+                  className="mt-1 w-full cursor-pointer rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                  value={selectedCalId || defaultCalId}
+                  onChange={(e) => setSelectedCalId(e.target.value)}
+                >
+                  {calendars.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.source === "mac" ? " (Mac)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-end gap-2 pb-2 text-sm">
+                <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+                All-day event
+              </label>
+            </div>
             <div className="grid gap-2 sm:grid-cols-3">
               <label className="block text-xs font-medium text-muted">
                 Date
@@ -362,34 +731,49 @@ export function CalendarView() {
                   required
                 />
               </label>
-              <label className="block text-xs font-medium text-muted">
-                Start time
-                <Input
-                  className="mt-1"
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setStartTime(next);
-                    if (endTime <= next) setEndTime(addOneHour(next));
-                  }}
-                  required
-                />
-              </label>
-              <label className="block text-xs font-medium text-muted">
-                End time
-                <Input
-                  className="mt-1"
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  required
-                />
-              </label>
+              {!allDay ? (
+                <>
+                  <label className="block text-xs font-medium text-muted">
+                    Start time
+                    <Input
+                      className="mt-1"
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setStartTime(next);
+                        if (endTime <= next) setEndTime(addOneHour(next));
+                      }}
+                      required
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-muted">
+                    End time
+                    <Input
+                      className="mt-1"
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      required
+                    />
+                  </label>
+                </>
+              ) : null}
             </div>
+            <Input
+              placeholder="Location or address"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
             <Textarea
               rows={2}
-              placeholder="Invitee emails (comma or newline separated) — unlimited"
+              placeholder="Notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+            <Textarea
+              rows={2}
+              placeholder="Invitee emails (comma or newline separated)"
               value={inviteesText}
               onChange={(e) => setInviteesText(e.target.value)}
             />
@@ -398,16 +782,27 @@ export function CalendarView() {
               Create Microsoft Teams meeting link
             </label>
             <Input
-              placeholder="Or paste an existing Teams / Zoom / Meet URL"
+              placeholder="Or paste Teams / Zoom / Meet URL"
               value={teamsUrl}
               onChange={(e) => setTeamsUrl(e.target.value)}
             />
             {isDesktop() && accountId ? (
-              <p className="text-xs text-muted">Invites send from your connected SMTP account after the event is created.</p>
+              <p className="text-xs text-muted">
+                Invites send from your connected SMTP account after the event is saved.
+              </p>
             ) : (
-              <p className="text-xs text-amber">Connect an IMAP/SMTP account in Settings to email calendar invites.</p>
+              <p className="text-xs text-amber-800">
+                Connect an IMAP/SMTP account in Settings to email calendar invites.
+              </p>
             )}
-            <Button type="submit">Add event</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit">{editingId ? "Save changes" : "Add event"}</Button>
+              {editingId ? (
+                <Button type="button" variant="ghost" onClick={resetForm}>
+                  Cancel edit
+                </Button>
+              ) : null}
+            </div>
           </form>
         </section>
 
@@ -445,6 +840,9 @@ export function CalendarView() {
           <section className="rounded-2xl border border-line bg-white/90 p-4">
             <h3 className="mb-2 font-display text-lg">Habits</h3>
             <div className="flex flex-wrap gap-2">
+              {habits.length === 0 ? (
+                <p className="text-xs text-muted">Add habits from Settings or seed later — track daily wins here.</p>
+              ) : null}
               {habits.map((h) => {
                 const done = h.completedDates.includes(calendarDate);
                 return (
