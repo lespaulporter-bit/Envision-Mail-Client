@@ -25,6 +25,7 @@ import {
   collectDueReminders,
   mergeNewReminders,
 } from "./reminders";
+import { normalizeSometimeTasks, weekStartKey } from "./sometime-tasks";
 import { uid } from "./utils";
 
 export type AppView =
@@ -191,7 +192,9 @@ interface Actions {
   }) => void;
   toggleHabit: (habitId: string, date: string) => void;
   addSometimeTask: (text: string) => void;
+  /** Checking off a task removes it. Unchecked tasks roll into future weeks. */
   toggleSometimeTask: (id: string) => void;
+  rolloverSometimeTasks: () => void;
   setJournal: (date: string, body: string) => void;
   setDayLabel: (date: string, label: string) => void;
   createEventFromThread: (threadId: string) => void;
@@ -1331,20 +1334,50 @@ export const useMailStore = create<MailStore>()(
           }),
         }),
 
-      addSometimeTask: (text) =>
+      addSometimeTask: (text) => {
+        const trimmed = text.trim();
+        if (!trimmed) return;
         set({
           sometimeTasks: [
-            { id: uid("st"), text, done: false, createdAt: new Date().toISOString() },
-            ...get().sometimeTasks,
+            {
+              id: uid("st"),
+              text: trimmed,
+              done: false,
+              createdAt: new Date().toISOString(),
+              weekKey: weekStartKey(),
+              carriedOver: false,
+            },
+            ...normalizeSometimeTasks(get().sometimeTasks || []),
           ],
-        }),
+        });
+      },
 
-      toggleSometimeTask: (id) =>
+      toggleSometimeTask: (id) => {
+        const task = (get().sometimeTasks || []).find((t) => t.id === id);
+        if (!task) return;
+        // Check off → remove from the list (no strikethrough leftovers)
         set({
-          sometimeTasks: get().sometimeTasks.map((t) =>
-            t.id === id ? { ...t, done: !t.done } : t,
+          sometimeTasks: normalizeSometimeTasks(
+            (get().sometimeTasks || []).filter((t) => t.id !== id),
           ),
-        }),
+          toast: "Task completed",
+        });
+      },
+
+      rolloverSometimeTasks: () => {
+        const next = normalizeSometimeTasks(get().sometimeTasks || []);
+        const prev = get().sometimeTasks || [];
+        const changed =
+          next.length !== prev.length ||
+          next.some(
+            (t, i) =>
+              t.id !== prev[i]?.id ||
+              t.weekKey !== prev[i]?.weekKey ||
+              Boolean(t.carriedOver) !== Boolean(prev[i]?.carriedOver) ||
+              t.done !== prev[i]?.done,
+          );
+        if (changed) set({ sometimeTasks: next });
+      },
 
       setJournal: (date, body) => {
         const existing = get().journal.find((j) => j.date === date);
@@ -1601,6 +1634,9 @@ export const useMailStore = create<MailStore>()(
             ? p.emailTemplates
             : current.emailTemplates || [],
           reminders: Array.isArray(p.reminders) ? p.reminders : current.reminders || [],
+          sometimeTasks: normalizeSometimeTasks(
+            Array.isArray(p.sometimeTasks) ? p.sometimeTasks : current.sometimeTasks || [],
+          ),
           settings,
           inboxAccountId: p.inboxAccountId ?? current.inboxAccountId ?? null,
         };

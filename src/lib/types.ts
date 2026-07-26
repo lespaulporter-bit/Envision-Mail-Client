@@ -213,6 +213,10 @@ export interface SometimeTask {
   text: string;
   done: boolean;
   createdAt: string;
+  /** Monday yyyy-MM-dd for the week this task belongs to */
+  weekKey?: string;
+  /** True after an unchecked task rolled from a prior week */
+  carriedOver?: boolean;
 }
 
 /** Outlook-style on-screen reminder (calendar, mail, or manual) */

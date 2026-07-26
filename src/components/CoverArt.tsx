@@ -167,8 +167,18 @@ export function CoverArt() {
                   .slice(0, 5)
                   .map((t) => (
                     <li key={t.id} className="flex items-center gap-2">
-                      <input type="checkbox" checked={t.done} onChange={() => toggleSometimeTask(t.id)} />
-                      <span>{t.text}</span>
+                      <input
+                        type="checkbox"
+                        checked={false}
+                        onChange={() => toggleSometimeTask(t.id)}
+                        aria-label={`Complete ${t.text}`}
+                      />
+                      <span>
+                        {t.text}
+                        {t.carriedOver ? (
+                          <span className="ml-2 text-[10px] uppercase tracking-wide text-white/50">Rolled over</span>
+                        ) : null}
+                      </span>
                     </li>
                   ))}
               </ul>

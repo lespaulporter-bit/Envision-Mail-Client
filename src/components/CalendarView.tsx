@@ -885,13 +885,31 @@ export function CalendarView() {
           </section>
           <section className="rounded-2xl border border-line bg-white/90 p-4">
             <h3 className="mb-2 font-display text-lg">Sometime this week</h3>
+            <p className="mb-2 text-xs text-muted">
+              Check off to clear. Unfinished tasks roll into next week automatically.
+            </p>
             <ul className="mb-2 space-y-1 text-sm">
-              {sometimeTasks.map((t) => (
-                <li key={t.id} className="flex items-center gap-2">
-                  <input type="checkbox" checked={t.done} onChange={() => toggleSometimeTask(t.id)} />
-                  <span className={t.done ? "text-muted line-through" : ""}>{t.text}</span>
-                </li>
-              ))}
+              {sometimeTasks
+                .filter((t) => !t.done)
+                .map((t) => (
+                  <li key={t.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={false}
+                      onChange={() => toggleSometimeTask(t.id)}
+                      aria-label={`Complete ${t.text}`}
+                    />
+                    <span>{t.text}</span>
+                    {t.carriedOver ? (
+                      <span className="rounded bg-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                        Rolled over
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              {sometimeTasks.filter((t) => !t.done).length === 0 ? (
+                <li className="text-sm text-muted">Nothing queued — add a task below.</li>
+              ) : null}
             </ul>
             <form
               className="flex gap-2"

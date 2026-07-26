@@ -111,6 +111,7 @@ export function AppShell() {
   const settings = useMailStore((s) => s.settings);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const switchAccount = useMailStore((s) => s.switchAccount);
+  const rolloverSometimeTasks = useMailStore((s) => s.rolloverSometimeTasks);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
   const [appVersion, setAppVersion] = useState("2.6.0");
@@ -123,6 +124,12 @@ export function AppShell() {
     const t = setTimeout(() => setToast(null), 2800);
     return () => clearTimeout(t);
   }, [toast, setToast]);
+
+  useEffect(() => {
+    rolloverSometimeTasks();
+    const id = window.setInterval(() => rolloverSometimeTasks(), 60 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [rolloverSometimeTasks]);
 
   useEffect(() => {
     const api = desktopApi();

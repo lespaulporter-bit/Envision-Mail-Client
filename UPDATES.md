@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.9
+- **Sometime this week**: checking a task removes it (no strikethrough leftovers).
+- Unchecked tasks automatically **roll into the next week** and stay on the list.
+- Carried-over tasks show a small “Rolled over” mark.
+
 ## 2.6.8
 - Outlook-style **reminder popups**: dismiss or snooze 5 / 15 minutes.
 - Set reminders from calendar events (editable lead time) and from email (5m / 15m / 1h).
