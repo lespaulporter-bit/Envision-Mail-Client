@@ -55,6 +55,5 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/lespaulporter-bit/Envision-Mail-Client.git"
-  },
-  "build": {}
+  }
 }

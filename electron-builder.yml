@@ -24,6 +24,9 @@ files:
   - "!node_modules/**/docs/**"
   - "!node_modules/**/example/**"
   - "!node_modules/**/examples/**"
+  - "!dist/**"
+  - "!release/**"
+  - "!out/**"
 extraResources:
   - from: out
     to: out
