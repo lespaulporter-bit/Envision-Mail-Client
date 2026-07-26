@@ -115,7 +115,7 @@ export function AppShell() {
   const rolloverSometimeTasks = useMailStore((s) => s.rolloverSometimeTasks);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("2.6.17");
+  const [appVersion, setAppVersion] = useState("2.6.18");
 
   const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
   const scoped = inboxAccountId;

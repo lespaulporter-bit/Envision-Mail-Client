@@ -117,6 +117,12 @@ function httpRequest(method, urlString, { body, headers } = {}) {
       reject(new Error("Only http(s) unsubscribe links are allowed"));
       return;
     }
+    let settled = false;
+    const done = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      fn(arg);
+    };
     const lib = url.protocol === "https:" ? https : http;
     const req = lib.request(
       {
@@ -135,6 +141,7 @@ function httpRequest(method, urlString, { body, headers } = {}) {
       (res) => {
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
+        res.on("error", (e) => done(reject, e));
         res.on("end", () => {
           const code = res.statusCode || 0;
           const location = res.headers.location;
@@ -143,11 +150,11 @@ function httpRequest(method, urlString, { body, headers } = {}) {
             // One-click POST becomes GET after redirect per common practice for 302/303
             const nextMethod = code === 307 || code === 308 ? method : "GET";
             httpRequest(nextMethod, next, { body: nextMethod === "POST" ? body : undefined, headers })
-              .then(resolve)
-              .catch(reject);
+              .then((v) => done(resolve, v))
+              .catch((e) => done(reject, e));
             return;
           }
-          resolve({
+          done(resolve, {
             ok: code >= 200 && code < 400,
             status: code,
             body: Buffer.concat(chunks).toString("utf8").slice(0, 500),
@@ -157,9 +164,12 @@ function httpRequest(method, urlString, { body, headers } = {}) {
     );
     req.on("timeout", () => {
       req.destroy();
-      reject(new Error("Unsubscribe request timed out"));
+      done(reject, new Error("Unsubscribe request timed out"));
     });
-    req.on("error", reject);
+    req.on("error", (e) => done(reject, e));
+    req.on("socket", (socket) => {
+      socket.on("error", (e) => done(reject, e));
+    });
     if (body) req.write(body);
     req.end();
   });

@@ -157,6 +157,12 @@ function fetchUrl(url, redirects = 0) {
       reject(new Error("Too many redirects"));
       return;
     }
+    let settled = false;
+    const done = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      fn(arg);
+    };
     const lib = String(url).startsWith("http://") ? http : https;
     const req = lib.get(
       url,
@@ -165,29 +171,37 @@ function fetchUrl(url, redirects = 0) {
           "User-Agent": "Envision-Mail-Updater",
           Accept: "*/*",
         },
+        timeout: 120_000,
       },
       (res) => {
         const code = res.statusCode || 0;
         if ([301, 302, 303, 307, 308].includes(code) && res.headers.location) {
           const next = new URL(res.headers.location, url).toString();
           res.resume();
-          fetchUrl(next, redirects + 1).then(resolve, reject);
+          fetchUrl(next, redirects + 1).then(
+            (v) => done(resolve, v),
+            (e) => done(reject, e),
+          );
           return;
         }
         if (code >= 400) {
           res.resume();
-          reject(new Error(`HTTP ${code} for ${url}`));
+          done(reject, new Error(`HTTP ${code} for ${url}`));
           return;
         }
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
-        res.on("end", () => resolve(Buffer.concat(chunks)));
-        res.on("error", reject);
+        res.on("end", () => done(resolve, Buffer.concat(chunks)));
+        res.on("error", (e) => done(reject, e));
       },
     );
-    req.on("error", reject);
-    req.setTimeout(120_000, () => {
-      req.destroy(new Error("Request timeout"));
+    req.on("error", (e) => done(reject, e));
+    req.on("timeout", () => {
+      req.destroy();
+      done(reject, new Error("Request timeout"));
+    });
+    req.on("socket", (socket) => {
+      socket.on("error", (e) => done(reject, e));
     });
   });
 }
@@ -604,8 +618,13 @@ function setupAutoUpdate({ getMainWindow } = {}) {
     autoUpdater.autoDownload = process.platform !== "darwin";
     autoUpdater.autoInstallOnAppQuit = process.platform !== "darwin";
     autoUpdater.on("error", (err) => {
-      console.warn("autoUpdater error", err);
+      console.warn("autoUpdater error", err && err.code, err && err.message);
       const msg = String(err && err.message ? err.message : err);
+      // Network blips — log only, never surface a main-process crash dialog
+      if (/EHOSTUNREACH|ENETUNREACH|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|network/i.test(msg)) {
+        writeMeta({ lastResult: "error", lastError: msg });
+        return;
+      }
       if (/code signature|ShipIt|did not pass validation/i.test(msg)) {
         // Fall back to direct Mac download path
         if (process.platform === "darwin") {

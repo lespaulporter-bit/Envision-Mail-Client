@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.18
+- Fix main-process crash dialog (`read EHOSTUNREACH` / TLS) when the network or a mail host is briefly unreachable.
+- Network blips are logged quietly — mail sync and update checks no longer pop the scary Electron error box.
+- Hardened IMAP, updater, and unsubscribe HTTP sockets against late TLS errors.
+
 ## 2.6.17
 - Calendar header shows a neat live clock for your **local timezone** by default.
 - Optional second timezone (e.g. Eastern + Pacific) — pick both in Settings → General → Calendar timezones.

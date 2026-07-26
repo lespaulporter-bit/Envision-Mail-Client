@@ -66,7 +66,12 @@ function createClient(account) {
     err.code = "ENOPASS";
     throw err;
   }
-  return new ImapFlow(opts);
+  const client = new ImapFlow(opts);
+  // Late socket/TLS errors (EHOSTUNREACH, ECONNRESET) must not crash the main process
+  client.on("error", (err) => {
+    console.warn("imap:", err && err.code, err && err.message);
+  });
+  return client;
 }
 
 async function withClient(account, fn) {

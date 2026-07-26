@@ -3,6 +3,14 @@ const path = require("path");
 const http = require("http");
 const fs = require("fs");
 
+// Must run before IMAP / updater / TLS traffic — swallows EHOSTUNREACH etc. so they
+// never become Electron's "JavaScript error in the main process" dialog.
+try {
+  require("./mail/safe-process.cjs").installSafeProcessHandlers();
+} catch {
+  /* optional */
+}
+
 let registerMailIpc;
 try {
   require("imapflow");
