@@ -1,7 +1,13 @@
 # Envision Mail updates
 
+## 2.6.7
+- Fix **Restart now** after an update downloads: unsigned Mac builds no longer fail ShipIt code-signature checks. Restart kills the running app, replaces `Envision Mail.app`, and relaunches.
+- Settings → About: **Restart & install update** when a package is already downloaded.
+- Update checks reuse the same updater instance (no orphan download path).
+
 ## 2.6.6
 - Fix auto-update 404 / Invalid URL: feed is now GitHub Releases `…/releases/latest/download` (not the dead envisiondms CDN).
+- Action tags after Snooze / Mute / On Hold / etc.; fix false dock badges.
 
 ## 2.6.5
 - **Spam Central**: renamed from Spam Corps; button is **Block & report** (local + IMAP spam when possible).

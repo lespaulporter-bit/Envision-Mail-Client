@@ -178,24 +178,21 @@ function registerMailIpc() {
   ipcMain.handle("app:setUpdateFeedUrl", async (_e, url) => ({ ok: true, feedUrl: autoUpdate.setUpdateFeedUrl(url) }));
   ipcMain.handle("app:checkForUpdates", async (_e, opts) => {
     try {
-      const { autoUpdater } = require("electron-updater");
       const force = Boolean(opts && opts.force);
       if (!require("electron").app.isPackaged) {
         return { ok: false, error: "Update checks run in the packaged app.", status: autoUpdate.getUpdateStatus() };
       }
+      const active = autoUpdate.getActiveUpdater && autoUpdate.getActiveUpdater();
+      if (active && typeof active.runCheck === "function") {
+        return active.runCheck(force);
+      }
+      // Fallback if setup hasn't finished yet
       if (!force && !autoUpdate.dueForCheck(false)) {
         return { ok: true, skipped: true, status: autoUpdate.getUpdateStatus() };
       }
+      const { autoUpdater } = require("electron-updater");
       autoUpdater.autoDownload = true;
       autoUpdater.setFeedURL({ provider: "generic", url: autoUpdate.getUpdateFeedUrl() });
-      const fs = require("fs");
-      const path = require("path");
-      const metaPath = path.join(require("electron").app.getPath("userData"), "update-check.json");
-      let meta = {};
-      try { meta = JSON.parse(fs.readFileSync(metaPath, "utf8")); } catch {}
-      meta.lastCheckAt = new Date().toISOString();
-      meta.lastResult = "checking";
-      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
       const result = await autoUpdater.checkForUpdates();
       return {
         ok: true,
@@ -205,6 +202,16 @@ function registerMailIpc() {
       };
     } catch (err) {
       return { ok: false, error: err.message || String(err), status: autoUpdate.getUpdateStatus() };
+    }
+  });
+  ipcMain.handle("app:installUpdate", async () => {
+    try {
+      if (!require("electron").app.isPackaged) {
+        return { ok: false, error: "Install runs in the packaged app." };
+      }
+      return autoUpdate.installPendingUpdateAndRelaunch();
+    } catch (err) {
+      return { ok: false, error: err.message || String(err) };
     }
   });
 

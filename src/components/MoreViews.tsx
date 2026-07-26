@@ -389,6 +389,8 @@ export function SettingsView() {
     lastCheckAt: string | null;
     nextCheckDueAt: string;
     lastResult: string | null;
+    lastVersion?: string | null;
+    lastError?: string | null;
     checkEveryDays: number;
   } | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
@@ -662,7 +664,11 @@ export function SettingsView() {
               Last check:{" "}
               {updateStatus?.lastCheckAt ? new Date(updateStatus.lastCheckAt).toLocaleString() : "Not yet"}
               {updateStatus?.lastResult ? ` · ${updateStatus.lastResult}` : ""}
+              {updateStatus?.lastVersion ? ` · v${updateStatus.lastVersion}` : ""}
             </p>
+            {updateStatus?.lastError ? (
+              <p className="mt-1 text-xs text-salmon">{updateStatus.lastError}</p>
+            ) : null}
             <p className="mt-1 text-xs text-muted">
               Next scheduled check:{" "}
               {updateStatus?.nextCheckDueAt ? new Date(updateStatus.nextCheckDueAt).toLocaleString() : "Soon"}
@@ -696,6 +702,31 @@ export function SettingsView() {
               >
                 {updateBusy ? "Checking…" : "Check for updates now"}
               </Button>
+              {updateStatus?.lastResult === "downloaded" || updateStatus?.lastResult === "installing" ? (
+                <Button
+                  size="sm"
+                  disabled={updateBusy}
+                  onClick={() => {
+                    void (async () => {
+                      const api = desktopApi();
+                      if (!api?.installUpdate) {
+                        alert("Restart to install is available in the desktop app.");
+                        return;
+                      }
+                      setUpdateBusy(true);
+                      try {
+                        const res = await api.installUpdate();
+                        if (!res.ok) alert(res.error || "Install failed");
+                      } catch (err) {
+                        alert(err instanceof Error ? err.message : String(err));
+                        setUpdateBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  Restart & install update
+                </Button>
+              ) : null}
             </div>
           </div>
 

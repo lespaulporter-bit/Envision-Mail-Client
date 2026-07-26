@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("lesMail", {
   getUpdateStatus: () => ipcRenderer.invoke("app:getUpdateStatus"),
   setUpdateFeedUrl: (url) => ipcRenderer.invoke("app:setUpdateFeedUrl", url),
   checkForUpdates: (opts) => ipcRenderer.invoke("app:checkForUpdates", opts || {}),
+  installUpdate: () => ipcRenderer.invoke("app:installUpdate"),
   uninstall: () => ipcRenderer.invoke("app:uninstall"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   onRequestUninstall: (cb) => {

@@ -161,6 +161,7 @@ export interface LesMailDesktopApi {
     updateInfo?: { version?: string } | null;
     status?: unknown;
   }>;
+  installUpdate: () => Promise<{ ok: boolean; method?: string; error?: string }>;
   getAppInfo: () => Promise<{ name: string; version: string; userData: string; platform: string; isPackaged: boolean }>;
   uninstall: () => Promise<{ ok: boolean; cancelled?: boolean }>;
   openExternal: (url: string) => Promise<{ ok: boolean }>;
