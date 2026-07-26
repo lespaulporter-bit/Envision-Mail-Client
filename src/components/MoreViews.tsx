@@ -689,21 +689,42 @@ export function SettingsView() {
                     setUpdateBusy(true);
                     try {
                       const res = await api.checkForUpdates({ force: true });
-                      if (res.status) setUpdateStatus(res.status as typeof updateStatus);
-                      if (!res.ok) alert(res.error || "Update check failed");
-                      else if (res.updateInfo?.version) alert(`Update available: ${res.updateInfo.version} (downloading…)`);
-                      else alert("You're up to date.");
-                      const st = await api.getUpdateStatus();
-                      setUpdateStatus(st);
+                      const st = (await api.getUpdateStatus()) as typeof updateStatus;
+                      if (st) setUpdateStatus(st);
+                      if (!res.ok) {
+                        alert(res.error || "Update check failed");
+                        return;
+                      }
+                      const remote = res.updateInfo?.version;
+                      const result = String((st as { lastResult?: string } | null)?.lastResult || "");
+                      if (result === "downloaded" && remote) {
+                        const install = confirm(
+                          `Version ${remote} is downloaded.\n\nRestart Envision Mail now to install?`,
+                        );
+                        if (install && api.installUpdate) {
+                          const r = await api.installUpdate();
+                          if (!r.ok) alert(r.error || "Install failed");
+                        }
+                      } else if (remote) {
+                        alert(`Update ${remote} is downloading or ready — use Restart & install when it appears.`);
+                        const again = await api.getUpdateStatus();
+                        setUpdateStatus(again);
+                      } else {
+                        alert("You're up to date.");
+                      }
                     } finally {
                       setUpdateBusy(false);
+                      const st = await api.getUpdateStatus?.();
+                      if (st) setUpdateStatus(st);
                     }
                   })();
                 }}
               >
                 {updateBusy ? "Checking…" : "Check for updates now"}
               </Button>
-              {updateStatus?.lastResult === "downloaded" || updateStatus?.lastResult === "installing" ? (
+              {updateStatus?.lastResult === "downloaded" ||
+              updateStatus?.lastResult === "installing" ||
+              updateStatus?.lastResult === "downloading" ? (
                 <Button
                   size="sm"
                   disabled={updateBusy}
@@ -725,7 +746,8 @@ export function SettingsView() {
                     })();
                   }}
                 >
-                  Restart & install update
+                  Restart & install
+                  {updateStatus?.lastVersion ? ` v${updateStatus.lastVersion}` : " update"}
                 </Button>
               ) : null}
             </div>

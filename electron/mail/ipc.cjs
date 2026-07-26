@@ -209,7 +209,8 @@ function registerMailIpc() {
       if (!require("electron").app.isPackaged) {
         return { ok: false, error: "Install runs in the packaged app." };
       }
-      return autoUpdate.installPendingUpdateAndRelaunch();
+      const result = await autoUpdate.installPendingUpdateAndRelaunch();
+      return result;
     } catch (err) {
       return { ok: false, error: err.message || String(err) };
     }
