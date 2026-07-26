@@ -1,5 +1,11 @@
 # Envision Mail updates
 
+## 2.6.21
+- **Click a calendar date** to open a popup with **all events** for that day.
+- From the day popup: edit or delete events, or **New event** with a quick form (title, times, location, notes).
+- Month cells show “+N more” / “Click for all”; week/day headers and agenda dates open the same day sheet.
+- Escape or backdrop click closes the popup.
+
 ## 2.6.20
 - Calendar timezone clocks are **smaller and side-by-side** in one neat strip (easy ET ↔ PT comparison, less vertical space).
 - Clocks sit next to the Calendar title; update on the minute.

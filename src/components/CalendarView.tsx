@@ -99,6 +99,9 @@ export function CalendarView() {
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedCalId, setSelectedCalId] = useState("");
+  /** yyyy-MM-dd when the day events popup is open */
+  const [daySheetDate, setDaySheetDate] = useState<string | null>(null);
+  const [daySheetCompose, setDaySheetCompose] = useState(false);
   /** Minutes before start — 0 = at start time; -1 = none */
   const [reminderMinutesBefore, setReminderMinutesBefore] = useState(
     () => settings.defaultEventReminderMinutes ?? 15,
@@ -203,6 +206,49 @@ export function CalendarView() {
       .filter(Boolean)
       .map((email) => ({ email, status: "pending" as const }));
 
+  const openDaySheet = (ymd: string, opts?: { compose?: boolean; edit?: CalendarEvent }) => {
+    setCalendarDate(ymd);
+    setEventDate(ymd);
+    setDaySheetDate(ymd);
+    if (opts?.edit) {
+      beginEdit(opts.edit);
+      setDaySheetCompose(true);
+      return;
+    }
+    if (opts?.compose) {
+      setEditingId(null);
+      setTitle("");
+      setInviteesText("");
+      setTeamsUrl("");
+      setLocation("");
+      setNotes("");
+      setAllDay(false);
+      const start = defaultStartTimeHhmm();
+      setStartTime(start);
+      setEndTime(addMinutesHhmm(start, eventDurationMinutes));
+      setSelectedCalId(defaultCalId);
+      setReminderMinutesBefore(settings.defaultEventReminderMinutes ?? 15);
+      setUseTeams(false);
+      setDaySheetCompose(true);
+      return;
+    }
+    setDaySheetCompose(false);
+  };
+
+  const closeDaySheet = () => {
+    setDaySheetDate(null);
+    setDaySheetCompose(false);
+  };
+
+  useEffect(() => {
+    if (!daySheetDate) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") closeDaySheet();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [daySheetDate]);
+
   const beginEdit = (e: CalendarEvent) => {
     setEditingId(e.id);
     setTitle(e.title);
@@ -231,10 +277,11 @@ export function CalendarView() {
     const start = defaultStartTimeHhmm();
     setStartTime(start);
     setEndTime(addMinutesHhmm(start, eventDurationMinutes));
-    setEventDate(calendarDate);
+    setEventDate(daySheetDate || calendarDate);
     setSelectedCalId(defaultCalId);
     setReminderMinutesBefore(settings.defaultEventReminderMinutes ?? 15);
     setUseTeams(false);
+    setDaySheetCompose(false);
   };
 
   const saveEvent = async () => {
@@ -312,6 +359,8 @@ export function CalendarView() {
       setToast("Event added — use Email invites to notify people");
     }
     resetForm();
+    // Stay on the day sheet list after save so the new/updated event is visible
+    if (daySheetDate) setDaySheetCompose(false);
   };
 
   const shiftDate = (dir: -1 | 1) => {
@@ -332,10 +381,13 @@ export function CalendarView() {
           <button
             key={format(d, "yyyy-MM-dd")}
             type="button"
-            onClick={() => setCalendarDate(format(d, "yyyy-MM-dd"))}
+            onClick={() => openDaySheet(format(d, "yyyy-MM-dd"))}
             className={`border-b border-l border-line p-2 text-left text-xs font-semibold ${
-              isSameDay(d, date) ? "bg-[#ecfdf8] text-teal" : "bg-soft/40"
+              isSameDay(d, date) || daySheetDate === format(d, "yyyy-MM-dd")
+                ? "bg-[#ecfdf8] text-teal"
+                : "bg-soft/40 hover:bg-soft"
             }`}
+            title="Open all events for this day"
           >
             {format(d, "EEE d")}
             {isToday(d) ? <span className="ml-1 text-[10px] font-normal">· today</span> : null}
@@ -547,14 +599,18 @@ export function CalendarView() {
             const key = format(d, "yyyy-MM-dd");
             const label = dayLabels.find((x) => x.date === key)?.label;
             const selected = isSameDay(d, date);
-            const allDayCount = dayEvents(d).filter((e) => e.allDay).length;
+            const list = dayEvents(d);
+            const allDayCount = list.filter((e) => e.allDay).length;
+            const overflow = Math.max(0, list.length - 3);
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => setCalendarDate(key)}
+                onClick={() => openDaySheet(key)}
                 className={`min-h-28 rounded-2xl border p-2 text-left transition ${
-                  selected ? "border-teal bg-[#ecfdf8]" : "border-line bg-white/85 hover:bg-soft/60"
+                  selected || daySheetDate === key
+                    ? "border-teal bg-[#ecfdf8]"
+                    : "border-line bg-white/85 hover:bg-soft/60"
                 } ${!isSameMonth(d, date) ? "opacity-40" : ""} ${isToday(d) ? "ring-1 ring-teal/40" : ""}`}
               >
                 <div className="mb-1 flex items-center justify-between text-xs">
@@ -565,24 +621,29 @@ export function CalendarView() {
                   <div className="mb-1 text-[10px] font-medium text-muted">{allDayCount} all-day</div>
                 ) : null}
                 <ul className="space-y-1">
-                  {dayEvents(d)
-                    .slice(0, 3)
-                    .map((e) => (
-                      <li
-                        key={e.id}
-                        className="truncate rounded px-1.5 py-0.5 text-[11px] text-white"
-                        style={{ background: colorFor(e.calendarId) }}
-                        title={e.title}
-                        onClick={(ev) => {
-                          ev.stopPropagation();
-                          beginEdit(e);
-                        }}
-                      >
-                        {e.allDay ? "" : `${format(parseISO(e.start), "h:mma")} `}
-                        {e.title}
-                      </li>
-                    ))}
+                  {list.slice(0, 3).map((e) => (
+                    <li
+                      key={e.id}
+                      className="truncate rounded px-1.5 py-0.5 text-[11px] text-white"
+                      style={{ background: colorFor(e.calendarId) }}
+                      title={e.title}
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        openDaySheet(key, { edit: e });
+                      }}
+                    >
+                      {e.allDay ? "" : `${format(parseISO(e.start), "h:mma")} `}
+                      {e.title}
+                    </li>
+                  ))}
                 </ul>
+                {overflow > 0 ? (
+                  <div className="mt-1 text-[10px] font-medium text-teal">+{overflow} more · open day</div>
+                ) : list.length === 0 ? (
+                  <div className="mt-1 text-[10px] text-muted">Click to add</div>
+                ) : (
+                  <div className="mt-1 text-[10px] text-muted">Click for all</div>
+                )}
               </button>
             );
           })}
@@ -602,8 +663,9 @@ export function CalendarView() {
               <section key={format(d, "yyyy-MM-dd")} className="rounded-2xl border border-line bg-white/90 p-4">
                 <button
                   type="button"
-                  className="mb-2 text-left font-display text-lg"
-                  onClick={() => setCalendarDate(format(d, "yyyy-MM-dd"))}
+                  className="mb-2 text-left font-display text-lg hover:text-teal"
+                  onClick={() => openDaySheet(format(d, "yyyy-MM-dd"))}
+                  title="Open day — all events, add, or edit"
                 >
                   {format(d, "EEEE, MMM d")}
                   {isToday(d) ? <span className="ml-2 text-sm font-sans text-teal">Today</span> : null}
@@ -1065,6 +1127,190 @@ export function CalendarView() {
           </section>
         </div>
       </div>
+
+      {daySheetDate ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-ink/45 p-3 sm:items-center sm:p-6"
+          role="presentation"
+          onClick={closeDaySheet}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="day-sheet-title"
+            className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-xl"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+              <div className="min-w-0">
+                <h2 id="day-sheet-title" className="font-display text-xl tracking-tight text-ink">
+                  {format(parseISO(daySheetDate), "EEEE, MMMM d")}
+                </h2>
+                <p className="mt-0.5 text-xs text-muted">
+                  {dayEvents(parseISO(daySheetDate)).length} event
+                  {dayEvents(parseISO(daySheetDate)).length === 1 ? "" : "s"} · add or edit below
+                </p>
+              </div>
+              <Button type="button" size="sm" variant="ghost" onClick={closeDaySheet}>
+                Close
+              </Button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+              {!daySheetCompose ? (
+                <>
+                  <ul className="space-y-2">
+                    {dayEvents(parseISO(daySheetDate)).map((e) => (
+                      <li key={e.id} className="rounded-xl border border-line p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-ink">
+                              <span
+                                className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
+                                style={{ background: colorFor(e.calendarId) }}
+                              />
+                              {e.title}
+                              {e.source === "mac" ? (
+                                <span className="ml-2 text-xs font-normal text-muted">Mac</span>
+                              ) : null}
+                            </div>
+                            <div className="mt-0.5 text-sm text-muted">
+                              {e.allDay
+                                ? "All day"
+                                : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
+                              {e.location ? ` · ${e.location}` : ""}
+                            </div>
+                            {e.notes ? <p className="mt-1 text-xs text-muted line-clamp-2">{e.notes}</p> : null}
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            <Button
+                              size="sm"
+                              variant="soft"
+                              onClick={() => {
+                                beginEdit(e);
+                                setDaySheetCompose(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            {e.source !== "mac" ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  deleteEvent(e.id);
+                                  setToast("Event deleted");
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                    {dayEvents(parseISO(daySheetDate)).length === 0 ? (
+                      <li className="rounded-xl border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
+                        Nothing scheduled — create an event for this day.
+                      </li>
+                    ) : null}
+                  </ul>
+                  <div className="mt-4">
+                    <Button
+                      type="button"
+                      className="w-full"
+                      onClick={() => openDaySheet(daySheetDate, { compose: true })}
+                    >
+                      New event
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <form
+                  className="space-y-2"
+                  onSubmit={(ev) => {
+                    ev.preventDefault();
+                    void saveEvent();
+                  }}
+                >
+                  <h3 className="text-sm font-semibold text-ink">
+                    {editingId ? "Edit event" : "New event"}
+                  </h3>
+                  <Input
+                    placeholder="Event title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+                    All-day event
+                  </label>
+                  {!allDay ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="block text-xs font-medium text-muted">
+                        Start
+                        <Input
+                          className="mt-1"
+                          type="time"
+                          step={300}
+                          value={startTime}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            if (!next) return;
+                            setEndTime(
+                              endAfterStartChange(startTime, endTime, next, eventDurationMinutes),
+                            );
+                            setStartTime(next);
+                          }}
+                          required
+                        />
+                      </label>
+                      <label className="block text-xs font-medium text-muted">
+                        End
+                        <Input
+                          className="mt-1"
+                          type="time"
+                          step={300}
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                          required
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                  <Input
+                    placeholder="Location (optional)"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                  />
+                  <Textarea
+                    rows={2}
+                    placeholder="Notes (optional)"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Button type="submit">{editingId ? "Save changes" : "Add event"}</Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        resetForm();
+                        setDaySheetCompose(false);
+                        setEventDate(daySheetDate);
+                      }}
+                    >
+                      Back to list
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
