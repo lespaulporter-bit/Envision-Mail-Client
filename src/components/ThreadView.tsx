@@ -3,7 +3,9 @@
 import { Avatar, Badge, Button, Input, Textarea } from "@/components/ui";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { MailHtml } from "@/components/MailHtml";
+import { PriorEmailsPanel } from "@/components/PriorEmailsPanel";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
+import { threadBelongsToAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
 import { cn, formatBytes, relativeTime } from "@/lib/utils";
@@ -121,7 +123,11 @@ export function ThreadView() {
   const subject = thread.customSubject || thread.subject;
   const workflow = workflows.find((w) => w.id === thread.workflowId);
   const mergeCandidates = threads.filter(
-    (t) => t.id !== thread.id && t.contactEmail === thread.contactEmail && t.box === thread.box,
+    (t) =>
+      t.id !== thread.id &&
+      t.contactEmail.toLowerCase() === thread.contactEmail.toLowerCase() &&
+      t.box === thread.box &&
+      threadBelongsToAccount(t, inboxAccountId || thread.accountId, storeMessages),
   );
 
   return (
@@ -530,6 +536,8 @@ export function ThreadView() {
           ))}
         </div>
       )}
+
+      <PriorEmailsPanel thread={thread} />
 
       <div className="mt-8 space-y-4 rounded-2xl border border-line bg-white p-5">
         <EmailTemplatePickers

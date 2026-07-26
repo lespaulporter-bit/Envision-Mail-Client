@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.24
+- When reading mail, **Previous emails from this person** shows other conversations with that sender.
+- Expand any prior email to read the full thread, reply in place, open it, or **Link into this conversation**.
+- Sync links replies via In-Reply-To / References (real conversation threading), not only matching subjects.
+
 ## 2.6.23
 - **Strict account isolation**: Highlights, attachments, collections, workflows, search, and dock lists never show another inbox’s data.
 - Opening cross-account items no longer shows the “belongs to another account” toast — those items are hidden instead.

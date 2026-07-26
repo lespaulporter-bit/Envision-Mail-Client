@@ -187,6 +187,7 @@ interface Actions {
         trackersBlocked: string[];
         messageIdHeader?: string | null;
         inReplyTo?: string | null;
+        references?: string[] | string | null;
         listUnsubscribe?: string | null;
         listUnsubscribePost?: string | null;
         unsubscribeHttpUrl?: string | null;
@@ -1105,16 +1106,21 @@ export const useMailStore = create<MailStore>()(
                 ? `imap_${accountId}_trash_${item.uid}`
                 : `imap_${accountId}_${item.uid}`;
           if (msgs[messageId]) {
-            // Backfill unsubscribe metadata on already-imported mail when headers arrive later
+            // Backfill headers / unsubscribe metadata on already-imported mail
             const prev = msgs[messageId];
-            if (
+            const nextUnsub =
               !prev.isOutgoing &&
               !prev.unsubscribeHttpUrl &&
               !prev.unsubscribeMailto &&
-              (item.unsubscribeHttpUrl || item.unsubscribeMailto || item.listUnsubscribe)
-            ) {
+              (item.unsubscribeHttpUrl || item.unsubscribeMailto || item.listUnsubscribe);
+            const nextLink =
+              (!prev.messageIdHeader && item.messageIdHeader) ||
+              (!prev.inReplyTo && item.inReplyTo);
+            if (nextUnsub || nextLink) {
               msgs[messageId] = {
                 ...prev,
+                messageIdHeader: prev.messageIdHeader || item.messageIdHeader || null,
+                inReplyTo: prev.inReplyTo || item.inReplyTo || null,
                 listUnsubscribe: item.listUnsubscribe || prev.listUnsubscribe || null,
                 listUnsubscribePost: item.listUnsubscribePost || prev.listUnsubscribePost || null,
                 unsubscribeHttpUrl: item.unsubscribeHttpUrl || prev.unsubscribeHttpUrl || null,
@@ -1191,21 +1197,50 @@ export const useMailStore = create<MailStore>()(
                     : contact.defaultBox || "lesbox";
 
           const subjectKey = item.subject.replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase();
-          let thread = threads.find(
-            (t) =>
-              t.contactEmail.toLowerCase() === counterpartyEmail &&
-              (t.accountId === accountId || !t.accountId) &&
-              (fromSentFolder
-                ? t.box === "sent"
-                : fromSpamFolder
-                  ? t.box === "spam"
-                  : fromTrashFolder
-                    ? t.box === "trash"
-                    : t.box !== "sent" && t.box !== "spam" && t.box !== "trash") &&
-              (t.subject.replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase() === subjectKey ||
-                (t.customSubject || "").replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase() ===
-                  subjectKey),
-          );
+          const cleanMid = (v: string) => String(v || "").replace(/[<>]/g, "").trim().toLowerCase();
+          const replyTo = cleanMid(item.inReplyTo || "");
+          const refs = Array.isArray(item.references)
+            ? item.references.map((r) => cleanMid(String(r)))
+            : String(item.references || "")
+                .split(/\s+/)
+                .map(cleanMid)
+                .filter(Boolean);
+          const linkIds = new Set([replyTo, ...refs].filter(Boolean));
+
+          // Prefer real conversation linking (In-Reply-To / References) over subject alone
+          let thread =
+            linkIds.size > 0
+              ? threads.find((t) => {
+                  if (t.accountId && t.accountId !== accountId) return false;
+                  if (fromSentFolder ? t.box !== "sent" : t.box === "sent") return false;
+                  if (fromSpamFolder ? t.box !== "spam" : t.box === "spam") return false;
+                  if (fromTrashFolder ? t.box !== "trash" : t.box === "trash") return false;
+                  return t.messageIds.some((mid) => {
+                    const m = msgs[mid];
+                    if (!m) return false;
+                    const hid = cleanMid(m.messageIdHeader || m.smtpMessageId || "");
+                    return Boolean(hid && linkIds.has(hid));
+                  });
+                })
+              : undefined;
+
+          if (!thread) {
+            thread = threads.find(
+              (t) =>
+                t.contactEmail.toLowerCase() === counterpartyEmail &&
+                (t.accountId === accountId || !t.accountId) &&
+                (fromSentFolder
+                  ? t.box === "sent"
+                  : fromSpamFolder
+                    ? t.box === "spam"
+                    : fromTrashFolder
+                      ? t.box === "trash"
+                      : t.box !== "sent" && t.box !== "spam" && t.box !== "trash") &&
+                (t.subject.replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase() === subjectKey ||
+                  (t.customSubject || "").replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase() ===
+                    subjectKey),
+            );
+          }
 
           const attachmentList = item.attachments.map((a) => ({
             ...a,
@@ -1227,6 +1262,8 @@ export const useMailStore = create<MailStore>()(
             attachments: attachmentList,
             trackersBlocked: item.trackersBlocked || [],
             isOutgoing,
+            messageIdHeader: item.messageIdHeader || null,
+            inReplyTo: item.inReplyTo || null,
             listUnsubscribe: item.listUnsubscribe || null,
             listUnsubscribePost: item.listUnsubscribePost || null,
             unsubscribeHttpUrl: item.unsubscribeHttpUrl || null,

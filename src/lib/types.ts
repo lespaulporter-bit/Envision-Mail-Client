@@ -90,6 +90,10 @@ export interface Message {
   requestReadReceipt?: boolean;
   readReceipts?: ReadReceipt[];
   smtpMessageId?: string | null;
+  /** RFC Message-ID from the provider (for conversation linking) */
+  messageIdHeader?: string | null;
+  /** In-Reply-To header — links replies into the same conversation */
+  inReplyTo?: string | null;
   /** Raw List-Unsubscribe header when present */
   listUnsubscribe?: string | null;
   listUnsubscribePost?: string | null;
