@@ -227,71 +227,198 @@ function sanitizeHtml(html) {
     .replace(/src=["']https?:\/\/[^"']*(?:track|pixel|beacon)[^"']*["']/gi, 'src=""');
 }
 
-async function fetchFolderMessages(client, mailboxPath, account, { limit = 40, folder = "inbox" } = {}) {
+function idPrefixForFolder(accountId, folder) {
+  if (folder === "sent") return `imap_${accountId}_sent`;
+  if (folder === "spam") return `imap_${accountId}_spam`;
+  if (folder === "trash") return `imap_${accountId}_trash`;
+  return `imap_${accountId}`;
+}
+
+async function parseFetchedMessage(msg, account, folder) {
+  const parsed = await simpleParser(msg.source);
+  const fromAddr = parsed.from?.value?.[0] || {};
+  const toAddrs = (parsed.to?.value || []).map((v) => v.address).filter(Boolean);
+  const html = sanitizeHtml(parsed.html || `<p>${(parsed.text || "").replace(/\n/g, "<br/>")}</p>`);
+  const messageId = `${idPrefixForFolder(account.id, folder)}_${msg.uid}`;
+  const attachments = (parsed.attachments || []).map((a, idx) => ({
+    id: `att_${folder}_${msg.uid}_${idx}`,
+    name: a.filename || `attachment-${idx + 1}`,
+    size: a.size || 0,
+    mimeType: a.contentType || "application/octet-stream",
+    messageId,
+    threadId: "",
+    receivedAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
+  }));
+  const unsub = extractUnsubscribeInfo(parsed, html);
+  return {
+    uid: msg.uid,
+    folder,
+    messageIdHeader: parsed.messageId || null,
+    inReplyTo: parsed.inReplyTo || null,
+    references: parsed.references || [],
+    from: fromAddr.address || "unknown@unknown",
+    fromName: fromAddr.name || (fromAddr.address || "Unknown").split("@")[0],
+    to: toAddrs.length ? toAddrs : [account.email],
+    subject: parsed.subject || "(no subject)",
+    bodyHtml: html,
+    bodyText: parsed.text || stripHtml(html),
+    sentAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
+    seen: Boolean(msg.flags?.has("\\Seen")),
+    attachments,
+    trackersBlocked: extractTrackers(parsed.html || ""),
+    listUnsubscribe: unsub.listUnsubscribe,
+    listUnsubscribePost: unsub.listUnsubscribePost,
+    unsubscribeHttpUrl: unsub.unsubscribeHttpUrl,
+    unsubscribeMailto: unsub.unsubscribeMailto,
+    unsubscribeOneClick: unsub.unsubscribeOneClick,
+  };
+}
+
+/** Fetch by sequence window. skipNewest=50 loads the 51st–oldest chunk (older mail). */
+async function fetchFolderMessages(
+  client,
+  mailboxPath,
+  account,
+  { limit = 40, folder = "inbox", skipNewest = 0, uids = null } = {},
+) {
   const messages = [];
   const lock = await client.getMailboxLock(mailboxPath);
   try {
     const total = client.mailbox.exists || 0;
-    if (!total) return [];
-    const start = Math.max(1, total - limit + 1);
-    const idPrefix =
-      folder === "sent"
-        ? `imap_${account.id}_sent`
-        : folder === "spam"
-          ? `imap_${account.id}_spam`
-          : folder === "trash"
-            ? `imap_${account.id}_trash`
-            : `imap_${account.id}`;
-    for await (const msg of client.fetch(`${start}:${total}`, {
+    if (!total && !(uids && uids.length)) return [];
+
+    const fetchOpts = {
       envelope: true,
       source: true,
       uid: true,
       flags: true,
       internalDate: true,
-    })) {
-      const parsed = await simpleParser(msg.source);
-      const fromAddr = parsed.from?.value?.[0] || {};
-      const toAddrs = (parsed.to?.value || []).map((v) => v.address).filter(Boolean);
-      const html = sanitizeHtml(parsed.html || `<p>${(parsed.text || "").replace(/\n/g, "<br/>")}</p>`);
-      const messageId = `${idPrefix}_${msg.uid}`;
-      const attachments = (parsed.attachments || []).map((a, idx) => ({
-        id: `att_${folder}_${msg.uid}_${idx}`,
-        name: a.filename || `attachment-${idx + 1}`,
-        size: a.size || 0,
-        mimeType: a.contentType || "application/octet-stream",
-        messageId,
-        threadId: "",
-        receivedAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
-      }));
-      const unsub = extractUnsubscribeInfo(parsed, html);
+    };
 
-      messages.push({
-        uid: msg.uid,
-        folder,
-        messageIdHeader: parsed.messageId || null,
-        inReplyTo: parsed.inReplyTo || null,
-        references: parsed.references || [],
-        from: fromAddr.address || "unknown@unknown",
-        fromName: fromAddr.name || (fromAddr.address || "Unknown").split("@")[0],
-        to: toAddrs.length ? toAddrs : [account.email],
-        subject: parsed.subject || "(no subject)",
-        bodyHtml: html,
-        bodyText: parsed.text || stripHtml(html),
-        sentAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
-        seen: Boolean(msg.flags?.has("\\Seen")),
-        attachments,
-        trackersBlocked: extractTrackers(parsed.html || ""),
-        listUnsubscribe: unsub.listUnsubscribe,
-        listUnsubscribePost: unsub.listUnsubscribePost,
-        unsubscribeHttpUrl: unsub.unsubscribeHttpUrl,
-        unsubscribeMailto: unsub.unsubscribeMailto,
-        unsubscribeOneClick: unsub.unsubscribeOneClick,
-      });
+    if (uids && uids.length) {
+      const range = uidRange(uids);
+      if (!range) return [];
+      for await (const msg of client.fetch(range, { ...fetchOpts, uid: true })) {
+        messages.push(await parseFetchedMessage(msg, account, folder));
+      }
+    } else {
+      const end = Math.max(0, total - Math.max(0, skipNewest));
+      if (end < 1) return [];
+      const start = Math.max(1, end - limit + 1);
+      for await (const msg of client.fetch(`${start}:${end}`, fetchOpts)) {
+        messages.push(await parseFetchedMessage(msg, account, folder));
+      }
     }
   } finally {
     lock.release();
   }
   return messages;
+}
+
+async function findAllMailMailboxPath(client) {
+  try {
+    const boxes = await client.list();
+    return findSpecialMailbox(
+      boxes,
+      "\\All",
+      ["[Gmail]/All Mail", "All Mail", "Archive"],
+      /(\[Gmail\]\/)?all.?mail|^archive$/i,
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Search the server (Gmail All Mail when available, else INBOX) and fetch matching messages.
+ * This is how users reach older mail beyond the recent sync window.
+ */
+async function searchMail(account, { query, limit = 40 } = {}) {
+  const q = String(query || "").trim();
+  if (q.length < 2) {
+    return { ok: false, error: "Enter at least 2 characters to search.", messages: [] };
+  }
+  const max = Math.min(80, Math.max(5, Number(limit) || 40));
+  try {
+    return await withClient(account, async (client) => {
+      const allMailPath = await findAllMailMailboxPath(client);
+      const path = allMailPath || "INBOX";
+      const lock = await client.getMailboxLock(path);
+      let uids = [];
+      try {
+        try {
+          uids = await client.search(
+            {
+              or: [{ subject: q }, { from: q }, { to: q }, { body: q }],
+            },
+            { uid: true },
+          );
+        } catch {
+          try {
+            uids = await client.search({ text: q }, { uid: true });
+          } catch {
+            uids = await client.search({ subject: q }, { uid: true });
+          }
+        }
+        uids = [...new Set((uids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))]
+          .sort((a, b) => b - a)
+          .slice(0, max);
+      } finally {
+        lock.release();
+      }
+      if (!uids.length) {
+        return { ok: true, messages: [], query: q, path, matched: 0 };
+      }
+      // Re-lock via fetchFolderMessages
+      const messages = await fetchFolderMessages(client, path, account, {
+        folder: "inbox",
+        uids,
+      });
+      messages.sort((a, b) => +new Date(b.sentAt) - +new Date(a.sentAt));
+      return { ok: true, messages, query: q, path, matched: uids.length };
+    });
+  } catch (err) {
+    return { ok: false, error: formatImapError(err), messages: [] };
+  }
+}
+
+/** Load older INBOX messages past the recent sync window (skipNewest = already-loaded count). */
+async function fetchOlderMail(account, { folder = "inbox", skipNewest = 50, limit = 40 } = {}) {
+  const skip = Math.max(0, Number(skipNewest) || 0);
+  const max = Math.min(80, Math.max(10, Number(limit) || 40));
+  try {
+    return await withClient(account, async (client) => {
+      const path = (await resolveFolderPath(client, folder)) || "INBOX";
+      const lock = await client.getMailboxLock(path);
+      let total = 0;
+      try {
+        total = client.mailbox.exists || 0;
+      } finally {
+        lock.release();
+      }
+      if (skip >= total) {
+        return { ok: true, messages: [], total, skipNewest: skip, limit: max, hasMore: false };
+      }
+      const messages = await fetchFolderMessages(client, path, account, {
+        folder: folder === "sent" || folder === "spam" || folder === "trash" ? folder : "inbox",
+        limit: max,
+        skipNewest: skip,
+      });
+      messages.sort((a, b) => +new Date(b.sentAt) - +new Date(a.sentAt));
+      const nextSkip = skip + messages.length;
+      return {
+        ok: true,
+        messages,
+        total,
+        skipNewest: skip,
+        limit: max,
+        hasMore: nextSkip < total,
+        nextSkipNewest: nextSkip,
+      };
+    });
+  } catch (err) {
+    return { ok: false, error: formatImapError(err), messages: [] };
+  }
 }
 
 function findSpecialMailbox(boxes, specialUse, nameHints, fuzzyRe) {
@@ -526,6 +653,8 @@ module.exports = {
   testImap,
   fetchInbox,
   fetchMail,
+  searchMail,
+  fetchOlderMail,
   moveMessages,
   deleteMessages,
   emptyFolder,

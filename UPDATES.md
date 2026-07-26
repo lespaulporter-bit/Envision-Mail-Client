@@ -1,5 +1,11 @@
 # Envision Mail updates
 
+## 2.6.22
+- **Old mail**: MoneyBox has Search server + Load older batch so you can reach Gmail history beyond the recent sync window.
+- **Search** runs against the mail server (Gmail All Mail when available) and downloads matches into this account.
+- Recent sync window raised to **100** inbox messages (was 50).
+- Search/older imports land in MoneyBox (not buried in New Senders).
+
 ## 2.6.21
 - **Click a calendar date** to open a popup with **all events** for that day.
 - From the day popup: edit or delete events, or **New event** with a quick form (title, times, location, notes).

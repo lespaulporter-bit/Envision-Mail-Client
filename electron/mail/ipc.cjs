@@ -3,7 +3,15 @@ const fs = require("fs");
 const path = require("path");
 const { PRESETS } = require("./presets.cjs");
 const accounts = require("./accounts-store.cjs");
-const { testImap, fetchMail, moveMessages, deleteMessages, emptyFolder } = require("./imap.cjs");
+const {
+  testImap,
+  fetchMail,
+  searchMail,
+  fetchOlderMail,
+  moveMessages,
+  deleteMessages,
+  emptyFolder,
+} = require("./imap.cjs");
 const { testSmtp, sendMail, sendPlainMail, sendCalendarInvites } = require("./smtp.cjs");
 const { performUnsubscribe } = require("./unsubscribe.cjs");
 const appState = require("./app-state.cjs");
@@ -149,8 +157,8 @@ function registerMailIpc() {
     }
     try {
       const messages = await fetchMail(account, {
-        inboxLimit: 50,
-        sentLimit: 40,
+        inboxLimit: 100,
+        sentLimit: 50,
         spamLimit: 40,
         trashLimit: 40,
       });
@@ -188,6 +196,53 @@ function registerMailIpc() {
         });
       }
       return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle("mail:searchMail", async (_e, payload) => {
+    const id = payload?.accountId;
+    const account = accounts.getAccountSecret(id);
+    if (!account) return { ok: false, error: "Account not found", messages: [] };
+    if (!account.password) {
+      return { ok: false, error: "App password missing — re-enter in Settings → Accounts.", messages: [] };
+    }
+    try {
+      const result = await searchMail(account, {
+        query: payload?.query,
+        limit: payload?.limit,
+      });
+      return {
+        ...result,
+        accountId: id,
+        email: account.email,
+        displayName: account.name,
+      };
+    } catch (err) {
+      return { ok: false, error: err.message || String(err), messages: [] };
+    }
+  });
+
+  ipcMain.handle("mail:fetchOlderMail", async (_e, payload) => {
+    const id = payload?.accountId;
+    const account = accounts.getAccountSecret(id);
+    if (!account) return { ok: false, error: "Account not found", messages: [] };
+    if (!account.password) {
+      return { ok: false, error: "App password missing — re-enter in Settings → Accounts.", messages: [] };
+    }
+    try {
+      const result = await fetchOlderMail(account, {
+        folder: payload?.folder || "inbox",
+        skipNewest: payload?.skipNewest,
+        limit: payload?.limit,
+      });
+      return {
+        ...result,
+        accountId: id,
+        email: account.email,
+        displayName: account.name,
+      };
+    } catch (err) {
+      return { ok: false, error: err.message || String(err), messages: [] };
     }
   });
 

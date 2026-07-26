@@ -100,6 +100,40 @@ export interface LesMailDesktopApi {
     displayName?: string;
     messages?: DesktopSyncedMessage[];
   }>;
+  /** IMAP search (All Mail / INBOX) — finds older mail beyond the recent sync window. */
+  searchMail: (payload: {
+    accountId: string;
+    query: string;
+    limit?: number;
+  }) => Promise<{
+    ok: boolean;
+    error?: string;
+    accountId?: string;
+    email?: string;
+    displayName?: string;
+    messages?: DesktopSyncedMessage[];
+    query?: string;
+    path?: string;
+    matched?: number;
+  }>;
+  /** Load older INBOX messages past the recent sync chunk. */
+  fetchOlderMail: (payload: {
+    accountId: string;
+    folder?: string;
+    skipNewest?: number;
+    limit?: number;
+  }) => Promise<{
+    ok: boolean;
+    error?: string;
+    accountId?: string;
+    email?: string;
+    displayName?: string;
+    messages?: DesktopSyncedMessage[];
+    total?: number;
+    skipNewest?: number;
+    nextSkipNewest?: number;
+    hasMore?: boolean;
+  }>;
   loadAppState: () => Promise<unknown>;
   saveAppState: (payload: unknown) => Promise<{ ok: boolean; path?: string }>;
   sendMail: (payload: {

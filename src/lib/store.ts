@@ -196,6 +196,13 @@ interface Actions {
     opts?: {
       /** Background poll — no toast spam; never steals the current screen. */
       background?: boolean;
+      /**
+       * Search / load-older: put mail in MoneyBox (auto-allow new contacts)
+       * instead of burying everything in New Senders.
+       */
+      deliverToInbox?: boolean;
+      /** Custom toast; empty string suppresses toast. */
+      toastMessage?: string | null;
     },
   ) => { imported: number; screened: number };
   markMessageUnsubscribed: (messageId: string) => void;
@@ -1039,6 +1046,7 @@ export const useMailStore = create<MailStore>()(
         let screened = 0;
         let metaUpdated = false;
         const background = Boolean(opts?.background);
+        const deliverToInbox = Boolean(opts?.deliverToInbox);
         const state = get();
         let threads = [...state.threads];
         let contacts = [...state.contacts];
@@ -1134,7 +1142,7 @@ export const useMailStore = create<MailStore>()(
             const bypass =
               Boolean(speakeasy) &&
               item.subject.toUpperCase().includes(String(speakeasy).toUpperCase());
-            const autoAllow = isOutgoing || bypass;
+            const autoAllow = isOutgoing || bypass || deliverToInbox;
             contact = {
               id: uid("c"),
               email: counterpartyEmail,
@@ -1147,16 +1155,26 @@ export const useMailStore = create<MailStore>()(
               defaultBox: "lesbox",
               notes: bypass
                 ? "Speakeasy bypass"
-                : fromSpamFolder
-                  ? "From Spam folder"
-                  : fromTrashFolder
-                    ? "From Trash"
-                    : "",
+                : deliverToInbox
+                  ? "Allowed via old mail search"
+                  : fromSpamFolder
+                    ? "From Spam folder"
+                    : fromTrashFolder
+                      ? "From Trash"
+                      : "",
               notify: Boolean(bypass),
               avatarColor: `#${((counterpartyEmail.length * 37) % 0xffffff).toString(16).padStart(6, "0")}`,
               bundled: false,
             };
             contacts = [...contacts, contact];
+          } else if (
+            deliverToInbox &&
+            contact.status === "pending" &&
+            !fromSpamFolder &&
+            !fromTrashFolder
+          ) {
+            contact = { ...contact, status: "allowed" as const };
+            contacts = contacts.map((c) => (c.id === contact!.id ? contact! : c));
           }
 
           const box: Box = fromSentFolder
@@ -1167,7 +1185,7 @@ export const useMailStore = create<MailStore>()(
                 ? "trash"
                 : contact.status === "blocked"
                   ? "spam"
-                  : contact.status === "pending"
+                  : contact.status === "pending" && !deliverToInbox
                     ? "screener"
                     : contact.defaultBox || "lesbox";
 
@@ -1295,21 +1313,28 @@ export const useMailStore = create<MailStore>()(
               settings,
               inboxAccountId: keepActive || accountId,
             });
-          } else if (!background) {
-            set({ toast: "Already up to date" });
+          } else if (!background && opts?.toastMessage !== "") {
+            set({
+              toast:
+                opts?.toastMessage != null ? opts.toastMessage : "Already up to date",
+            });
           }
           return { imported: 0, screened: 0 };
         }
 
+        const defaultToast =
+          screened > 0
+            ? `Synced ${imported} · ${screened} need New Senders review`
+            : `Synced ${imported} message${imported === 1 ? "" : "s"}${email ? ` (${email})` : ""}`;
         set({
           threads,
           contacts,
           messages: msgs,
           settings,
           inboxAccountId: keepActive || accountId,
-          toast: screened > 0
-            ? `Synced ${imported} · ${screened} need New Senders review`
-            : `Synced ${imported} message${imported === 1 ? "" : "s"}${email ? ` (${email})` : ""}`,
+          ...(opts?.toastMessage === ""
+            ? {}
+            : { toast: opts?.toastMessage != null ? opts.toastMessage : defaultToast }),
         });
         return { imported, screened };
       },

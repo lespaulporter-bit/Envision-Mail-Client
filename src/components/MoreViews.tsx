@@ -898,12 +898,15 @@ export function SearchView() {
   const messages = useMailStore((s) => s.messages);
   const openThread = useMailStore((s) => s.openThread);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const setToast = useMailStore((s) => s.setToast);
+  const [serverBusy, setServerBusy] = useState(false);
+  const [serverNote, setServerNote] = useState("");
 
   const results = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
     return threads.filter((t) => {
-      if (inboxAccountId && t.accountId !== inboxAccountId) return false;
+      if (inboxAccountId && t.accountId && t.accountId !== inboxAccountId) return false;
       const hay = [
         t.subject,
         t.customSubject,
@@ -925,21 +928,70 @@ export function SearchView() {
     });
   }, [searchQuery, threads, messages, inboxAccountId]);
 
+  const runServerSearch = async () => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setToast("Type at least 2 characters, then search the server");
+      return;
+    }
+    setServerBusy(true);
+    setServerNote("");
+    try {
+      const { searchAndImportOldMail } = await import("@/lib/mail-server-search");
+      const res = await searchAndImportOldMail(q, { limit: 50 });
+      if (!res.ok) {
+        setServerNote(res.error || "Search failed");
+        setToast(res.error || "Search failed");
+        return;
+      }
+      if (!res.imported && !res.matched) {
+        setServerNote(`No matches on the mail server for “${q}”.`);
+      } else {
+        setServerNote(
+          res.imported
+            ? `Pulled ${res.imported} message${res.imported === 1 ? "" : "s"} from the server into this account.`
+            : "Matches were already on this Mac — see the list below.",
+        );
+      }
+    } finally {
+      setServerBusy(false);
+    }
+  };
+
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="Search"
-        subtitle="Search only within the active account’s mail."
+        subtitle="Search downloaded mail instantly — or search Gmail/IMAP for older messages not synced yet."
       />
-      <Input
-        className="mb-4 max-w-xl"
-        placeholder="Search mail…"
-        value={searchQuery}
-        onChange={(e) => setSearch(e.target.value)}
-        autoFocus
-      />
-      {searchQuery && results.length === 0 ? (
-        <EmptyState title="No matches" body="Try another name, subject, or phrase." />
+      <form
+        className="mb-4 flex max-w-xl flex-col gap-2 sm:flex-row sm:items-center"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void runServerSearch();
+        }}
+      >
+        <Input
+          className="flex-1"
+          placeholder="Name, subject, or phrase…"
+          value={searchQuery}
+          onChange={(e) => setSearch(e.target.value)}
+          autoFocus
+        />
+        <Button type="submit" disabled={serverBusy || searchQuery.trim().length < 2}>
+          {serverBusy ? "Searching server…" : "Search server"}
+        </Button>
+      </form>
+      <p className="mb-4 max-w-xl text-xs text-muted">
+        Local results update as you type. <strong className="font-medium text-ink">Search server</strong> looks through
+        your full mailbox (including All Mail on Gmail) and downloads matches so you can open them here.
+      </p>
+      {serverNote ? <p className="mb-4 text-sm text-teal">{serverNote}</p> : null}
+      {searchQuery && results.length === 0 && !serverBusy ? (
+        <EmptyState
+          title="No local matches"
+          body="Try Search server to look through older mail still on Gmail/IMAP."
+        />
       ) : (
         <ul className="space-y-2">
           {results.map((t) => (

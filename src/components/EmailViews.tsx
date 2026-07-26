@@ -5,7 +5,7 @@ import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { MailHtml } from "@/components/MailHtml";
 import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
-import { desktopApi } from "@/lib/desktop";
+import { desktopApi, isDesktop } from "@/lib/desktop";
 import { selectBoxThreads, selectDockThreads, useMailStore } from "@/lib/store";
 import type { Message, Thread } from "@/lib/types";
 import { previewText } from "@/lib/utils";
@@ -22,7 +22,15 @@ export function MoneyBoxView() {
   const setCoverArt = useMailStore((s) => s.setCoverArt);
   const clearMultiOpen = useMailStore((s) => s.clearMultiOpen);
   const openThread = useMailStore((s) => s.openThread);
+  const setView = useMailStore((s) => s.setView);
+  const setSearch = useMailStore((s) => s.setSearch);
+  const setToast = useMailStore((s) => s.setToast);
   const [tab, setTab] = useState<"all" | "fresh" | "seen">("all");
+  const [oldQuery, setOldQuery] = useState("");
+  const [oldBusy, setOldBusy] = useState<"search" | "older" | null>(null);
+  /** How many newest INBOX messages to skip on the next “Load older” (sync window ≈ 100). */
+  const [olderSkip, setOlderSkip] = useState(100);
+  const [olderHasMore, setOlderHasMore] = useState(true);
 
   const all = useMemo(
     () => selectBoxThreads(threads, "lesbox", { accountId: inboxAccountId }),
@@ -159,7 +167,8 @@ export function MoneyBoxView() {
             Previously read <Badge tone="soft">{seen.length}</Badge>
           </h2>
           <p className="mb-3 text-xs text-muted">
-            Every email you’ve already opened stays here — always visible, never tucked away.
+            Opened mail that&apos;s already on this Mac. Sync keeps the recent window; use Old mail below for the rest of
+            your Gmail history.
           </p>
           {seen.length === 0 ? (
             <EmptyState title="No previously read mail yet" body="After you open a message, it appears in this list." />
@@ -172,6 +181,79 @@ export function MoneyBoxView() {
           )}
         </section>
       )}
+
+      {inboxAccountId && isDesktop() ? (
+        <section className="mb-6 rounded-2xl border border-line bg-white p-4 shadow-sm">
+          <h2 className="font-display text-lg text-ink">Old mail</h2>
+          <p className="mt-1 text-sm text-muted">
+            Only the newest messages sync automatically. Search your full mailbox (Gmail All Mail) or load the next older
+            batch into MoneyBox.
+          </p>
+          <form
+            className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const q = oldQuery.trim();
+              if (q.length < 2) {
+                setToast("Type a name or subject (2+ characters)");
+                return;
+              }
+              setOldBusy("search");
+              void (async () => {
+                try {
+                  const { searchAndImportOldMail } = await import("@/lib/mail-server-search");
+                  const res = await searchAndImportOldMail(q, { limit: 50 });
+                  if (!res.ok) setToast(res.error || "Search failed");
+                  else {
+                    setSearch(q);
+                    setView("search");
+                  }
+                } finally {
+                  setOldBusy(null);
+                }
+              })();
+            }}
+          >
+            <input
+              className="min-w-0 flex-1 rounded-lg border border-line bg-white px-3 py-2 text-sm"
+              placeholder="Search older mail by name, subject, or phrase…"
+              value={oldQuery}
+              onChange={(e) => setOldQuery(e.target.value)}
+            />
+            <Button type="submit" size="sm" disabled={!!oldBusy || oldQuery.trim().length < 2}>
+              {oldBusy === "search" ? "Searching…" : "Search server"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="soft"
+              disabled={!!oldBusy || !olderHasMore}
+              onClick={() => {
+                setOldBusy("older");
+                void (async () => {
+                  try {
+                    const { loadOlderInboxMail } = await import("@/lib/mail-server-search");
+                    const res = await loadOlderInboxMail(olderSkip, { limit: 40 });
+                    if (!res.ok) {
+                      setToast(res.error || "Could not load older mail");
+                      return;
+                    }
+                    setOlderSkip(res.nextSkip);
+                    setOlderHasMore(res.hasMore !== false);
+                  } finally {
+                    setOldBusy(null);
+                  }
+                })();
+              }}
+            >
+              {oldBusy === "older" ? "Loading…" : olderHasMore ? "Load older batch" : "No more batches"}
+            </Button>
+          </form>
+          <p className="mt-2 text-xs text-muted">
+            Tip: open <button type="button" className="font-medium text-teal underline" onClick={() => setView("search")}>Search</button> anytime for the same server search.
+          </p>
+        </section>
+      ) : null}
 
       {tab === "all" && !powerThrough && settings.coverArt !== "none" ? <CoverArt /> : null}
     </div>
