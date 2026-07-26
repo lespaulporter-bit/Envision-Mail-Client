@@ -4,6 +4,7 @@
 - **Fix Mac auto-update**: bypass broken ShipIt signature checks; download the real latest zip from GitHub and replace the app on Restart.
 - Ignore stale pending zips (e.g. old 2.6.6 left in cache) — only install the matching latest version.
 - About → Check for updates waits for download and offers **Restart & install**.
+- **Windows installer** shipped again with this release (`EnvisionMail-*-win-x64-Setup.exe` + `latest.yml`).
 
 ## 2.6.10
 - Compose **To / Cc / Bcc** autocomplete from address book, recent recipients, and mail history.

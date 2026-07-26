@@ -17,6 +17,7 @@
     "pack:mac": "npm run build:icons && npm run build:web && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip && bash scripts/verify-asar.sh && bash scripts/clean-unpacked-apps.sh",
     "pack:win": "npm run build:icons && npm run build:web && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis --x64 && bash scripts/clean-unpacked-apps.sh",
     "pack:all": "npm run build:icons && npm run build:web && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --win nsis --x64 && bash scripts/verify-asar.sh && bash scripts/clean-unpacked-apps.sh",
+    "pack:release": "bash scripts/pack-release.sh",
     "verify:asar": "bash scripts/verify-asar.sh",
     "clean:unpacked": "bash scripts/clean-unpacked-apps.sh",
     "dist": "npm run pack:all",
