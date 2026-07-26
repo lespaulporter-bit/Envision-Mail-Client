@@ -1,5 +1,11 @@
 # Envision Mail updates
 
+## 2.6.19
+- **App password UI stays hidden** when a Gmail/Yahoo/AOL account is already connected and working.
+- Settings → Accounts opens your working address first (not a blank Gmail “Add” form with the purple App Password card).
+- Only shows “App password required” after a real auth failure, missing secret, or when you click **Update app password…**.
+- Heals stale “needs password” flags left by older builds / network errors that wrongly matched “login”.
+
 ## 2.6.18
 - Fix main-process crash dialog (`read EHOSTUNREACH` / TLS) when the network or a mail host is briefly unreachable.
 - Network blips are logged quietly — mail sync and update checks no longer pop the scary Electron error box.

@@ -100,9 +100,13 @@ function registerMailIpc() {
         error: "IMAP host is empty. Click Auto-detect (your domain uses Stackmail/20i, Gmail, etc.) or enter the host.",
       };
     }
+    const realAuthFail = (msg) =>
+      /authentication failed|invalid credentials|invalid user.*password|535|534|APPLICATION-SPECIFIC PASSWORD|password missing|re-enter|app password/i.test(
+        String(msg || ""),
+      );
     const imap = await testImap(account);
     if (!imap.ok) {
-      if (payload.id && /auth|password|credentials|login|535|534/i.test(imap.error || "")) {
+      if (payload.id && realAuthFail(imap.error)) {
         accounts.touchAccount(payload.id, {
           lastError: imap.error,
           verifiedAt: null,
@@ -113,7 +117,7 @@ function registerMailIpc() {
     }
     const smtp = await testSmtp(account);
     if (!smtp.ok) {
-      if (payload.id && /auth|password|credentials|login|535|534/i.test(smtp.error || "")) {
+      if (payload.id && realAuthFail(smtp.error)) {
         accounts.touchAccount(payload.id, {
           lastError: smtp.error,
           verifiedAt: null,
@@ -165,12 +169,24 @@ function registerMailIpc() {
       };
     } catch (err) {
       const message = err.message || String(err);
-      const authFail = /auth|password|credentials|login|535|534|decrypt|safeStorage/i.test(message);
-      accounts.touchAccount(id, {
-        lastError: message,
-        verifiedAt: null,
-        ...(authFail ? { needsPassword: true } : {}),
-      });
+      // Only real credential failures require re-entering an app password.
+      // Network blips (EHOSTUNREACH, timeouts, etc.) must NOT reopen app-password UI.
+      const authFail =
+        Boolean(err && err.authenticationFailed) ||
+        /authentication failed|invalid credentials|invalid user.*password|535|534|APPLICATION-SPECIFIC PASSWORD|safeStorage|ENEEDPASSWORD|password missing|re-enter/i.test(
+          message,
+        );
+      if (authFail) {
+        accounts.touchAccount(id, {
+          lastError: message,
+          verifiedAt: null,
+          needsPassword: true,
+        });
+      } else {
+        accounts.touchAccount(id, {
+          lastError: message,
+        });
+      }
       return { ok: false, error: message };
     }
   });

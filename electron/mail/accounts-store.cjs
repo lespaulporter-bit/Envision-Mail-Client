@@ -156,7 +156,8 @@ function defaultBrandColor(email) {
 }
 
 function isAuthErrorMessage(msg) {
-  return /auth|password|credentials|login|535|534|decrypt|safeStorage|re-enter|ENEEDPASSWORD/i.test(
+  // Narrow on purpose — broad /login|auth/ matched network noise and kept App Password UI open
+  return /authentication failed|invalid credentials|invalid user.*password|535|534|APPLICATION-SPECIFIC PASSWORD|safeStorage|ENEEDPASSWORD|password missing|re-enter|app password/i.test(
     String(msg || ""),
   );
 }
@@ -165,13 +166,14 @@ function publicAccount(account) {
   const { passwordEnc: _p, ...rest } = account;
   const hasCipher = Boolean(_p?.value);
   const canDecrypt = hasCipher ? Boolean(decryptSecret(_p)) : false;
-  const needsPassword = Boolean(account.needsPassword) || (hasCipher && !canDecrypt);
-  const authBroken = needsPassword || isAuthErrorMessage(account.lastError);
-  // Working = decryptable secret and a successful sync/test (or prior lastSync)
-  const verified =
-    canDecrypt &&
-    !authBroken &&
-    Boolean(account.verifiedAt || account.lastSyncAt);
+  const hasSynced = Boolean(account.verifiedAt || account.lastSyncAt);
+  // Missing secret always needs a password. A stale needsPassword flag only counts
+  // when there is a real auth error, or the account has never synced successfully.
+  const needsPassword =
+    !canDecrypt ||
+    (Boolean(account.needsPassword) && (!hasSynced || isAuthErrorMessage(account.lastError)));
+  const authBroken = needsPassword;
+  const verified = canDecrypt && !needsPassword && hasSynced;
   return {
     ...rest,
     hasPassword: canDecrypt,
@@ -184,9 +186,27 @@ function publicAccount(account) {
   };
 }
 
+/** Clear false-positive needsPassword from older builds so working accounts stay quiet */
+function healStaleAuthFlags() {
+  const data = readRaw();
+  let changed = false;
+  for (const account of data.accounts) {
+    const hasCipher = Boolean(account.passwordEnc?.value);
+    const canDecrypt = hasCipher ? Boolean(decryptSecret(account.passwordEnc)) : false;
+    const hasSynced = Boolean(account.verifiedAt || account.lastSyncAt);
+    if (!canDecrypt || !account.needsPassword) continue;
+    if (hasSynced && !isAuthErrorMessage(account.lastError)) {
+      account.needsPassword = false;
+      changed = true;
+    }
+  }
+  if (changed) writeRaw(data);
+}
+
 function listAccounts() {
   clearUndecryptablePasswords();
   dedupeAccountsByEmail();
+  healStaleAuthFlags();
   return readRaw().accounts.map(publicAccount);
 }
 

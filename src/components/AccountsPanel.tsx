@@ -5,7 +5,7 @@ import { desktopApi, isDesktop } from "@/lib/desktop";
 import { invalidateAccountBrands } from "@/lib/account-brands";
 import { useMailStore } from "@/lib/store";
 import type { DesktopAccount } from "@/types/desktop";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function defaultBrandLetter(email: string, name: string) {
   const domain = (email || "").split("@")[1] || "";
@@ -112,6 +112,7 @@ export function AccountsPanel() {
   const [awaitingAppPassword, setAwaitingAppPassword] = useState(false);
   const [showUpdatePassword, setShowUpdatePassword] = useState(false);
   const desktop = isDesktop();
+  const didAutoSelectAccount = useRef(false);
 
   const activePreset = presets[form.provider];
   const isSimpleProvider = Boolean(activePreset?.imapHost && form.provider !== "custom");
@@ -120,7 +121,13 @@ export function AccountsPanel() {
     [accounts, form.id],
   );
   /** Hide app-password / test chrome when this account is already verified and working */
-  const accountWorking = Boolean(selectedAccount?.verified && !selectedAccount?.authBroken);
+  const accountWorking = Boolean(
+    selectedAccount &&
+      selectedAccount.hasPassword &&
+      selectedAccount.verified &&
+      !selectedAccount.authBroken &&
+      !selectedAccount.needsPassword,
+  );
   const showCredentialSetup = !form.id || !accountWorking || showUpdatePassword;
 
   const refresh = useCallback(async () => {
@@ -129,11 +136,31 @@ export function AccountsPanel() {
     const [list, presetMap] = await Promise.all([api.listAccounts(), api.presets()]);
     setAccounts(list);
     setPresets(presetMap as Record<string, Preset>);
+    // First load: open a working account so Gmail’s App Password card isn’t shown by default
+    setForm((prev) => {
+      if (prev.id) {
+        const still = list.find((a) => a.id === prev.id);
+        if (still) return prev;
+        didAutoSelectAccount.current = false;
+      } else if (didAutoSelectAccount.current) {
+        return prev; // user chose “Add new”
+      }
+      const working = list.find((a) => a.verified && a.hasPassword && !a.needsPassword && !a.authBroken);
+      const pick = working || list[0];
+      if (!pick) return prev.id ? emptyForm : prev;
+      didAutoSelectAccount.current = true;
+      return loadAccountIntoForm(pick);
+    });
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Once an account is healthy again, hide App Password chrome automatically
+  useEffect(() => {
+    if (accountWorking) setShowUpdatePassword(false);
+  }, [accountWorking]);
 
   // When user returns from the browser app-password page, nudge them to paste
   useEffect(() => {
@@ -371,19 +398,19 @@ export function AccountsPanel() {
                   const id = e.target.value;
                   if (!id) {
                     setForm(emptyForm);
+                    setShowUpdatePassword(false);
+                    setStatus("");
                     return;
                   }
                   const a = accounts.find((x) => x.id === id);
                   if (a) {
+                    const working = Boolean(a.verified && a.hasPassword && !a.needsPassword && !a.authBroken);
                     setForm(loadAccountIntoForm(a));
                     setShowAdvanced(a.provider === "custom");
-                    setShowUpdatePassword(Boolean(a.needsPassword || a.authBroken || !a.hasPassword));
-                    setStatusTone(a.verified && !a.authBroken ? "ok" : "info");
-                    setStatus(
-                      a.verified && !a.authBroken
-                        ? `${a.email} is connected and working`
-                        : `Editing ${a.email}`,
-                    );
+                    // Only open password chrome when re-auth is actually required
+                    setShowUpdatePassword(Boolean(!working && (a.needsPassword || a.authBroken || !a.hasPassword)));
+                    setStatusTone(working ? "ok" : "info");
+                    setStatus(working ? `${a.email} is connected and working` : `Editing ${a.email}`);
                   }
                 }}
               >
