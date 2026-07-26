@@ -10,9 +10,26 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { desktopApi } from "@/lib/desktop";
 import { selectDockThreads, useMailStore } from "@/lib/store";
+import { CALENDAR_TIMEZONE_OPTIONS, localTimezoneId } from "@/lib/timezones";
 import { formatBytes, relativeTime } from "@/lib/utils";
 import { boxLabel } from "@/lib/types";
 import { useMemo, useState, useEffect } from "react";
+
+function TimezoneOptions() {
+  const local = localTimezoneId();
+  const hasLocal = CALENDAR_TIMEZONE_OPTIONS.some((z) => z.id === local);
+  return (
+    <>
+      {!hasLocal ? <option value={local}>Local · {local}</option> : null}
+      {CALENDAR_TIMEZONE_OPTIONS.map((z) => (
+        <option key={z.id} value={z.id}>
+          {z.label}
+          {z.id === local ? " (local)" : ""} — {z.short}
+        </option>
+      ))}
+    </>
+  );
+}
 
 export function ContactsView() {
   const contacts = useMailStore((s) => s.contacts);
@@ -484,15 +501,43 @@ export function SettingsView() {
                 onChange={(e) => updateSettings({ workEmail: e.target.value })}
               />
             </label>
-            <label className="block text-sm font-medium">
-              Timezone
-              <Input
-                className="mt-1.5"
-                value={settings.timezone}
-                onChange={(e) => updateSettings({ timezone: e.target.value })}
-                placeholder="America/New_York"
+          </div>
+          <div className="rounded-xl border border-line bg-soft/50 p-4">
+            <h4 className="font-medium text-ink">Calendar timezones</h4>
+            <p className="mt-1 text-xs text-muted">
+              By default Calendar shows your computer’s local timezone only. Turn on a second clock to compare Eastern, Pacific, etc.
+            </p>
+            <label className="mt-3 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(settings.showDualCalendarTimezones)}
+                onChange={(e) => updateSettings({ showDualCalendarTimezones: e.target.checked })}
               />
+              Show a second timezone on Calendar
             </label>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <label className="block text-sm font-medium">
+                Primary timezone
+                <select
+                  className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2"
+                  value={settings.timezone || ""}
+                  onChange={(e) => updateSettings({ timezone: e.target.value })}
+                >
+                  <TimezoneOptions />
+                </select>
+              </label>
+              <label className="block text-sm font-medium">
+                Second timezone
+                <select
+                  className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2 disabled:opacity-50"
+                  disabled={!settings.showDualCalendarTimezones}
+                  value={settings.secondaryTimezone || "America/Los_Angeles"}
+                  onChange={(e) => updateSettings({ secondaryTimezone: e.target.value })}
+                >
+                  <TimezoneOptions />
+                </select>
+              </label>
+            </div>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input

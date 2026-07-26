@@ -1751,6 +1751,18 @@ export const useMailStore = create<MailStore>()(
             p.settings?.defaultEventReminderMinutes ??
             current.settings.defaultEventReminderMinutes ??
             15,
+          timezone:
+            p.settings?.timezone ||
+            current.settings.timezone ||
+            Intl.DateTimeFormat().resolvedOptions().timeZone ||
+            "America/New_York",
+          secondaryTimezone:
+            p.settings?.secondaryTimezone ||
+            current.settings.secondaryTimezone ||
+            "America/Los_Angeles",
+          showDualCalendarTimezones: Boolean(
+            p.settings?.showDualCalendarTimezones ?? current.settings.showDualCalendarTimezones,
+          ),
         };
         delete (settings as { spamCorps?: boolean }).spamCorps;
         return {

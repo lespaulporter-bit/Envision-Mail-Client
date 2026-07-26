@@ -257,8 +257,12 @@ export interface Settings {
   spamCorps?: boolean;
   coverArt: CoverArtMode;
   coverArtImage?: string;
+  /** Primary / local IANA timezone for calendar clocks */
   timezone: string;
+  /** Optional second IANA zone when dual clocks are enabled */
   secondaryTimezone?: string;
+  /** When true, Calendar shows two timezone clocks (primary + secondary). Default false = local only. */
+  showDualCalendarTimezones?: boolean;
   twoFactorEnabled: boolean;
   linkedAccounts: boolean;
   wallpaper: WallpaperTheme;

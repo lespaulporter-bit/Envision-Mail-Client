@@ -1,9 +1,11 @@
 "use client";
 
-import { Button, Input, SectionHeader, Textarea } from "@/components/ui";
+import { CalendarTimezoneClocks } from "@/components/CalendarTimezoneClocks";
+import { Button, Input, Textarea } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
 import { useMailStore } from "@/lib/store";
 import type { CalendarEvent, CalendarInvitee } from "@/lib/types";
+import { formatLocalHhmmInZone, localTimezoneId } from "@/lib/timezones";
 import {
   addDays,
   addMonths,
@@ -397,63 +399,90 @@ export function CalendarView() {
     </div>
   );
 
+  const primaryZone = settings.timezone || localTimezoneId();
+  const secondaryZone = settings.secondaryTimezone || "America/Los_Angeles";
+  const dualZones = Boolean(settings.showDualCalendarTimezones);
+
+  const eventZoneHint = (hhmm: string) => {
+    if (!dualZones || !hhmm || !eventDate || allDay) return null;
+    const source = localTimezoneId();
+    const a = formatLocalHhmmInZone(eventDate, hhmm, source, primaryZone);
+    const b = formatLocalHhmmInZone(eventDate, hhmm, source, secondaryZone);
+    if (!a && !b) return null;
+    return (
+      <p className="mb-1 text-[11px] leading-snug text-muted">
+        <span className="font-medium text-ink">{a}</span>
+        <span className="mx-1.5 opacity-40">·</span>
+        <span className="font-medium text-ink">{b}</span>
+      </p>
+    );
+  };
+
   return (
     <div className="px-4 py-6 md:px-8">
-      <SectionHeader
-        title="Calendar"
-        subtitle="Day · week · month · agenda — Teams/Zoom invites, Mac sync, habits, journal, and countdowns."
-        actions={
-          <>
-            {(["day", "week", "month", "agenda"] as const).map((v) => (
-              <Button
-                key={v}
-                size="sm"
-                variant={calendarView === v ? "primary" : "soft"}
-                onClick={() => setCalendarView(v)}
-              >
-                {v}
-              </Button>
-            ))}
-            <Button size="sm" variant="soft" onClick={() => shiftDate(-1)}>
-              ←
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-3xl tracking-tight text-ink">Calendar</h1>
+          <CalendarTimezoneClocks
+            className="mt-3"
+            primaryZone={primaryZone}
+            secondaryZone={secondaryZone}
+            dual={dualZones}
+          />
+          <p className="mt-2.5 max-w-xl text-sm text-muted">
+            Day · week · month · agenda — Teams/Zoom invites, Mac sync, habits, journal, and countdowns.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {(["day", "week", "month", "agenda"] as const).map((v) => (
+            <Button
+              key={v}
+              size="sm"
+              variant={calendarView === v ? "primary" : "soft"}
+              onClick={() => setCalendarView(v)}
+            >
+              {v}
             </Button>
-            <Button size="sm" variant="soft" onClick={() => setCalendarDate(format(new Date(), "yyyy-MM-dd"))}>
-              Today
-            </Button>
-            <Button size="sm" variant="soft" onClick={() => shiftDate(1)}>
-              →
-            </Button>
-            {isMacDesktop ? (
-              <Button
-                size="sm"
-                variant="soft"
-                disabled={syncingMac}
-                onClick={() => {
-                  void (async () => {
-                    setSyncingMac(true);
-                    try {
-                      const api = desktopApi();
-                      const result = await api?.syncMacCalendars();
-                      if (!result?.ok) {
-                        setToast(result?.error || "Mac Calendar sync failed");
-                        return;
-                      }
-                      importMacCalendarData({
-                        calendars: result.calendars || [],
-                        events: result.events || [],
-                      });
-                    } finally {
-                      setSyncingMac(false);
+          ))}
+          <Button size="sm" variant="soft" onClick={() => shiftDate(-1)}>
+            ←
+          </Button>
+          <Button size="sm" variant="soft" onClick={() => setCalendarDate(format(new Date(), "yyyy-MM-dd"))}>
+            Today
+          </Button>
+          <Button size="sm" variant="soft" onClick={() => shiftDate(1)}>
+            →
+          </Button>
+          {isMacDesktop ? (
+            <Button
+              size="sm"
+              variant="soft"
+              disabled={syncingMac}
+              onClick={() => {
+                void (async () => {
+                  setSyncingMac(true);
+                  try {
+                    const api = desktopApi();
+                    const result = await api?.syncMacCalendars();
+                    if (!result?.ok) {
+                      setToast(result?.error || "Mac Calendar sync failed");
+                      return;
                     }
-                  })();
-                }}
-              >
-                {syncingMac ? "Syncing…" : "Sync Mac Calendars"}
-              </Button>
-            ) : null}
-          </>
-        }
-      />
+                    importMacCalendarData({
+                      calendars: result.calendars || [],
+                      events: result.events || [],
+                    });
+                  } finally {
+                    setSyncingMac(false);
+                  }
+                })();
+              }}
+            >
+              {syncingMac ? "Syncing…" : "Sync Mac Calendars"}
+            </Button>
+          ) : null}
+        </div>
+      </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Input
@@ -462,10 +491,6 @@ export function CalendarView() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <span className="text-xs text-muted">Primary TZ: {settings.timezone}</span>
-        {settings.secondaryTimezone ? (
-          <span className="text-xs text-muted">Secondary: {settings.secondaryTimezone}</span>
-        ) : null}
         <div className="flex flex-wrap gap-2">
           {calendars.map((c) => (
             <button
@@ -595,8 +620,8 @@ export function CalendarView() {
                                 ? "All day"
                                 : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
                               {e.location ? ` · ${e.location}` : ""}
-                              {settings.secondaryTimezone && !e.allDay
-                                ? ` · ${formatInTz(e.start, settings.secondaryTimezone)} ${settings.secondaryTimezone}`
+                              {dualZones && secondaryZone && !e.allDay
+                                ? ` · ${formatInTz(e.start, secondaryZone)}`
                                 : ""}
                             </div>
                           </div>
@@ -780,35 +805,41 @@ export function CalendarView() {
               </label>
               {!allDay ? (
                 <>
-                  <label className="block text-xs font-medium text-muted">
-                    Start time
-                    <Input
-                      className="mt-1"
-                      type="time"
-                      step={300}
-                      value={startTime}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        if (!next) return;
-                        setEndTime(
-                          endAfterStartChange(startTime, endTime, next, eventDurationMinutes),
-                        );
-                        setStartTime(next);
-                      }}
-                      required
-                    />
-                  </label>
-                  <label className="block text-xs font-medium text-muted">
-                    End time
-                    <Input
-                      className="mt-1"
-                      type="time"
-                      step={300}
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      required
-                    />
-                  </label>
+                  <div>
+                    {eventZoneHint(startTime)}
+                    <label className="block text-xs font-medium text-muted">
+                      Start time
+                      <Input
+                        className="mt-1"
+                        type="time"
+                        step={300}
+                        value={startTime}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          if (!next) return;
+                          setEndTime(
+                            endAfterStartChange(startTime, endTime, next, eventDurationMinutes),
+                          );
+                          setStartTime(next);
+                        }}
+                        required
+                      />
+                    </label>
+                  </div>
+                  <div>
+                    {eventZoneHint(endTime)}
+                    <label className="block text-xs font-medium text-muted">
+                      End time
+                      <Input
+                        className="mt-1"
+                        type="time"
+                        step={300}
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        required
+                      />
+                    </label>
+                  </div>
                 </>
               ) : null}
             </div>

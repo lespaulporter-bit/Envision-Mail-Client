@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.17
+- Calendar header shows a neat live clock for your **local timezone** by default.
+- Optional second timezone (e.g. Eastern + Pacific) — pick both in Settings → General → Calendar timezones.
+- When dual timezones are on, start/end times show both conversions above the time fields.
+
 ## 2.6.16
 - New calendar events auto-fill **end time = start + 45 minutes** (proper AM/PM via system time picker).
 - Changing start keeps the current duration, or uses the default when end wasn’t after start.
