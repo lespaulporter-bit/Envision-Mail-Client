@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.16
+- New calendar events auto-fill **end time = start + 45 minutes** (proper AM/PM via system time picker).
+- Changing start keeps the current duration, or uses the default when end wasn’t after start.
+- Settings → Mail → **Calendar event defaults** for duration and default reminder.
+
 ## 2.6.15
 - **Unsubscribe** on email view when a list has a List-Unsubscribe / unsubscribe link.
 - One click runs silently in the background (one-click POST, HTTP, or mailto) — success shows a green ✓ **Unsubscribed**.

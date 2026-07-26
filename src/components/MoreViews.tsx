@@ -511,6 +511,48 @@ export function SettingsView() {
             <h3 className="font-display text-xl text-ink">Mail behavior</h3>
             <p className="mt-1 text-sm text-muted">Sync, New Senders, receipts, and cleanup.</p>
           </div>
+          <div className="rounded-xl border border-line bg-soft/50 p-4">
+            <h4 className="font-medium text-ink">Calendar event defaults</h4>
+            <p className="mt-1 text-xs text-muted">
+              When you set a start time, the end time auto-fills using this duration (shown in your AM/PM time format).
+            </p>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <label className="block text-sm font-medium">
+                Default event length (minutes)
+                <Input
+                  className="mt-1.5"
+                  type="number"
+                  min={5}
+                  step={5}
+                  value={settings.defaultEventDurationMinutes ?? 45}
+                  onChange={(e) =>
+                    updateSettings({
+                      defaultEventDurationMinutes: Math.max(5, Number(e.target.value) || 45),
+                    })
+                  }
+                />
+                <span className="mt-1 block text-xs font-normal text-muted">Default 45 — e.g. 10:00 AM → 10:45 AM.</span>
+              </label>
+              <label className="block text-sm font-medium">
+                Default reminder
+                <select
+                  className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2"
+                  value={settings.defaultEventReminderMinutes ?? 15}
+                  onChange={(e) =>
+                    updateSettings({ defaultEventReminderMinutes: Number(e.target.value) })
+                  }
+                >
+                  <option value={-1}>None</option>
+                  <option value={0}>At event time</option>
+                  <option value={5}>5 minutes before</option>
+                  <option value={15}>15 minutes before</option>
+                  <option value={30}>30 minutes before</option>
+                  <option value={60}>1 hour before</option>
+                  <option value={1440}>1 day before</option>
+                </select>
+              </label>
+            </div>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-medium">
               Auto-fetch every (minutes)

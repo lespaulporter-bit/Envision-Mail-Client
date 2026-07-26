@@ -1743,6 +1743,14 @@ export const useMailStore = create<MailStore>()(
             p.settings?.requestReadReceiptsByDefault ??
             current.settings.requestReadReceiptsByDefault ??
             true,
+          defaultEventDurationMinutes:
+            p.settings?.defaultEventDurationMinutes ??
+            current.settings.defaultEventDurationMinutes ??
+            45,
+          defaultEventReminderMinutes:
+            p.settings?.defaultEventReminderMinutes ??
+            current.settings.defaultEventReminderMinutes ??
+            15,
         };
         delete (settings as { spamCorps?: boolean }).spamCorps;
         return {

@@ -47,6 +47,8 @@ export function createEmptyState(): AppStateData {
       autoPurgeTrashDays: 30,
       requestReadReceiptsByDefault: false,
       defaultSignatureId: null,
+      defaultEventDurationMinutes: 45,
+      defaultEventReminderMinutes: 15,
     },
   };
 }

@@ -23,23 +23,14 @@ import {
   differenceInMinutes,
 } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
+import {
+  DEFAULT_EVENT_DURATION_MINUTES,
+  addMinutesHhmm,
+  defaultStartTimeHhmm,
+  endAfterStartChange,
+} from "@/lib/event-time";
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am–8pm
-
-function defaultStartTime(): string {
-  const d = new Date();
-  d.setMinutes(0, 0, 0);
-  d.setHours(d.getHours() + 1);
-  return format(d, "HH:mm");
-}
-
-function addOneHour(hhmm: string): string {
-  const [h, m] = hhmm.split(":").map((n) => Number(n));
-  const d = new Date();
-  d.setHours(h || 0, m || 0, 0, 0);
-  d.setHours(d.getHours() + 1);
-  return format(d, "HH:mm");
-}
 
 function formatInTz(iso: string, timeZone: string) {
   try {
@@ -78,11 +69,17 @@ export function CalendarView() {
   const toggleSometimeTask = useMailStore((s) => s.toggleSometimeTask);
   const setToast = useMailStore((s) => s.setToast);
 
+  const eventDurationMinutes = Math.max(
+    5,
+    settings.defaultEventDurationMinutes ?? DEFAULT_EVENT_DURATION_MINUTES,
+  );
   const date = parseISO(calendarDate);
   const [title, setTitle] = useState("");
   const [eventDate, setEventDate] = useState(calendarDate);
-  const [startTime, setStartTime] = useState(defaultStartTime);
-  const [endTime, setEndTime] = useState(() => addOneHour(defaultStartTime()));
+  const [startTime, setStartTime] = useState(defaultStartTimeHhmm);
+  const [endTime, setEndTime] = useState(() =>
+    addMinutesHhmm(defaultStartTimeHhmm(), DEFAULT_EVENT_DURATION_MINUTES),
+  );
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
@@ -101,7 +98,9 @@ export function CalendarView() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedCalId, setSelectedCalId] = useState("");
   /** Minutes before start — 0 = at start time; -1 = none */
-  const [reminderMinutesBefore, setReminderMinutesBefore] = useState(15);
+  const [reminderMinutesBefore, setReminderMinutesBefore] = useState(
+    () => settings.defaultEventReminderMinutes ?? 15,
+  );
   const isMacDesktop = isDesktop() && desktopApi()?.platform === "darwin";
 
   const defaultCalId =
@@ -227,11 +226,12 @@ export function CalendarView() {
     setLocation("");
     setNotes("");
     setAllDay(false);
-    setStartTime(defaultStartTime());
-    setEndTime(addOneHour(defaultStartTime()));
+    const start = defaultStartTimeHhmm();
+    setStartTime(start);
+    setEndTime(addMinutesHhmm(start, eventDurationMinutes));
     setEventDate(calendarDate);
     setSelectedCalId(defaultCalId);
-    setReminderMinutesBefore(15);
+    setReminderMinutesBefore(settings.defaultEventReminderMinutes ?? 15);
     setUseTeams(false);
   };
 
@@ -358,10 +358,12 @@ export function CalendarView() {
                   onClick={() => {
                     setCalendarDate(format(d, "yyyy-MM-dd"));
                     setEventDate(format(d, "yyyy-MM-dd"));
-                    setStartTime(`${String(hour).padStart(2, "0")}:00`);
-                    setEndTime(`${String(hour + 1).padStart(2, "0")}:00`);
+                    const start = `${String(hour).padStart(2, "0")}:00`;
+                    setStartTime(start);
+                    setEndTime(addMinutesHhmm(start, eventDurationMinutes));
                     setEditingId(null);
-                    setToast(`New event at ${format(new Date(2000, 0, 1, hour), "h a")}`);
+                    setReminderMinutesBefore(settings.defaultEventReminderMinutes ?? 15);
+                    setToast(`New event at ${format(new Date(2000, 0, 1, hour), "h:mm a")}`);
                   }}
                 >
                   <ul className="space-y-0.5">
@@ -783,11 +785,15 @@ export function CalendarView() {
                     <Input
                       className="mt-1"
                       type="time"
+                      step={300}
                       value={startTime}
                       onChange={(e) => {
                         const next = e.target.value;
+                        if (!next) return;
+                        setEndTime(
+                          endAfterStartChange(startTime, endTime, next, eventDurationMinutes),
+                        );
                         setStartTime(next);
-                        if (endTime <= next) setEndTime(addOneHour(next));
                       }}
                       required
                     />
@@ -797,6 +803,7 @@ export function CalendarView() {
                     <Input
                       className="mt-1"
                       type="time"
+                      step={300}
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
                       required

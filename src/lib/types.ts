@@ -268,6 +268,10 @@ export interface Settings {
   autoPurgeTrashDays: number;
   requestReadReceiptsByDefault: boolean;
   defaultSignatureId?: string | null;
+  /** New calendar event length in minutes (default 45). End time auto-fills from start. */
+  defaultEventDurationMinutes?: number;
+  /** Default reminder offset for new events (minutes before). -1 = none. */
+  defaultEventReminderMinutes?: number;
 }
 
 export interface AppStateData {
