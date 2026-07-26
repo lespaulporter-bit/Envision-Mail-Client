@@ -2,6 +2,7 @@
 
 import { Avatar, Badge, Button, Input, Textarea } from "@/components/ui";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
+import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
 import { cn, formatBytes, relativeTime } from "@/lib/utils";
@@ -514,15 +515,15 @@ export function ThreadView() {
         </div>
         {showReplyCcBcc ? (
           <div className="space-y-2">
-            <Input
-              placeholder="Cc (comma-separated)"
+            <RecipientSuggestInput
+              placeholder="Cc — start typing a name or email"
               value={replyCc}
-              onChange={(e) => setReplyCc(e.target.value)}
+              onChange={setReplyCc}
             />
-            <Input
-              placeholder="Bcc (comma-separated)"
+            <RecipientSuggestInput
+              placeholder="Bcc — start typing a name or email"
               value={replyBcc}
-              onChange={(e) => setReplyBcc(e.target.value)}
+              onChange={setReplyBcc}
             />
           </div>
         ) : null}

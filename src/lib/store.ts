@@ -26,6 +26,7 @@ import {
   mergeNewReminders,
 } from "./reminders";
 import { normalizeSometimeTasks, weekStartKey } from "./sometime-tasks";
+import { mergeRecentRecipients } from "./recipient-suggest";
 import { uid } from "./utils";
 
 export type AppView =
@@ -150,6 +151,7 @@ interface Actions {
       accountEmail?: string | null;
     },
   ) => void;
+  rememberRecipients: (emails: string[], names?: Record<string, string>) => void;
   replyToEveryone: (threadIds: string[], body: string) => void;
   importSyncedMail: (payload: {
     accountId: string;
@@ -861,6 +863,9 @@ export const useMailStore = create<MailStore>()(
                 })
               : t,
           ),
+          recentRecipients: mergeRecentRecipients(get().recentRecipients || [], [thread.contactEmail], {
+            [thread.contactEmail.toLowerCase()]: thread.contactName,
+          }),
           toast: "Reply sent",
         });
       },
@@ -872,18 +877,18 @@ export const useMailStore = create<MailStore>()(
         const ccList = (opts?.cc || []).map((e) => e.trim()).filter(Boolean);
         const bccList = (opts?.bcc || []).map((e) => e.trim()).filter(Boolean);
         let contacts = get().contacts;
-        if (!contacts.some((c) => c.email === to)) {
+        if (!contacts.some((c) => c.email.toLowerCase() === to.toLowerCase())) {
           contacts = [
             ...contacts,
             {
               id: uid("c"),
-              email: to,
+              email: to.toLowerCase(),
               name,
               status: "allowed",
               defaultBox: "lesbox",
               notes: "",
               notify: false,
-              avatarColor: "#5522FA",
+              avatarColor: "#0d9488",
               bundled: false,
             },
           ];
@@ -932,12 +937,22 @@ export const useMailStore = create<MailStore>()(
           contacts,
           messages: { ...get().messages, [messageId]: message },
           threads: [thread, ...get().threads],
+          recentRecipients: mergeRecentRecipients(get().recentRecipients || [], [
+            to,
+            ...ccList,
+            ...bccList,
+          ]),
           view: "thread",
           selectedThreadId: threadId,
           toast: "Email sent — view it under Sent",
           composeDraft: { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
         });
       },
+
+      rememberRecipients: (emails, names) =>
+        set({
+          recentRecipients: mergeRecentRecipients(get().recentRecipients || [], emails, names),
+        }),
 
       replyToEveryone: (threadIds, body) => {
         threadIds.forEach((id) => get().sendReply(id, body));
@@ -1567,6 +1582,7 @@ export const useMailStore = create<MailStore>()(
           dayLabels: state.dayLabels,
           sometimeTasks: state.sometimeTasks,
           reminders: state.reminders || [],
+          recentRecipients: state.recentRecipients || [],
           settings: state.settings,
           inboxAccountId: state.inboxAccountId,
         }) as MailStore,
@@ -1634,6 +1650,9 @@ export const useMailStore = create<MailStore>()(
             ? p.emailTemplates
             : current.emailTemplates || [],
           reminders: Array.isArray(p.reminders) ? p.reminders : current.reminders || [],
+          recentRecipients: Array.isArray(p.recentRecipients)
+            ? p.recentRecipients
+            : current.recentRecipients || [],
           sometimeTasks: normalizeSometimeTasks(
             Array.isArray(p.sometimeTasks) ? p.sometimeTasks : current.sometimeTasks || [],
           ),

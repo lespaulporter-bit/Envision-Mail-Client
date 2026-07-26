@@ -27,6 +27,7 @@ export function createEmptyState(): AppStateData {
     dayLabels: [],
     sometimeTasks: [],
     reminders: [],
+    recentRecipients: [],
     settings: {
       displayName: "",
       email: "",

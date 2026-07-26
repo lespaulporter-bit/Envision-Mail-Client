@@ -279,6 +279,8 @@ export interface AppStateData {
   dayLabels: DayLabel[];
   sometimeTasks: SometimeTask[];
   reminders: Reminder[];
+  /** Addresses the user has sent to / typed — for compose autocomplete */
+  recentRecipients: Array<{ email: string; name?: string; lastUsedAt: string }>;
   settings: Settings;
 }
 

@@ -7,6 +7,7 @@ import { AccountsPanel } from "@/components/AccountsPanel";
 import { SignaturesPanel } from "@/components/SignaturesPanel";
 import { EmailTemplatesPanel } from "@/components/EmailTemplatesPanel";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
+import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { desktopApi } from "@/lib/desktop";
 import { selectDockThreads, useMailStore } from "@/lib/store";
 import { formatBytes, relativeTime } from "@/lib/utils";
@@ -841,6 +842,7 @@ export function ComposeView() {
   const messages = useMailStore((s) => s.messages);
   const setToast = useMailStore((s) => s.setToast);
   const setView = useMailStore((s) => s.setView);
+  const rememberRecipients = useMailStore((s) => s.rememberRecipients);
   const [bulk, setBulk] = useState(false);
   const [sending, setSending] = useState(false);
   const [showCcBcc, setShowCcBcc] = useState(false);
@@ -948,6 +950,7 @@ export function ComposeView() {
         setToast(err + authHint);
         return;
       }
+      rememberRecipients([...toList, ...ccList, ...bccList]);
       setToast(
         requestReceipt
           ? "Sent via SMTP · read receipt requested — check Sent for ✓ when opened"
@@ -1000,11 +1003,11 @@ export function ComposeView() {
           <p className="text-sm text-amber-800">Add an account in Settings before sending.</p>
         )}
         <div className="flex flex-wrap items-start gap-2">
-          <Input
+          <RecipientSuggestInput
             className="min-w-0 flex-1"
-            placeholder="To (comma-separated ok)"
+            placeholder="To — start typing a name or email"
             value={composeDraft.to}
-            onChange={(e) => setCompose({ to: e.target.value })}
+            onChange={(to) => setCompose({ to })}
           />
           <Button type="button" size="sm" variant="soft" onClick={() => setShowCcBcc((v) => !v)}>
             {showCcBcc ? "Hide Cc/Bcc" : "Cc / Bcc"}
@@ -1012,15 +1015,15 @@ export function ComposeView() {
         </div>
         {showCcBcc ? (
           <>
-            <Input
-              placeholder="Cc — carbon copy (comma-separated)"
+            <RecipientSuggestInput
+              placeholder="Cc — carbon copy"
               value={composeDraft.cc || ""}
-              onChange={(e) => setCompose({ cc: e.target.value })}
+              onChange={(cc) => setCompose({ cc })}
             />
-            <Input
-              placeholder="Bcc — blind carbon copy (hidden from To/Cc)"
+            <RecipientSuggestInput
+              placeholder="Bcc — blind carbon copy"
               value={composeDraft.bcc || ""}
-              onChange={(e) => setCompose({ bcc: e.target.value })}
+              onChange={(bcc) => setCompose({ bcc })}
             />
           </>
         ) : null}

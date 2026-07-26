@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.10
+- Compose **To / Cc / Bcc** autocomplete from address book, recent recipients, and mail history.
+- Keyboard: ↑↓ to move, Enter/Tab to pick, Esc to close.
+- Remembers addresses you send to for next time.
+
 ## 2.6.9
 - **Sometime this week**: checking a task removes it (no strikethrough leftovers).
 - Unchecked tasks automatically **roll into the next week** and stay on the list.
