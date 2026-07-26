@@ -121,6 +121,9 @@ interface Actions {
   markOutgoingReadReceipt: (smtpMessageId: string, readerEmail: string, readerName?: string) => void;
   updateContactNotes: (contactId: string, notes: string) => void;
   updateContactNotify: (contactId: string, notify: boolean) => void;
+  updateContactAvatar: (contactId: string, avatarImageDataUrl: string | null) => void;
+  /** Apply a logo to the contact matching this email (creates contact if missing). */
+  setAvatarForEmail: (email: string, name: string, avatarImageDataUrl: string | null) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   setCoverArt: (mode: CoverArtMode) => void;
 
@@ -728,6 +731,46 @@ export const useMailStore = create<MailStore>()(
         set({
           contacts: get().contacts.map((c) => (c.id === contactId ? { ...c, notify } : c)),
         }),
+
+      updateContactAvatar: (contactId, avatarImageDataUrl) =>
+        set({
+          contacts: get().contacts.map((c) =>
+            c.id === contactId ? { ...c, avatarImageDataUrl } : c,
+          ),
+        }),
+
+      setAvatarForEmail: (email, name, avatarImageDataUrl) => {
+        const key = String(email || "")
+          .trim()
+          .toLowerCase();
+        if (!key.includes("@")) return;
+        const existing = get().contacts.find((c) => c.email.toLowerCase() === key);
+        if (existing) {
+          set({
+            contacts: get().contacts.map((c) =>
+              c.id === existing.id ? { ...c, avatarImageDataUrl, name: name || c.name } : c,
+            ),
+          });
+          return;
+        }
+        set({
+          contacts: [
+            ...get().contacts,
+            {
+              id: uid("c"),
+              email: key,
+              name: name || key,
+              status: "allowed" as const,
+              defaultBox: "lesbox" as const,
+              notes: "",
+              notify: false,
+              avatarColor: "#0d9488",
+              avatarImageDataUrl,
+              bundled: false,
+            },
+          ],
+        });
+      },
 
       updateSettings: (patch) => set({ settings: { ...get().settings, ...patch } }),
       setCoverArt: (coverArt) => set({ settings: { ...get().settings, coverArt } }),

@@ -100,15 +100,48 @@ function registerMailIpc() {
       };
     }
     const imap = await testImap(account);
-    if (!imap.ok) return { ok: false, stage: "imap", error: imap.error, suggested: account };
+    if (!imap.ok) {
+      if (payload.id && /auth|password|credentials|login|535|534/i.test(imap.error || "")) {
+        accounts.touchAccount(payload.id, {
+          lastError: imap.error,
+          verifiedAt: null,
+          needsPassword: true,
+        });
+      }
+      return { ok: false, stage: "imap", error: imap.error, suggested: account };
+    }
     const smtp = await testSmtp(account);
-    if (!smtp.ok) return { ok: false, stage: "smtp", error: smtp.error, suggested: account };
+    if (!smtp.ok) {
+      if (payload.id && /auth|password|credentials|login|535|534/i.test(smtp.error || "")) {
+        accounts.touchAccount(payload.id, {
+          lastError: smtp.error,
+          verifiedAt: null,
+          needsPassword: true,
+        });
+      }
+      return { ok: false, stage: "smtp", error: smtp.error, suggested: account };
+    }
+    if (payload.id) {
+      accounts.touchAccount(payload.id, {
+        lastError: null,
+        needsPassword: false,
+        verifiedAt: new Date().toISOString(),
+      });
+    }
     return { ok: true, imap, smtp, suggested: account };
   });
 
   ipcMain.handle("mail:syncAccount", async (_e, id) => {
     const account = accounts.getAccountSecret(id);
     if (!account) return { ok: false, error: "Account not found" };
+    if (!account.password) {
+      accounts.touchAccount(id, {
+        lastError: "App password missing — re-enter in Settings → Accounts.",
+        verifiedAt: null,
+        needsPassword: true,
+      });
+      return { ok: false, error: "App password missing — re-enter in Settings → Accounts." };
+    }
     try {
       const messages = await fetchMail(account, {
         inboxLimit: 50,
@@ -116,7 +149,12 @@ function registerMailIpc() {
         spamLimit: 40,
         trashLimit: 40,
       });
-      accounts.touchAccount(id, { lastSyncAt: new Date().toISOString(), lastError: null });
+      accounts.touchAccount(id, {
+        lastSyncAt: new Date().toISOString(),
+        lastError: null,
+        needsPassword: false,
+        verifiedAt: new Date().toISOString(),
+      });
       return {
         ok: true,
         accountId: id,
@@ -126,7 +164,12 @@ function registerMailIpc() {
       };
     } catch (err) {
       const message = err.message || String(err);
-      accounts.touchAccount(id, { lastError: message });
+      const authFail = /auth|password|credentials|login|535|534|decrypt|safeStorage/i.test(message);
+      accounts.touchAccount(id, {
+        lastError: message,
+        verifiedAt: null,
+        ...(authFail ? { needsPassword: true } : {}),
+      });
       return { ok: false, error: message };
     }
   });

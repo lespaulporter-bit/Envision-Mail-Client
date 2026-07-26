@@ -128,6 +128,8 @@ export interface Contact {
   notes: string;
   notify: boolean;
   avatarColor: string;
+  /** Optional uploaded photo/logo shown instead of initials */
+  avatarImageDataUrl?: string | null;
   bundled: boolean;
 }
 

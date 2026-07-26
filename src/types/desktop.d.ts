@@ -14,6 +14,10 @@ export interface DesktopAccount {
   hasPassword?: boolean;
   /** True when ciphertext can't be decrypted — user must paste a new app password */
   needsPassword?: boolean;
+  /** True when IMAP/SMTP works and a secret is stored — hide setup chrome */
+  verified?: boolean;
+  authBroken?: boolean;
+  verifiedAt?: string | null;
   lastSyncAt?: string | null;
   lastError?: string | null;
   /** Hex color for letter avatar shown in outgoing mail */

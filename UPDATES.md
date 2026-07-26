@@ -1,5 +1,14 @@
 # Envision Mail updates
 
+## 2.6.4
+- Upload an account **avatar / logo** to replace initials (e.g. “LP”) in threads; also used in outgoing mail.
+- Contacts can upload a photo/logo too.
+- Hide app-password setup once an account is verified and working (returns on auth failure or **Update app password…**).
+
+## 2.6.3
+- Hide app-password / test / auto-detect UI once an account is verified and working.
+- Show those controls again only when auth fails or the user chooses **Update app password…**.
+
 ## 2.6.2
 - Compose: sticky **Send via SMTP** bar; floating docks no longer cover send/dropdowns.
 - One account per email address (reject duplicates; auto-dedupe).

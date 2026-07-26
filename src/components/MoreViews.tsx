@@ -55,7 +55,12 @@ export function ContactsView() {
               onClick={() => setSelected(c.id)}
               className={`flex w-full items-center gap-3 border-b border-line px-3 py-3 text-left hover:bg-soft ${selected === c.id ? "bg-[#e6f7f3]" : ""}`}
             >
-              <Avatar name={c.name} color={c.avatarColor} size={34} />
+              <Avatar
+                name={c.name}
+                color={c.avatarColor}
+                imageUrl={c.avatarImageDataUrl || null}
+                size={34}
+              />
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{c.name}</div>
                 <div className="truncate text-xs text-muted">{c.status} · {c.defaultBox}</div>
@@ -66,10 +71,50 @@ export function ContactsView() {
         {contact ? (
           <div className="rounded-2xl border border-line bg-white p-5">
             <div className="mb-4 flex items-center gap-3">
-              <Avatar name={contact.name} color={contact.avatarColor} size={48} />
-              <div>
+              <Avatar
+                name={contact.name}
+                color={contact.avatarColor}
+                imageUrl={contact.avatarImageDataUrl || null}
+                size={48}
+              />
+              <div className="min-w-0 flex-1">
                 <h2 className="text-xl font-semibold">{contact.name}</h2>
                 <p className="text-sm text-muted">{contact.email}</p>
+                <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs text-teal">
+                  <span className="font-medium underline">
+                    {contact.avatarImageDataUrl ? "Change photo / logo" : "Upload photo / logo"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 400_000) {
+                        useMailStore.getState().setToast("Image too large — use one under ~400KB");
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        useMailStore
+                          .getState()
+                          .updateContactAvatar(contact.id, String(reader.result || "") || null);
+                        useMailStore.getState().setToast("Contact photo saved");
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                {contact.avatarImageDataUrl ? (
+                  <button
+                    type="button"
+                    className="ml-3 text-xs text-muted underline"
+                    onClick={() => useMailStore.getState().updateContactAvatar(contact.id, null)}
+                  >
+                    Use initials
+                  </button>
+                ) : null}
               </div>
             </div>
             <label className="mb-4 flex items-center gap-2 text-sm">

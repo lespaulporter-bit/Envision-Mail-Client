@@ -155,14 +155,29 @@ function defaultBrandColor(email) {
   return palette[h % palette.length];
 }
 
+function isAuthErrorMessage(msg) {
+  return /auth|password|credentials|login|535|534|decrypt|safeStorage|re-enter|ENEEDPASSWORD/i.test(
+    String(msg || ""),
+  );
+}
+
 function publicAccount(account) {
   const { passwordEnc: _p, ...rest } = account;
   const hasCipher = Boolean(_p?.value);
   const canDecrypt = hasCipher ? Boolean(decryptSecret(_p)) : false;
+  const needsPassword = Boolean(account.needsPassword) || (hasCipher && !canDecrypt);
+  const authBroken = needsPassword || isAuthErrorMessage(account.lastError);
+  // Working = decryptable secret and a successful sync/test (or prior lastSync)
+  const verified =
+    canDecrypt &&
+    !authBroken &&
+    Boolean(account.verifiedAt || account.lastSyncAt);
   return {
     ...rest,
     hasPassword: canDecrypt,
-    needsPassword: Boolean(account.needsPassword) || (hasCipher && !canDecrypt),
+    needsPassword,
+    verified,
+    authBroken,
     brandColor: account.brandColor || defaultBrandColor(account.email),
     brandLetter: account.brandLetter || defaultBrandLetter(account.email, account.name),
     brandLogoDataUrl: account.brandLogoDataUrl || null,
@@ -256,9 +271,17 @@ function upsertAccount(input) {
   if (input.password) {
     account.passwordEnc = encryptSecret(input.password);
     account.needsPassword = false;
-    if (account.lastError && /re-enter|app password|decrypt|safeStorage/i.test(account.lastError)) {
+    // New secret is not "verified" until Test/Sync succeeds
+    account.verifiedAt = null;
+    if (account.lastError && isAuthErrorMessage(account.lastError)) {
       account.lastError = null;
     }
+  }
+  if (input.verifiedAt !== undefined) account.verifiedAt = input.verifiedAt;
+  if (input.markVerified) {
+    account.verifiedAt = now;
+    account.needsPassword = false;
+    account.lastError = null;
   }
 
   writeRaw(data);

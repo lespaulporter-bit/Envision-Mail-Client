@@ -5,6 +5,7 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { useMailStore } from "@/lib/store";
 import { formatBytes, relativeTime } from "@/lib/utils";
 import { desktopApi } from "@/lib/desktop";
+import { brandForEmail, loadAccountBrands } from "@/lib/account-brands";
 import {
   deleteThreadSmart,
   permanentlyDeleteThread,
@@ -53,6 +54,7 @@ export function ThreadView() {
   const [deleting, setDeleting] = useState(false);
   const [signatureId, setSignatureId] = useState("");
   const [requestReceipt, setRequestReceipt] = useState(true);
+  const [brandsTick, setBrandsTick] = useState(0);
   const signatures = useMailStore((s) => s.signatures || []);
   const settings = useMailStore((s) => s.settings);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
@@ -71,6 +73,7 @@ export function ThreadView() {
             : list[0]?.id || "";
       if (preferred) setAccountId(preferred);
     });
+    void loadAccountBrands(true).then(() => setBrandsTick((n) => n + 1));
   }, [thread?.accountId, inboxAccountId]);
 
   useEffect(() => {
@@ -313,7 +316,26 @@ export function ThreadView() {
             className={`rounded-2xl border border-line p-5 ${m.isOutgoing ? "ml-8 bg-soft/80" : "bg-white"}`}
           >
             <div className="mb-3 flex items-center gap-3">
-              <Avatar name={m.fromName} color={contact?.avatarColor || "#5522FA"} size={34} />
+              {(() => {
+                // brandsTick forces re-render after account logos load
+                void brandsTick;
+                const accountBrand = brandForEmail(m.from) || (m.isOutgoing ? brandForEmail(settings.email) : null);
+                const fromContact = contacts.find((c) => c.email.toLowerCase() === String(m.from || "").toLowerCase());
+                const imageUrl =
+                  accountBrand?.brandLogoDataUrl ||
+                  fromContact?.avatarImageDataUrl ||
+                  (!m.isOutgoing ? contact?.avatarImageDataUrl : null) ||
+                  null;
+                return (
+                  <Avatar
+                    name={m.fromName}
+                    color={accountBrand?.brandColor || fromContact?.avatarColor || contact?.avatarColor || "#0d9488"}
+                    letter={accountBrand?.brandLetter || undefined}
+                    imageUrl={imageUrl}
+                    size={34}
+                  />
+                );
+              })()}
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{m.fromName}</div>
                 <div className="text-xs text-muted">

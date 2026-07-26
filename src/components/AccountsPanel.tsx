@@ -2,6 +2,7 @@
 
 import { Avatar, Button, Input } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
+import { invalidateAccountBrands } from "@/lib/account-brands";
 import { useMailStore } from "@/lib/store";
 import type { DesktopAccount } from "@/types/desktop";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -109,10 +110,18 @@ export function AccountsPanel() {
   const [statusTone, setStatusTone] = useState<"ok" | "err" | "info">("info");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [awaitingAppPassword, setAwaitingAppPassword] = useState(false);
+  const [showUpdatePassword, setShowUpdatePassword] = useState(false);
   const desktop = isDesktop();
 
   const activePreset = presets[form.provider];
   const isSimpleProvider = Boolean(activePreset?.imapHost && form.provider !== "custom");
+  const selectedAccount = useMemo(
+    () => (form.id ? accounts.find((a) => a.id === form.id) : undefined),
+    [accounts, form.id],
+  );
+  /** Hide app-password / test chrome when this account is already verified and working */
+  const accountWorking = Boolean(selectedAccount?.verified && !selectedAccount?.authBroken);
+  const showCredentialSetup = !form.id || !accountWorking || showUpdatePassword;
 
   const refresh = useCallback(async () => {
     const api = desktopApi();
@@ -243,8 +252,13 @@ export function AccountsPanel() {
         setStatusTone("err");
         setStatus(result.error || "Sync failed");
         setToast(result.error || "Sync failed");
+        if (/auth|password|credentials|login|535|534|decrypt|safeStorage|re-enter/i.test(result.error || "")) {
+          setShowUpdatePassword(true);
+        }
+        await refresh();
         return;
       }
+      setShowUpdatePassword(false);
       const stats = importSyncedMail({
         accountId: result.accountId!,
         email: result.email!,
@@ -364,8 +378,13 @@ export function AccountsPanel() {
                   if (a) {
                     setForm(loadAccountIntoForm(a));
                     setShowAdvanced(a.provider === "custom");
-                    setStatusTone("info");
-                    setStatus(`Editing ${a.email}`);
+                    setShowUpdatePassword(Boolean(a.needsPassword || a.authBroken || !a.hasPassword));
+                    setStatusTone(a.verified && !a.authBroken ? "ok" : "info");
+                    setStatus(
+                      a.verified && !a.authBroken
+                        ? `${a.email} is connected and working`
+                        : `Editing ${a.email}`,
+                    );
                   }
                 }}
               >
@@ -373,17 +392,23 @@ export function AccountsPanel() {
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name || a.email} · {a.email}
-                    {a.needsPassword || !a.hasPassword ? " (needs password)" : a.lastError ? " (error)" : ""}
+                    {a.needsPassword || !a.hasPassword || a.authBroken
+                      ? " (needs password)"
+                      : a.verified
+                        ? " (working)"
+                        : a.lastError
+                          ? " (error)"
+                          : ""}
                   </option>
                 ))}
               </select>
             </label>
-            {form.id && (accounts.find((a) => a.id === form.id)?.needsPassword || accounts.find((a) => a.id === form.id)?.hasPassword === false) ? (
+            {form.id && (selectedAccount?.needsPassword || selectedAccount?.authBroken || selectedAccount?.hasPassword === false) ? (
               <div className="rounded-xl border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-950">
                 <p className="font-medium">Re-enter app password</p>
                 <p className="mt-1 text-xs opacity-90">
-                  The saved password can&apos;t be decrypted (common after moving from Les Mail). Paste a new app password
-                  below and Save — your mail data stays on this Mac.
+                  This account needs a new app password (or the saved one can&apos;t be decrypted). Paste it below and Save —
+                  your mail data stays on this Mac.
                 </p>
               </div>
             ) : null}
@@ -422,8 +447,12 @@ export function AccountsPanel() {
               {accounts.map((a) => (
                 <li key={a.id}>
                   {a.email}
-                  {a.lastSyncAt ? ` · synced ${new Date(a.lastSyncAt).toLocaleString()}` : " · never synced"}
-                  {a.needsPassword || !a.hasPassword
+                  {a.verified && !a.authBroken
+                    ? " · working"
+                    : a.lastSyncAt
+                      ? ` · synced ${new Date(a.lastSyncAt).toLocaleString()}`
+                      : " · never synced"}
+                  {a.needsPassword || !a.hasPassword || a.authBroken
                     ? " · needs app password"
                     : a.lastError
                       ? ` · ${a.lastError}`
@@ -459,8 +488,20 @@ export function AccountsPanel() {
               email: saved.account.email,
               name: saved.account.name,
             });
+            if (saved.account.brandLogoDataUrl) {
+              useMailStore
+                .getState()
+                .setAvatarForEmail(
+                  saved.account.email,
+                  saved.account.name || saved.account.email,
+                  saved.account.brandLogoDataUrl,
+                );
+            }
+            invalidateAccountBrands();
             await refresh();
             await syncOne(saved.account.id);
+            // After a good sync, hide credential setup again
+            setShowUpdatePassword(false);
           } finally {
             setBusy(null);
           }
@@ -497,8 +538,9 @@ export function AccountsPanel() {
         <label className="block text-sm">
           Provider
           <select
-            className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2"
+            className="mt-1 w-full cursor-pointer rounded-lg border border-line bg-white px-3 py-2 disabled:cursor-default disabled:opacity-70"
             value={form.provider}
+            disabled={accountWorking && !showUpdatePassword}
             onChange={(e) => applyPreset(e.target.value)}
           >
             {(Object.values(presets).length
@@ -517,9 +559,33 @@ export function AccountsPanel() {
           </select>
         </label>
 
-        {activePreset?.hint ? <p className="text-xs text-muted">{activePreset.hint}</p> : null}
+        {accountWorking && !showUpdatePassword ? (
+          <div className="rounded-xl border border-teal/30 bg-[#ecfdf8] p-3 text-sm">
+            <p className="font-medium text-teal">Connected and working</p>
+            <p className="mt-1 text-xs text-muted">
+              App password setup is hidden while this account works. Only open it if you need a new password or code.
+            </p>
+            <Button
+              type="button"
+              className="mt-2"
+              size="sm"
+              variant="soft"
+              onClick={() => {
+                setShowUpdatePassword(true);
+                setStatusTone("info");
+                setStatus("Paste a new app password only if your provider requires it.");
+              }}
+            >
+              Update app password…
+            </Button>
+          </div>
+        ) : null}
 
-        {activePreset?.needsAppPassword && activePreset.appPasswordUrl ? (
+        {showCredentialSetup && activePreset?.hint ? (
+          <p className="text-xs text-muted">{activePreset.hint}</p>
+        ) : null}
+
+        {showCredentialSetup && activePreset?.needsAppPassword && activePreset.appPasswordUrl ? (
           <div className="rounded-xl border border-blurple/30 bg-[#f7f4ff] p-3 text-sm">
             <p className="font-medium text-blurple">App password required</p>
             <p className="mt-1 text-xs text-muted">
@@ -542,6 +608,7 @@ export function AccountsPanel() {
             placeholder="Email address"
             required
             value={form.email}
+            disabled={accountWorking && !showUpdatePassword}
             onChange={(e) => {
               const email = e.target.value;
               const nextLetter =
@@ -556,38 +623,38 @@ export function AccountsPanel() {
               });
             }}
           />
-          <Input
-            className="md:col-span-2"
-            type="password"
-            placeholder={
-              form.id &&
-              (accounts.find((a) => a.id === form.id)?.needsPassword ||
-                accounts.find((a) => a.id === form.id)?.hasPassword === false)
-                ? "Paste new app password (required)"
-                : form.id
-                  ? activePreset?.needsAppPassword
-                    ? "New app password (leave blank to keep)"
-                    : "Password (leave blank to keep)"
-                  : activePreset?.needsAppPassword
-                    ? "App password (paste here)"
-                    : "Password / app password"
-            }
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required={
-              !form.id ||
-              Boolean(accounts.find((a) => a.id === form.id)?.needsPassword) ||
-              accounts.find((a) => a.id === form.id)?.hasPassword === false
-            }
-            autoComplete="off"
-          />
+          {showCredentialSetup ? (
+            <Input
+              className="md:col-span-2"
+              type="password"
+              placeholder={
+                form.id && (selectedAccount?.needsPassword || selectedAccount?.hasPassword === false)
+                  ? "Paste new app password (required)"
+                  : form.id
+                    ? activePreset?.needsAppPassword
+                      ? "New app password (leave blank to keep)"
+                      : "Password (leave blank to keep)"
+                    : activePreset?.needsAppPassword
+                      ? "App password (paste here)"
+                      : "Password / app password"
+              }
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required={
+                !form.id ||
+                Boolean(selectedAccount?.needsPassword) ||
+                selectedAccount?.hasPassword === false
+              }
+              autoComplete="off"
+            />
+          ) : null}
         </div>
 
         <div className="rounded-xl border border-line bg-soft/50 p-3">
-          <p className="text-sm font-medium">Brand mark (outgoing mail)</p>
+          <p className="text-sm font-medium">Avatar / logo</p>
           <p className="mt-1 text-xs text-muted">
-            Recipients see this logo at the top of messages you send. Gmail/Apple From circles still use their own
-            avatars — this mark travels in the email body.
+            Replaces your initials (e.g. “LP”) in Envision Mail threads and is also embedded at the top of messages you
+            send. Upload a small PNG/JPEG (under ~400KB).
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-4">
             <Avatar
@@ -667,20 +734,30 @@ export function AccountsPanel() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="soft" disabled={!!busy} onClick={() => void autoDetect()}>
-            {busy === "discover" ? "Detecting…" : "Auto-detect from email"}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setShowAdvanced((v) => !v)}
-          >
-            {showAdvanced ? "Hide server settings" : "Show server settings"}
-          </Button>
-        </div>
+        {showCredentialSetup ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="soft" disabled={!!busy} onClick={() => void autoDetect()}>
+              {busy === "discover" ? "Detecting…" : "Auto-detect from email"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setShowAdvanced((v) => !v)}>
+              {showAdvanced ? "Hide server settings" : "Show server settings"}
+            </Button>
+            {accountWorking && showUpdatePassword ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setShowUpdatePassword(false);
+                  setForm((f) => ({ ...f, password: "" }));
+                }}
+              >
+                Cancel password update
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
 
-        {(showAdvanced || !isSimpleProvider) && (
+        {showCredentialSetup && (showAdvanced || !isSimpleProvider) && (
           <div className="grid gap-2 rounded-xl bg-soft/60 p-3 md:grid-cols-2">
             <Input
               placeholder="Username (usually full email)"
@@ -728,40 +805,50 @@ export function AccountsPanel() {
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="soft"
-            disabled={!!busy}
-            onClick={async () => {
-              const api = desktopApi();
-              if (!api) return;
-              setBusy("test");
-              setStatusTone("info");
-              setStatus("Testing IMAP + SMTP…");
-              try {
-                const result = await api.testAccount(payloadFromForm());
-                if (result.suggested?.imapHost) applySuggested(result.suggested);
-                if (result.ok) {
-                  setStatusTone("ok");
-                  setStatus("Connection OK — click Save account.");
-                } else {
-                  setStatusTone("err");
-                  const needsApp =
-                    /auth|credential|password|login|invalid/i.test(result.error || "") &&
-                    activePreset?.needsAppPassword;
-                  setStatus(
-                    `${result.stage || "error"}: ${result.error}${
-                      needsApp ? " → Use Open App Password page above, then paste the new password." : ""
-                    }`,
-                  );
+          {showCredentialSetup ? (
+            <Button
+              type="button"
+              variant="soft"
+              disabled={!!busy}
+              onClick={async () => {
+                const api = desktopApi();
+                if (!api) return;
+                setBusy("test");
+                setStatusTone("info");
+                setStatus("Testing IMAP + SMTP…");
+                try {
+                  const result = await api.testAccount(payloadFromForm());
+                  if (result.suggested?.imapHost) applySuggested(result.suggested);
+                  if (result.ok) {
+                    setStatusTone("ok");
+                    setStatus(
+                      form.id
+                        ? "Connection OK — credentials verified. App password setup will stay hidden."
+                        : "Connection OK — click Save account.",
+                    );
+                    setShowUpdatePassword(false);
+                    await refresh();
+                  } else {
+                    setStatusTone("err");
+                    const needsApp =
+                      /auth|credential|password|login|invalid/i.test(result.error || "") &&
+                      activePreset?.needsAppPassword;
+                    setShowUpdatePassword(true);
+                    setStatus(
+                      `${result.stage || "error"}: ${result.error}${
+                        needsApp ? " → Use Open App Password page above, then paste the new password." : ""
+                      }`,
+                    );
+                    await refresh();
+                  }
+                } finally {
+                  setBusy(null);
                 }
-              } finally {
-                setBusy(null);
-              }
-            }}
-          >
-            {busy === "test" ? "Testing…" : "Test connection"}
-          </Button>
+              }}
+            >
+              {busy === "test" ? "Testing…" : "Test connection"}
+            </Button>
+          ) : null}
           <Button type="submit" disabled={!!busy}>
             {busy === "save" ? "Saving…" : form.id ? "Save changes" : "Save account"}
           </Button>
@@ -772,6 +859,7 @@ export function AccountsPanel() {
               onClick={() => {
                 setForm(emptyForm);
                 setShowAdvanced(false);
+                setShowUpdatePassword(false);
               }}
             >
               Cancel edit

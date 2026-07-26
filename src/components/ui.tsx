@@ -78,7 +78,7 @@ export function Avatar({
         alt=""
         width={size}
         height={size}
-        className="shrink-0 rounded-full object-cover"
+        className="shrink-0 rounded-full bg-soft object-cover ring-1 ring-line/80"
         style={{ width: size, height: size }}
         aria-hidden
       />

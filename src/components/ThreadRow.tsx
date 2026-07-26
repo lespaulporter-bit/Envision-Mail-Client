@@ -72,7 +72,12 @@ export function ThreadRow({
             )}
           </span>
         ) : null}
-        <Avatar name={thread.contactName} color={contact?.avatarColor || "#0d9488"} size={compact ? 32 : 40} />
+        <Avatar
+          name={thread.contactName}
+          color={contact?.avatarColor || "#0d9488"}
+          imageUrl={contact?.avatarImageDataUrl || null}
+          size={compact ? 32 : 40}
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
