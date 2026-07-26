@@ -129,7 +129,18 @@ export interface LesMailDesktopApi {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     event: any;
   }) => Promise<{ ok: boolean; error?: string; results?: unknown[] }>;
-  generateTeamsUrl: (title?: string) => Promise<{ ok: boolean; url: string }>;
+  detectTeams: () => Promise<{
+    ok: boolean;
+    installed: boolean;
+    paths?: string[];
+    platform?: string;
+    error?: string;
+  }>;
+  openTeamsMeeting: (payload?: {
+    title?: string;
+    startIso?: string;
+    endIso?: string;
+  }) => Promise<{ ok: boolean; installed?: boolean; message?: string; error?: string; opened?: string }>;
   syncMacCalendars: () => Promise<{
     ok: boolean;
     error?: string;

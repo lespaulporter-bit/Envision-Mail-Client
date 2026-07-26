@@ -7,7 +7,7 @@ const { testImap, fetchMail, moveMessages, deleteMessages, emptyFolder } = requi
 const { testSmtp, sendMail, sendCalendarInvites } = require("./smtp.cjs");
 const appState = require("./app-state.cjs");
 const autoUpdate = require("./auto-update.cjs");
-const { generateTeamsMeetingUrl } = require("./calendar-invite.cjs");
+const { detectMicrosoftTeams, openTeamsNewMeeting } = require("./calendar-invite.cjs");
 const { discoverMailSettings } = require("./discover.cjs");
 const { syncMacCalendars } = require("./mac-calendar.cjs");
 
@@ -282,10 +282,21 @@ function registerMailIpc() {
     }
   });
 
-  ipcMain.handle("mail:generateTeamsUrl", async (_e, title) => ({
-    ok: true,
-    url: generateTeamsMeetingUrl(title || "Envision Mail meeting"),
-  }));
+  ipcMain.handle("mail:detectTeams", async () => {
+    try {
+      return { ok: true, ...detectMicrosoftTeams() };
+    } catch (err) {
+      return { ok: false, installed: false, error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("mail:openTeamsMeeting", async (_e, payload) => {
+    try {
+      return await openTeamsNewMeeting(payload || {});
+    } catch (err) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
 
   ipcMain.handle("calendar:syncMac", async () => syncMacCalendars());
 

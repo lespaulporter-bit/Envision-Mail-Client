@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.12
+- **Teams meetings**: no more fake join links. Creates meetings only via **Microsoft Teams installed on this computer**, signed in as **you**.
+- If Teams isn’t installed, the option is disabled with clear guidance.
+- Flow: Open Teams → create meeting with your account → paste the real Join link.
+
 ## 2.6.11
 - **Fix Mac auto-update**: bypass broken ShipIt signature checks; download the real latest zip from GitHub and replace the app on Restart.
 - Ignore stale pending zips (e.g. old 2.6.6 left in cache) — only install the matching latest version.
