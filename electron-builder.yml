@@ -7,12 +7,11 @@ asarUnpack:
 directories:
   output: release
   buildResources: build
-# GitHub Releases for electron-updater (installers only — never user mail data)
+# GitHub Releases — generic latest/download URL is what the app checks at runtime
 publish:
-  provider: github
-  owner: lespaulporter-bit
-  repo: Envision-Mail-Client
-  releaseType: release
+  provider: generic
+  url: https://github.com/lespaulporter-bit/Envision-Mail-Client/releases/latest/download
+  # Also keep GitHub release publishing via CLI (`gh release create`)
 # Do NOT exclude node_modules/**/src — packages like encoding-japanese require it.
 files:
   - electron/**/*

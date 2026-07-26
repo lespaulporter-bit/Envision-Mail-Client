@@ -104,6 +104,8 @@ export interface Thread {
   bubbleUpAt?: string | null;
   bundled: boolean;
   muted: boolean;
+  /** Searchable action tags e.g. snoozed, on-hold, muted */
+  tags?: string[];
   stickyNotes: StickyNote[];
   privateNotes: PrivateNote[];
   collectionIds: string[];

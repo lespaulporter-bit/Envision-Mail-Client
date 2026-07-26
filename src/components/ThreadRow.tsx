@@ -2,6 +2,7 @@
 
 import { Avatar, Badge, Button } from "@/components/ui";
 import { useMailStore } from "@/lib/store";
+import { tagLabel } from "@/lib/thread-tags";
 import type { Thread } from "@/lib/types";
 import { cn, formatThreadTime, previewText } from "@/lib/utils";
 import { Bell, Bookmark, CheckSquare, Clock3, Layers, Square, Trash2 } from "lucide-react";
@@ -96,6 +97,11 @@ export function ThreadRow({
                 {thread.setAside ? <Bookmark className="h-3.5 w-3.5 text-em-blue" /> : null}
                 {thread.bundled ? <Layers className="h-3.5 w-3.5 text-muted" /> : null}
                 {!thread.seen ? <Badge tone="blurple">New</Badge> : null}
+                {(thread.tags || []).slice(0, 4).map((tag) => (
+                  <Badge key={tag} tone={tag === "muted" ? "salmon" : tag === "snoozed" ? "mint" : "soft"}>
+                    {tagLabel(tag)}
+                  </Badge>
+                ))}
                 {wasRead ? (
                   <Badge tone="soft">
                     <span className="inline-flex items-center gap-1 text-[#047857]">
@@ -125,14 +131,27 @@ export function ThreadRow({
         </div>
       </button>
       <div className="absolute right-3 top-3 hidden gap-1 group-hover:flex">
-        <Button size="sm" variant="soft" onClick={() => toggleMultiOpen(thread.id)} title="Open together">
-          {selected ? "Selected" : "Multi"}
+        <Button
+          size="sm"
+          variant={selected ? "primary" : "soft"}
+          onClick={() => toggleMultiOpen(thread.id)}
+          title="Open together"
+        >
+          {selected ? "Multi ✓" : "Multi"}
         </Button>
-        <Button size="sm" variant="soft" onClick={() => toggleReplyLater(thread.id)}>
-          Snooze
+        <Button
+          size="sm"
+          variant={thread.replyLater ? "primary" : "soft"}
+          onClick={() => toggleReplyLater(thread.id)}
+        >
+          {thread.replyLater ? "Snoozed ✓" : "Snooze"}
         </Button>
-        <Button size="sm" variant="soft" onClick={() => toggleSetAside(thread.id)}>
-          On Hold
+        <Button
+          size="sm"
+          variant={thread.setAside ? "primary" : "soft"}
+          onClick={() => toggleSetAside(thread.id)}
+        >
+          {thread.setAside ? "On Hold ✓" : "On Hold"}
         </Button>
         <Button
           size="sm"

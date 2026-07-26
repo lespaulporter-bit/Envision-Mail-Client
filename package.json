@@ -1,6 +1,6 @@
 {
   "name": "envision-mail",
-  "version": "2.6.5",
+  "version": "2.6.6",
   "private": true,
   "description": "Envision Mail \u2014 email + calendar for Envision DMS",
   "author": "Envision Mail",
@@ -51,5 +51,10 @@
     "typescript": "^5",
     "uuid": "^14.0.1",
     "zustand": "^5.0.14"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lespaulporter-bit/Envision-Mail-Client.git"
+  },
+  "build": {}
 }

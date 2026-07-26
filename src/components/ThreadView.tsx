@@ -3,7 +3,8 @@
 import { Avatar, Badge, Button, Input, Textarea } from "@/components/ui";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { useMailStore } from "@/lib/store";
-import { formatBytes, relativeTime } from "@/lib/utils";
+import { tagLabel } from "@/lib/thread-tags";
+import { cn, formatBytes, relativeTime } from "@/lib/utils";
 import { desktopApi } from "@/lib/desktop";
 import { brandForEmail, loadAccountBrands } from "@/lib/account-brands";
 import {
@@ -111,7 +112,11 @@ export function ThreadView() {
           ← Back
         </Button>
         <Badge tone="blurple">{thread.box.replace("_", " ")}</Badge>
-        {thread.notify ? <Badge tone="salmon">Notify on</Badge> : null}
+        {(thread.tags || []).map((tag) => (
+          <Badge key={tag} tone={tag === "muted" || tag === "on-hold" ? "salmon" : tag === "snoozed" ? "mint" : "soft"}>
+            {tagLabel(tag)}
+          </Badge>
+        ))}
       </div>
 
       <header className="mb-6">
@@ -137,31 +142,54 @@ export function ThreadView() {
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">
-        <Button size="sm" variant="soft" onClick={() => toggleReplyLater(thread.id)}>
-          {thread.replyLater ? "Remove Snooze" : "Snooze"}
-        </Button>
-        <Button size="sm" variant="soft" onClick={() => toggleSetAside(thread.id)}>
-          {thread.setAside ? "Remove Hold" : "On Hold"}
+        <Button
+          size="sm"
+          variant={thread.replyLater ? "primary" : "soft"}
+          className={cn(thread.replyLater && "ring-2 ring-teal/30")}
+          onClick={() => toggleReplyLater(thread.id)}
+        >
+          {thread.replyLater ? "Snoozed ✓" : "Snooze"}
         </Button>
         <Button
           size="sm"
-          variant="soft"
+          variant={thread.setAside ? "primary" : "soft"}
+          className={cn(thread.setAside && "ring-2 ring-teal/30")}
+          onClick={() => toggleSetAside(thread.id)}
+        >
+          {thread.setAside ? "On Hold ✓" : "On Hold"}
+        </Button>
+        <Button
+          size="sm"
+          variant={thread.bubbleUpAt ? "primary" : "soft"}
           onClick={() => {
             const at = new Date();
             at.setDate(at.getDate() + 2);
             setBubbleUp(thread.id, at.toISOString());
           }}
         >
-          Bump in 2 days
+          {thread.bubbleUpAt ? "Bumped ✓" : "Bump in 2 days"}
         </Button>
-        <Button size="sm" variant="soft" onClick={() => setBubbleUp(thread.id, null)}>
+        <Button
+          size="sm"
+          variant="soft"
+          disabled={!thread.bubbleUpAt}
+          onClick={() => setBubbleUp(thread.id, null)}
+        >
           Clear Bubble
         </Button>
-        <Button size="sm" variant="soft" onClick={() => toggleThreadNotify(thread.id)}>
-          {thread.notify ? "Mute notify" : "Notify me"}
+        <Button
+          size="sm"
+          variant={thread.notify ? "primary" : "soft"}
+          onClick={() => toggleThreadNotify(thread.id)}
+        >
+          {thread.notify ? "Notify on ✓" : "Notify me"}
         </Button>
-        <Button size="sm" variant="soft" onClick={() => toggleBundleContact(thread.contactEmail)}>
-          {contact?.bundled ? "Unbundle sender" : "Bundle sender"}
+        <Button
+          size="sm"
+          variant={contact?.bundled || thread.bundled ? "primary" : "soft"}
+          onClick={() => toggleBundleContact(thread.contactEmail)}
+        >
+          {contact?.bundled || thread.bundled ? "Bundled ✓" : "Bundle sender"}
         </Button>
         <Button
           size="sm"
@@ -173,11 +201,19 @@ export function ThreadView() {
         >
           Rename subject
         </Button>
-        <Button size="sm" variant="soft" onClick={() => muteThread(thread.id)}>
-          Mute
+        <Button
+          size="sm"
+          variant={thread.muted ? "primary" : "soft"}
+          onClick={() => muteThread(thread.id)}
+        >
+          {thread.muted ? "Muted ✓" : "Mute"}
         </Button>
-        <Button size="sm" variant="soft" onClick={() => shareThread(thread.id)}>
-          Share link
+        <Button
+          size="sm"
+          variant={thread.shareToken ? "primary" : "soft"}
+          onClick={() => shareThread(thread.id)}
+        >
+          {thread.shareToken ? "Link shared ✓" : "Share link"}
         </Button>
         <Button size="sm" variant="soft" onClick={() => createEventFromThread(thread.id)}>
           Create event

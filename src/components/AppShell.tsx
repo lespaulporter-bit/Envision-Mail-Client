@@ -29,7 +29,12 @@ import { Button, Toast } from "@/components/ui";
 import { WallpaperBackground } from "@/components/WallpaperBackground";
 import { syncActiveDesktopAccount } from "@/components/AccountsPanel";
 import { desktopApi, isDesktop } from "@/lib/desktop";
-import { selectAccountThreads, selectBoxThreads, useMailStore, type AppView } from "@/lib/store";
+import {
+  selectBoxThreads,
+  selectDockThreads,
+  useMailStore,
+  type AppView,
+} from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { purgeOldTrash } from "@/lib/mail-delete";
 import {
@@ -98,6 +103,7 @@ export function AppShell() {
   const view = useMailStore((s) => s.view);
   const setView = useMailStore((s) => s.setView);
   const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
   const toast = useMailStore((s) => s.toast);
   const setToast = useMailStore((s) => s.setToast);
   const setSearch = useMailStore((s) => s.setSearch);
@@ -189,7 +195,6 @@ export function AppShell() {
     };
   }, []);
 
-  const accountThreads = selectAccountThreads(threads, scoped);
   const counts = {
     lesbox: selectBoxThreads(threads, "lesbox", { onlyNew: true, accountId: scoped }).length,
     feed: selectBoxThreads(threads, "feed", { onlyNew: true, accountId: scoped }).length,
@@ -197,8 +202,14 @@ export function AppShell() {
     screener: selectBoxThreads(threads, "screener", { accountId: scoped }).length,
     spam: selectBoxThreads(threads, "spam", { accountId: scoped }).length,
     trash: selectBoxThreads(threads, "trash", { accountId: scoped }).length,
-    reply_later: accountThreads.filter((t) => t.replyLater).length,
-    set_aside: accountThreads.filter((t) => t.setAside).length,
+    reply_later: selectDockThreads(threads, "reply_later", {
+      accountId: scoped,
+      messages,
+    }).length,
+    set_aside: selectDockThreads(threads, "set_aside", {
+      accountId: scoped,
+      messages,
+    }).length,
   };
 
   if (!hydrated) {

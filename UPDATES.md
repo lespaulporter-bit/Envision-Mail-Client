@@ -1,5 +1,8 @@
 # Envision Mail updates
 
+## 2.6.6
+- Fix auto-update 404 / Invalid URL: feed is now GitHub Releases `…/releases/latest/download` (not the dead envisiondms CDN).
+
 ## 2.6.5
 - **Spam Central**: renamed from Spam Corps; button is **Block & report** (local + IMAP spam when possible).
 - **Calendar**: agenda view, week/day time grid, search, calendar toggles, edit/duplicate, all-day, location, countdowns, click-to-create slots.

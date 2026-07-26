@@ -17,6 +17,7 @@ import type {
   Workflow,
 } from "./types";
 import { normalizeBox, normalizeMailBox } from "./types";
+import { syncThreadTags, threadHasContent } from "./thread-tags";
 import { uid } from "./utils";
 
 export type AppView =
@@ -348,8 +349,10 @@ export const useMailStore = create<MailStore>()(
       togglePowerThrough: () => set({ powerThrough: !get().powerThrough }),
       toggleMultiOpen: (id) => {
         const ids = get().multiOpenIds;
+        const adding = !ids.includes(id);
         set({
-          multiOpenIds: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
+          multiOpenIds: adding ? [...ids, id] : ids.filter((x) => x !== id),
+          toast: adding ? "Added to Multi" : "Removed from Multi",
         });
       },
       clearMultiOpen: () => set({ multiOpenIds: [] }),
@@ -478,26 +481,40 @@ export const useMailStore = create<MailStore>()(
           toast: "Cleared new mail",
         }),
 
-      toggleReplyLater: (threadId) =>
+      toggleReplyLater: (threadId) => {
+        const prev = get().threads.find((t) => t.id === threadId);
+        const nextVal = !prev?.replyLater;
         set({
-          threads: get().threads.map((t) =>
-            t.id === threadId ? bumpThread({ ...t, replyLater: !t.replyLater }) : t,
-          ),
-        }),
+          threads: get().threads.map((t) => {
+            if (t.id !== threadId) return t;
+            const next = bumpThread({ ...t, replyLater: nextVal });
+            return { ...next, tags: syncThreadTags(next) };
+          }),
+          toast: nextVal ? "Snoozed — tagged Snoozed" : "Snooze removed",
+        });
+      },
 
-      toggleSetAside: (threadId) =>
+      toggleSetAside: (threadId) => {
+        const prev = get().threads.find((t) => t.id === threadId);
+        const nextVal = !prev?.setAside;
         set({
-          threads: get().threads.map((t) =>
-            t.id === threadId ? bumpThread({ ...t, setAside: !t.setAside }) : t,
-          ),
-        }),
+          threads: get().threads.map((t) => {
+            if (t.id !== threadId) return t;
+            const next = bumpThread({ ...t, setAside: nextVal });
+            return { ...next, tags: syncThreadTags(next) };
+          }),
+          toast: nextVal ? "On Hold — tagged On Hold" : "Hold removed",
+        });
+      },
 
       setBubbleUp: (threadId, at) =>
         set({
-          threads: get().threads.map((t) =>
-            t.id === threadId ? bumpThread({ ...t, bubbleUpAt: at, seen: at ? true : t.seen }) : t,
-          ),
-          toast: at ? "Will bump later" : "Bump cleared",
+          threads: get().threads.map((t) => {
+            if (t.id !== threadId) return t;
+            const next = bumpThread({ ...t, bubbleUpAt: at, seen: at ? true : t.seen });
+            return { ...next, tags: syncThreadTags(next) };
+          }),
+          toast: at ? "Bumped — tagged Bumped" : "Bump cleared",
         }),
 
       toggleBundleContact: (email) => {
@@ -505,8 +522,12 @@ export const useMailStore = create<MailStore>()(
         const bundled = !contact?.bundled;
         set({
           contacts: get().contacts.map((c) => (c.email === email ? { ...c, bundled } : c)),
-          threads: get().threads.map((t) => (t.contactEmail === email ? { ...t, bundled } : t)),
-          toast: bundled ? "Sender bundled" : "Sender unbundled",
+          threads: get().threads.map((t) => {
+            if (t.contactEmail !== email) return t;
+            const next = { ...t, bundled };
+            return { ...next, tags: syncThreadTags(next) };
+          }),
+          toast: bundled ? "Bundled — tagged Bundled" : "Sender unbundled",
         });
       },
 
@@ -515,15 +536,25 @@ export const useMailStore = create<MailStore>()(
           threads: get().threads.map((t) =>
             t.id === threadId ? bumpThread({ ...t, customSubject: subject }) : t,
           ),
+          toast: "Subject renamed",
         }),
 
-      muteThread: (threadId) =>
+      muteThread: (threadId) => {
+        const prev = get().threads.find((t) => t.id === threadId);
+        const nextVal = !prev?.muted;
         set({
-          threads: get().threads.map((t) =>
-            t.id === threadId ? bumpThread({ ...t, muted: true, seen: true }) : t,
-          ),
-          toast: "Muted thread",
-        }),
+          threads: get().threads.map((t) => {
+            if (t.id !== threadId) return t;
+            const next = bumpThread({
+              ...t,
+              muted: nextVal,
+              seen: nextVal ? true : t.seen,
+            });
+            return { ...next, tags: syncThreadTags(next) };
+          }),
+          toast: nextVal ? "Muted — tagged Muted" : "Unmuted",
+        });
+      },
 
       mergeThreads: (targetId, sourceId) => {
         const target = get().threads.find((t) => t.id === targetId);
@@ -575,12 +606,18 @@ export const useMailStore = create<MailStore>()(
           ),
         }),
 
-      toggleThreadNotify: (threadId) =>
+      toggleThreadNotify: (threadId) => {
+        const prev = get().threads.find((t) => t.id === threadId);
+        const nextVal = !prev?.notify;
         set({
-          threads: get().threads.map((t) =>
-            t.id === threadId ? { ...t, notify: !t.notify } : t,
-          ),
-        }),
+          threads: get().threads.map((t) => {
+            if (t.id !== threadId) return t;
+            const next = { ...t, notify: nextVal };
+            return { ...next, tags: syncThreadTags(next) };
+          }),
+          toast: nextVal ? "Notify on — tagged Notify" : "Notify off",
+        });
+      },
 
       shareThread: (threadId) => {
         const token = uid("share");
@@ -588,7 +625,7 @@ export const useMailStore = create<MailStore>()(
           threads: get().threads.map((t) =>
             t.id === threadId ? { ...t, shareToken: token } : t,
           ),
-          toast: "Share link copied",
+          toast: "Share link ready",
         });
         if (typeof navigator !== "undefined") {
           void navigator.clipboard?.writeText(`${window.location.origin}/share/?token=${token}`);
@@ -1405,19 +1442,30 @@ export const useMailStore = create<MailStore>()(
         }) as MailStore,
       merge: (persisted, current) => {
         const p = (persisted || {}) as Partial<AppStateData> & { inboxAccountId?: string | null };
+        const messages = p.messages || current.messages;
         const threads = (p.threads || current.threads).map((t) => {
           const legacy = t as Thread & { muteed?: boolean };
-          return {
+          let next: Thread = {
             ...t,
             box: normalizeBox(t.box),
             muted: Boolean(legacy.muted ?? legacy.muteed),
           };
+          // Drop ghost dock flags on threads with no remaining messages (old demo leftovers)
+          if (!threadHasContent(next, messages)) {
+            next = {
+              ...next,
+              replyLater: false,
+              setAside: false,
+              bubbleUpAt: null,
+            };
+          }
+          next = { ...next, tags: syncThreadTags(next) };
+          return next;
         });
         const contactsRaw = (p.contacts || current.contacts).map((c) => ({
           ...c,
           defaultBox: normalizeMailBox(c.defaultBox),
         }));
-        const messages = p.messages || current.messages;
         const rescued = backfillImapAccountIds(threads, messages);
         const contacts = contactsRaw;
         const rawSettings = { ...current.settings, ...(p.settings || {}) } as typeof current.settings & {
@@ -1493,5 +1541,23 @@ export function selectAccountThreads(
 ) {
   if (!accountId) return threads;
   return threads.filter((t) => !t.accountId || t.accountId === accountId);
+}
+
+/** Real Snooze / On Hold items only — same rules for badge counts and lists. */
+export function selectDockThreads(
+  threads: Thread[],
+  mode: "reply_later" | "set_aside",
+  opts?: {
+    accountId?: string | null;
+    messages?: Record<string, Message | undefined>;
+  },
+) {
+  const accountId = opts?.accountId;
+  const messages = opts?.messages;
+  return selectAccountThreads(threads, accountId).filter((t) => {
+    if (t.box === "trash" || t.box === "spam") return false;
+    if (messages && !threadHasContent(t, messages)) return false;
+    return mode === "reply_later" ? t.replyLater : t.setAside;
+  });
 }
 

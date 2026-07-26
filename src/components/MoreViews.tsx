@@ -8,7 +8,7 @@ import { SignaturesPanel } from "@/components/SignaturesPanel";
 import { EmailTemplatesPanel } from "@/components/EmailTemplatesPanel";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { desktopApi } from "@/lib/desktop";
-import { useMailStore } from "@/lib/store";
+import { selectDockThreads, useMailStore } from "@/lib/store";
 import { formatBytes, relativeTime } from "@/lib/utils";
 import { boxLabel } from "@/lib/types";
 import { useMemo, useState, useEffect } from "react";
@@ -746,6 +746,14 @@ export function SearchView() {
         t.customSubject,
         t.contactName,
         t.contactEmail,
+        ...(t.tags || []),
+        ...(t.tags || []).map((tag) =>
+          tag === "on-hold"
+            ? "on hold hold"
+            : tag === "snoozed"
+              ? "snooze snoozed"
+              : tag,
+        ),
         ...t.messageIds.map((id) => messages[id]?.bodyText || ""),
       ]
         .join(" ")
@@ -799,6 +807,7 @@ export function ComposeView() {
   const settings = useMailStore((s) => s.settings);
   const replyToEveryone = useMailStore((s) => s.replyToEveryone);
   const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
   const setToast = useMailStore((s) => s.setToast);
   const setView = useMailStore((s) => s.setView);
   const [bulk, setBulk] = useState(false);
@@ -806,6 +815,10 @@ export function ComposeView() {
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const snoozeQueue = selectDockThreads(threads, "reply_later", {
+    accountId: inboxAccountId,
+    messages,
+  });
   const [accountId, setAccountId] = useState("");
   const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
   const [requestReceipt, setRequestReceipt] = useState(settings.requestReadReceiptsByDefault ?? true);
@@ -1039,12 +1052,12 @@ export function ComposeView() {
               size="sm"
               onClick={() =>
                 replyToEveryone(
-                  threads.filter((t) => t.replyLater).map((t) => t.id),
+                  snoozeQueue.map((t) => t.id),
                   composeDraft.body || "Thanks — looping back here.",
                 )
               }
             >
-              Reply to {threads.filter((t) => t.replyLater).length} Snooze emails
+              Reply to {snoozeQueue.length} Snooze emails
             </Button>
           </div>
         ) : null}

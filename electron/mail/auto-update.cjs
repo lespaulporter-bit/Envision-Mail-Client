@@ -5,10 +5,15 @@ const { app, dialog, BrowserWindow } = require("electron");
 const CHECK_EVERY_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
 const GITHUB_OWNER = process.env.ENVISION_MAIL_GH_OWNER || "lespaulporter-bit";
 const GITHUB_REPO = process.env.ENVISION_MAIL_GH_REPO || "Envision-Mail-Client";
-/** Optional generic feed override (Railway/CDN). Empty = GitHub Releases. */
-const DEFAULT_FEED = String(process.env.ENVISION_MAIL_UPDATE_URL || "").replace(/\/$/, "");
+/** Public GitHub Releases folder that hosts latest-mac.yml + installers */
+const GITHUB_LATEST_FEED = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download`;
+/** Optional generic feed override (Railway/CDN). Empty = GitHub Releases latest/download. */
+const DEFAULT_FEED = String(process.env.ENVISION_MAIL_UPDATE_URL || GITHUB_LATEST_FEED).replace(
+  /\/$/,
+  "",
+);
 
-/** Dead feeds that 404 — always fall back to GitHub Releases */
+/** Dead / invalid feeds — always fall back to GitHub Releases latest/download */
 const STALE_FEED_HOSTS = ["updates.envisiondms.com"];
 
 function metaPath() {
@@ -39,47 +44,42 @@ function isStaleFeed(url) {
 function sanitizeFeedUrl(url) {
   const cleaned = String(url || "").trim().replace(/\/$/, "");
   if (!cleaned || isStaleFeed(cleaned)) return "";
+  // Internal marker / non-http values are invalid for electron-updater generic feeds
+  if (cleaned.startsWith("github:") || !/^https?:\/\//i.test(cleaned)) return "";
   return cleaned;
 }
 
-/** One-time: wipe saved feed that points at the dead CDN so GitHub is used */
+/** One-time: wipe saved feed that 404s or is not a real HTTP URL */
 function migrateStaleFeedMeta() {
   const meta = readMeta();
-  if (!isStaleFeed(meta.feedUrl)) return;
+  const raw = String(meta.feedUrl || "").trim();
+  if (!raw) return;
+  if (!isStaleFeed(raw) && sanitizeFeedUrl(raw)) return;
   writeMeta({
-    feedUrl: "",
+    feedUrl: GITHUB_LATEST_FEED,
     lastError: null,
-    lastResult: "migrated-to-github",
+    lastResult: "migrated-to-github-releases",
   });
-  console.log("auto-update: cleared stale feedUrl → GitHub Releases");
+  console.log("auto-update: migrated feedUrl →", GITHUB_LATEST_FEED);
 }
 
 function getUpdateFeedUrl() {
+  migrateStaleFeedMeta();
   const meta = readMeta();
-  const custom = sanitizeFeedUrl(meta.feedUrl || DEFAULT_FEED);
-  if (custom) return custom;
-  return `github:${GITHUB_OWNER}/${GITHUB_REPO}`;
+  return sanitizeFeedUrl(meta.feedUrl) || sanitizeFeedUrl(DEFAULT_FEED) || GITHUB_LATEST_FEED;
 }
 
 function setUpdateFeedUrl(url) {
-  const cleaned = sanitizeFeedUrl(url);
+  const cleaned = sanitizeFeedUrl(url) || GITHUB_LATEST_FEED;
   writeMeta({ feedUrl: cleaned });
   return getUpdateFeedUrl();
 }
 
 function applyUpdaterFeed(autoUpdater) {
   migrateStaleFeedMeta();
-  const custom = sanitizeFeedUrl(readMeta().feedUrl || DEFAULT_FEED);
-  if (custom && !custom.startsWith("github:")) {
-    autoUpdater.setFeedURL({ provider: "generic", url: custom });
-    return custom;
-  }
-  autoUpdater.setFeedURL({
-    provider: "github",
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-  });
-  return `github:${GITHUB_OWNER}/${GITHUB_REPO}`;
+  const url = getUpdateFeedUrl();
+  autoUpdater.setFeedURL({ provider: "generic", url });
+  return url;
 }
 
 function dueForCheck(force = false) {
@@ -192,7 +192,12 @@ function setupAutoUpdate({ getMainWindow } = {}) {
       return { ok: true, skipped: true, status: getUpdateStatus() };
     }
     const feedUrl = applyUpdaterFeed(autoUpdater);
-    writeMeta({ lastCheckAt: new Date().toISOString(), lastResult: "checking", feedUrl, lastError: null });
+    writeMeta({
+      lastCheckAt: new Date().toISOString(),
+      lastResult: "checking",
+      feedUrl,
+      lastError: null,
+    });
     try {
       const result = await autoUpdater.checkForUpdates();
       return {
@@ -204,22 +209,26 @@ function setupAutoUpdate({ getMainWindow } = {}) {
       };
     } catch (err) {
       const msg = String(err && err.message ? err.message : err);
-      // If a bad generic feed still fails, force GitHub and retry once
-      if (/404|latest-mac\.yml|envisiondms/i.test(msg)) {
-        writeMeta({ feedUrl: "" });
+      // Retry once against the known-good GitHub Releases feed
+      if (/404|latest-mac\.yml|envisiondms|Invalid URL/i.test(msg) && feedUrl !== GITHUB_LATEST_FEED) {
+        writeMeta({ feedUrl: GITHUB_LATEST_FEED });
         try {
-          applyUpdaterFeed(autoUpdater);
+          const retryFeed = applyUpdaterFeed(autoUpdater);
           const retry = await autoUpdater.checkForUpdates();
-          writeMeta({ lastResult: "up-to-date", lastError: null });
+          writeMeta({ lastResult: "up-to-date", lastError: null, feedUrl: retryFeed });
           return {
             ok: true,
             skipped: false,
-            feedUrl: `github:${GITHUB_OWNER}/${GITHUB_REPO}`,
+            feedUrl: retryFeed,
             updateInfo: retry && retry.updateInfo ? { version: retry.updateInfo.version } : null,
             status: getUpdateStatus(),
           };
         } catch (err2) {
-          writeMeta({ lastResult: "error", lastError: String(err2 && err2.message ? err2.message : err2) });
+          writeMeta({
+            lastResult: "error",
+            lastError: String(err2 && err2.message ? err2.message : err2),
+            feedUrl: GITHUB_LATEST_FEED,
+          });
           return {
             ok: false,
             error: String(err2 && err2.message ? err2.message : err2),
@@ -227,7 +236,7 @@ function setupAutoUpdate({ getMainWindow } = {}) {
           };
         }
       }
-      writeMeta({ lastResult: "error", lastError: msg });
+      writeMeta({ lastResult: "error", lastError: msg, feedUrl: GITHUB_LATEST_FEED });
       return { ok: false, error: msg, status: getUpdateStatus() };
     }
   };

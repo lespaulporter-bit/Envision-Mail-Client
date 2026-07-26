@@ -5,7 +5,7 @@ import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
 import { desktopApi } from "@/lib/desktop";
-import { selectBoxThreads, useMailStore } from "@/lib/store";
+import { selectBoxThreads, selectDockThreads, useMailStore } from "@/lib/store";
 import type { Message, Thread } from "@/lib/types";
 import { previewText } from "@/lib/utils";
 import { useMemo, useState } from "react";
@@ -629,12 +629,12 @@ export function TrashView() {
 
 export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
   const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
-  const list = threads.filter(
-    (t) =>
-      (!inboxAccountId || t.accountId === inboxAccountId) &&
-      (mode === "reply_later" ? t.replyLater : t.setAside),
-  );
+  const list = selectDockThreads(threads, mode, {
+    accountId: inboxAccountId,
+    messages,
+  });
   const setView = useMailStore((s) => s.setView);
 
   return (
@@ -670,11 +670,13 @@ export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
 
 export function FocusReplyView() {
   const threads = useMailStore((s) => s.threads);
+  const messagesMap = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const sendReply = useMailStore((s) => s.sendReply);
-  const queue = threads.filter(
-    (t) => t.replyLater && (!inboxAccountId || t.accountId === inboxAccountId),
-  );
+  const queue = selectDockThreads(threads, "reply_later", {
+    accountId: inboxAccountId,
+    messages: messagesMap,
+  });
   const [index, setIndex] = useState(0);
   const [body, setBody] = useState("");
   const current = queue[index];
