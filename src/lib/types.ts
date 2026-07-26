@@ -27,6 +27,8 @@ export interface Clip {
   sourceThreadId: string;
   sourceSubject: string;
   createdAt: string;
+  /** Owning mail account — Highlights are isolated per inbox */
+  accountId?: string | null;
 }
 
 export interface Snippet {

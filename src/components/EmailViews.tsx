@@ -32,9 +32,10 @@ export function MoneyBoxView() {
   const [olderSkip, setOlderSkip] = useState(100);
   const [olderHasMore, setOlderHasMore] = useState(true);
 
+  const messagesMap = useMailStore((s) => s.messages);
   const all = useMemo(
-    () => selectBoxThreads(threads, "lesbox", { accountId: inboxAccountId }),
-    [threads, inboxAccountId],
+    () => selectBoxThreads(threads, "lesbox", { accountId: inboxAccountId, messages: messagesMap }),
+    [threads, inboxAccountId, messagesMap],
   );
   const now = Date.now();
   const bubbled = all.filter((t) => t.bubbleUpAt && +new Date(t.bubbleUpAt) <= now);
@@ -167,8 +168,8 @@ export function MoneyBoxView() {
             Previously read <Badge tone="soft">{seen.length}</Badge>
           </h2>
           <p className="mb-3 text-xs text-muted">
-            Opened mail that&apos;s already on this Mac. Sync keeps the recent window; use Old mail below for the rest of
-            your Gmail history.
+            Opened mail that&apos;s already on this Mac for this account. Sync keeps a recent window; use Old mail below
+            for older messages on any provider.
           </p>
           {seen.length === 0 ? (
             <EmptyState title="No previously read mail yet" body="After you open a message, it appears in this list." />
@@ -186,8 +187,8 @@ export function MoneyBoxView() {
         <section className="mb-6 rounded-2xl border border-line bg-white p-4 shadow-sm">
           <h2 className="font-display text-lg text-ink">Old mail</h2>
           <p className="mt-1 text-sm text-muted">
-            Only the newest messages sync automatically. Search your full mailbox (Gmail All Mail) or load the next older
-            batch into MoneyBox.
+            Only the newest messages sync automatically. Search your mail server (any provider) or load the next older
+            Inbox batch into this account&apos;s MoneyBox.
           </p>
           <form
             className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"

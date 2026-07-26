@@ -115,7 +115,7 @@ export function AppShell() {
   const rolloverSometimeTasks = useMailStore((s) => s.rolloverSometimeTasks);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("2.6.22");
+  const [appVersion, setAppVersion] = useState("2.6.23");
 
   const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
   const scoped = inboxAccountId;
@@ -211,12 +211,16 @@ export function AppShell() {
   }, []);
 
   const counts = {
-    lesbox: selectBoxThreads(threads, "lesbox", { onlyNew: true, accountId: scoped }).length,
-    feed: selectBoxThreads(threads, "feed", { onlyNew: true, accountId: scoped }).length,
-    paper_trail: selectBoxThreads(threads, "paper_trail", { onlyNew: true, accountId: scoped }).length,
-    screener: selectBoxThreads(threads, "screener", { accountId: scoped }).length,
-    spam: selectBoxThreads(threads, "spam", { accountId: scoped }).length,
-    trash: selectBoxThreads(threads, "trash", { accountId: scoped }).length,
+    lesbox: selectBoxThreads(threads, "lesbox", { onlyNew: true, accountId: scoped, messages }).length,
+    feed: selectBoxThreads(threads, "feed", { onlyNew: true, accountId: scoped, messages }).length,
+    paper_trail: selectBoxThreads(threads, "paper_trail", {
+      onlyNew: true,
+      accountId: scoped,
+      messages,
+    }).length,
+    screener: selectBoxThreads(threads, "screener", { accountId: scoped, messages }).length,
+    spam: selectBoxThreads(threads, "spam", { accountId: scoped, messages }).length,
+    trash: selectBoxThreads(threads, "trash", { accountId: scoped, messages }).length,
     reply_later: selectDockThreads(threads, "reply_later", {
       accountId: scoped,
       messages,

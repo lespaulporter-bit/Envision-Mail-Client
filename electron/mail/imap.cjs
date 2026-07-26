@@ -329,9 +329,35 @@ async function findAllMailMailboxPath(client) {
   }
 }
 
+async function searchMailboxUids(client, path, q) {
+  const lock = await client.getMailboxLock(path);
+  try {
+    let uids = [];
+    try {
+      uids = await client.search(
+        { or: [{ subject: q }, { from: q }, { to: q }, { body: q }] },
+        { uid: true },
+      );
+    } catch {
+      try {
+        uids = await client.search({ text: q }, { uid: true });
+      } catch {
+        try {
+          uids = await client.search({ subject: q }, { uid: true });
+        } catch {
+          uids = [];
+        }
+      }
+    }
+    return [...new Set((uids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+  } finally {
+    lock.release();
+  }
+}
+
 /**
- * Search the server (Gmail All Mail when available, else INBOX) and fetch matching messages.
- * This is how users reach older mail beyond the recent sync window.
+ * Search the mail server for older messages (any IMAP provider — Gmail, Yahoo, AOL, custom).
+ * Prefers All Mail / Archive when present; otherwise searches INBOX + Sent.
  */
 async function searchMail(account, { query, limit = 40 } = {}) {
   const q = String(query || "").trim();
@@ -342,40 +368,66 @@ async function searchMail(account, { query, limit = 40 } = {}) {
   try {
     return await withClient(account, async (client) => {
       const allMailPath = await findAllMailMailboxPath(client);
-      const path = allMailPath || "INBOX";
-      const lock = await client.getMailboxLock(path);
-      let uids = [];
-      try {
+      const targets = [];
+      if (allMailPath) {
+        targets.push({ path: allMailPath, folder: "inbox" });
+      } else {
+        targets.push({ path: "INBOX", folder: "inbox" });
+        const sentPath = await findSentMailboxPath(client);
+        if (sentPath) targets.push({ path: sentPath, folder: "sent" });
+        // Common archive / older-mail folders on hosted IMAP
         try {
-          uids = await client.search(
-            {
-              or: [{ subject: q }, { from: q }, { to: q }, { body: q }],
-            },
-            { uid: true },
-          );
-        } catch {
-          try {
-            uids = await client.search({ text: q }, { uid: true });
-          } catch {
-            uids = await client.search({ subject: q }, { uid: true });
+          const boxes = await client.list();
+          for (const hint of ["Archive", "Archives", "INBOX.Archive", "Old Mail", "INBOX.Old"]) {
+            const hit = boxes.find(
+              (b) => b.path === hint || String(b.path || "").toLowerCase() === hint.toLowerCase(),
+            );
+            if (hit?.path && !targets.some((t) => t.path === hit.path)) {
+              targets.push({ path: hit.path, folder: "inbox" });
+            }
           }
+        } catch {
+          /* ignore list failures */
         }
-        uids = [...new Set((uids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))]
-          .sort((a, b) => b - a)
-          .slice(0, max);
-      } finally {
-        lock.release();
       }
-      if (!uids.length) {
-        return { ok: true, messages: [], query: q, path, matched: 0 };
+
+      const collected = [];
+      const pathsSearched = [];
+      for (const target of targets) {
+        if (collected.length >= max) break;
+        try {
+          const uids = (await searchMailboxUids(client, target.path, q))
+            .sort((a, b) => b - a)
+            .slice(0, max - collected.length);
+          if (!uids.length) continue;
+          pathsSearched.push(target.path);
+          const batch = await fetchFolderMessages(client, target.path, account, {
+            folder: target.folder,
+            uids,
+          });
+          collected.push(...batch);
+        } catch {
+          /* try next folder */
+        }
       }
-      // Re-lock via fetchFolderMessages
-      const messages = await fetchFolderMessages(client, path, account, {
-        folder: "inbox",
-        uids,
-      });
-      messages.sort((a, b) => +new Date(b.sentAt) - +new Date(a.sentAt));
-      return { ok: true, messages, query: q, path, matched: uids.length };
+
+      // Dedupe by IMAP uid+folder or message-id header
+      const seen = new Set();
+      const messages = [];
+      for (const m of collected.sort((a, b) => +new Date(b.sentAt) - +new Date(a.sentAt))) {
+        const key = m.messageIdHeader || `${m.folder}:${m.uid}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        messages.push(m);
+        if (messages.length >= max) break;
+      }
+      return {
+        ok: true,
+        messages,
+        query: q,
+        path: pathsSearched.join(", ") || "INBOX",
+        matched: messages.length,
+      };
     });
   } catch (err) {
     return { ok: false, error: formatImapError(err), messages: [] };

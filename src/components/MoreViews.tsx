@@ -9,7 +9,8 @@ import { EmailTemplatesPanel } from "@/components/EmailTemplatesPanel";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { desktopApi } from "@/lib/desktop";
-import { selectDockThreads, useMailStore } from "@/lib/store";
+import { selectAccountThreads, selectDockThreads, useMailStore } from "@/lib/store";
+import { clipBelongsToAccount } from "@/lib/account-scope";
 import { CALENDAR_TIMEZONE_OPTIONS, localTimezoneId } from "@/lib/timezones";
 import { formatBytes, relativeTime } from "@/lib/utils";
 import { boxLabel } from "@/lib/types";
@@ -38,9 +39,10 @@ export function ContactsView() {
   const openThread = useMailStore((s) => s.openThread);
   const threads = useMailStore((s) => s.threads);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const messages = useMailStore((s) => s.messages);
   const scopedThreads = useMemo(
-    () => threads.filter((t) => !inboxAccountId || t.accountId === inboxAccountId),
-    [threads, inboxAccountId],
+    () => selectAccountThreads(threads, inboxAccountId, messages),
+    [threads, inboxAccountId, messages],
   );
   const scopedContacts = useMemo(() => {
     if (!inboxAccountId) return contacts;
@@ -175,18 +177,21 @@ export function AttachmentsView() {
   const getAttachments = useMailStore((s) => s.getAttachments);
   const openThread = useMailStore((s) => s.openThread);
   const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const allowedThreadIds = useMemo(() => {
     if (!inboxAccountId) return null;
-    return new Set(threads.filter((t) => t.accountId === inboxAccountId).map((t) => t.id));
-  }, [threads, inboxAccountId]);
+    return new Set(
+      selectAccountThreads(threads, inboxAccountId, messages).map((t) => t.id),
+    );
+  }, [threads, inboxAccountId, messages]);
   const attachments = getAttachments().filter(
     (a) => !allowedThreadIds || allowedThreadIds.has(a.threadId),
   );
 
   return (
     <div className="px-4 py-6 md:px-8">
-      <SectionHeader title="Attachments" subtitle="Every file you've received, without digging through threads." />
+      <SectionHeader title="Attachments" subtitle="Files from this account only — switch accounts to see another inbox’s files." />
       {attachments.length === 0 ? (
         <EmptyState title="No attachments" body="Files from email appear here automatically." />
       ) : (
@@ -214,15 +219,25 @@ export function ClipsView() {
   const clips = useMailStore((s) => s.clips);
   const deleteClip = useMailStore((s) => s.deleteClip);
   const openThread = useMailStore((s) => s.openThread);
+  const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const scopedClips = useMemo(
+    () => clips.filter((c) => clipBelongsToAccount(c, inboxAccountId, threads, messages)),
+    [clips, inboxAccountId, threads, messages],
+  );
 
   return (
     <div className="px-4 py-6 md:px-8">
-      <SectionHeader title="Highlights" subtitle="Phone numbers, links, confirmation codes — clipped for instant recall." />
-      {clips.length === 0 ? (
-        <EmptyState title="No clips yet" body="Select text in a thread and clip it." />
+      <SectionHeader
+        title="Highlights"
+        subtitle="Clips from this account only — never mixed with another inbox."
+      />
+      {scopedClips.length === 0 ? (
+        <EmptyState title="No highlights for this account" body="Select text in a thread and clip it." />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {clips.map((c) => (
+          {scopedClips.map((c) => (
             <article key={c.id} className="rounded-2xl border border-line bg-white p-4">
               <p className="font-mono text-sm">{c.text}</p>
               <p className="mt-2 text-xs text-muted">From {c.sourceSubject}</p>
@@ -287,15 +302,21 @@ export function SnippetsView() {
 export function CollectionsView() {
   const collections = useMailStore((s) => s.collections);
   const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const createCollection = useMailStore((s) => s.createCollection);
   const openThread = useMailStore((s) => s.openThread);
   const [name, setName] = useState("");
+  const scopedThreads = useMemo(
+    () => selectAccountThreads(threads, inboxAccountId, messages),
+    [threads, inboxAccountId, messages],
+  );
 
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="Collections"
-        subtitle="Combine multiple threads on one page for projects that sprawl across email."
+        subtitle="Threads from this account only — switch accounts for another workspace."
       />
       <form
         className="mb-4 flex gap-2"
@@ -311,15 +332,17 @@ export function CollectionsView() {
         <Button type="submit">Create</Button>
       </form>
       <div className="space-y-4">
-        {collections.map((c) => (
+        {collections.map((c) => {
+          const scopedIds = c.threadIds.filter((id) => scopedThreads.some((t) => t.id === id));
+          return (
           <section key={c.id} className="rounded-2xl border border-line bg-white p-5">
             <div className="mb-3 flex items-center gap-2">
               <h2 className="font-display text-2xl">{c.name}</h2>
               {c.shared ? <span className="rounded bg-mint/10 px-2 py-0.5 text-xs font-semibold text-mint">Shared</span> : null}
             </div>
             <ul className="space-y-2">
-              {c.threadIds.map((id) => {
-                const t = threads.find((x) => x.id === id);
+              {scopedIds.map((id) => {
+                const t = scopedThreads.find((x) => x.id === id);
                 if (!t) return null;
                 return (
                   <li key={id}>
@@ -329,9 +352,13 @@ export function CollectionsView() {
                   </li>
                 );
               })}
+              {scopedIds.length === 0 ? (
+                <li className="text-sm text-muted">No threads from this account in this collection.</li>
+              ) : null}
             </ul>
           </section>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -340,13 +367,19 @@ export function CollectionsView() {
 export function WorkflowsView() {
   const workflows = useMailStore((s) => s.workflows);
   const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const createWorkflow = useMailStore((s) => s.createWorkflow);
   const openThread = useMailStore((s) => s.openThread);
   const [name, setName] = useState("");
+  const scopedThreads = useMemo(
+    () => selectAccountThreads(threads, inboxAccountId, messages),
+    [threads, inboxAccountId, messages],
+  );
 
   return (
     <div className="px-4 py-6 md:px-8">
-      <SectionHeader title="Workflows" subtitle="Define stages and track an email’s progress through a multi-step process." />
+      <SectionHeader title="Workflows" subtitle="Stages for this account’s mail only." />
       <form
         className="mb-4 flex gap-2"
         onSubmit={(e) => {
@@ -365,7 +398,7 @@ export function WorkflowsView() {
           <h2 className="mb-3 font-display text-2xl">{wf.name}</h2>
           <div className="grid gap-3 md:grid-cols-3">
             {wf.stages.map((stage) => {
-              const stageThreads = threads.filter(
+              const stageThreads = scopedThreads.filter(
                 (t) => t.workflowId === wf.id && t.workflowStageId === stage.id,
               );
               return (
@@ -905,8 +938,7 @@ export function SearchView() {
   const results = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
-    return threads.filter((t) => {
-      if (inboxAccountId && t.accountId && t.accountId !== inboxAccountId) return false;
+    return selectAccountThreads(threads, inboxAccountId, messages).filter((t) => {
       const hay = [
         t.subject,
         t.customSubject,
@@ -962,7 +994,7 @@ export function SearchView() {
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="Search"
-        subtitle="Search downloaded mail instantly — or search Gmail/IMAP for older messages not synced yet."
+        subtitle="Search this account’s downloaded mail — or Search server for older messages on any IMAP provider (Gmail, Yahoo, AOL, custom)."
       />
       <form
         className="mb-4 flex max-w-xl flex-col gap-2 sm:flex-row sm:items-center"
@@ -983,14 +1015,14 @@ export function SearchView() {
         </Button>
       </form>
       <p className="mb-4 max-w-xl text-xs text-muted">
-        Local results update as you type. <strong className="font-medium text-ink">Search server</strong> looks through
-        your full mailbox (including All Mail on Gmail) and downloads matches so you can open them here.
+        Local results update as you type. <strong className="font-medium text-ink">Search server</strong> queries your
+        mail host (All Mail / Archive when available, otherwise Inbox + Sent) and downloads matches for this account only.
       </p>
       {serverNote ? <p className="mb-4 text-sm text-teal">{serverNote}</p> : null}
       {searchQuery && results.length === 0 && !serverBusy ? (
         <EmptyState
           title="No local matches"
-          body="Try Search server to look through older mail still on Gmail/IMAP."
+          body="Try Search server to look through older mail still on your mail host."
         />
       ) : (
         <ul className="space-y-2">

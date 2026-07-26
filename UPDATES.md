@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.23
+- **Strict account isolation**: Highlights, attachments, collections, workflows, search, and dock lists never show another inbox’s data.
+- Opening cross-account items no longer shows the “belongs to another account” toast — those items are hidden instead.
+- **Old mail / Search server** works for **every IMAP provider** (Gmail, Yahoo, AOL, custom) — All Mail/Archive when available, otherwise Inbox + Sent (+ common Archive folders).
+
 ## 2.6.22
 - **Old mail**: MoneyBox has Search server + Load older batch so you can reach Gmail history beyond the recent sync window.
 - **Search** runs against the mail server (Gmail All Mail when available) and downloads matches into this account.

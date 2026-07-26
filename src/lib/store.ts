@@ -28,6 +28,7 @@ import {
 import { normalizeSometimeTasks, weekStartKey } from "./sometime-tasks";
 import { mergeRecentRecipients } from "./recipient-suggest";
 import { parseMailtoUrl } from "./mailto";
+import { inferThreadAccountId, threadBelongsToAccount } from "./account-scope";
 import { uid } from "./utils";
 
 export type AppView =
@@ -266,15 +267,7 @@ function backfillImapAccountIds(threads: Thread[], messages: Record<string, Mess
   return threads.map((t) => {
     if (t.accountId) return t;
     if (!threadHasImapMail(t, messages)) return t;
-
-    let accountId: string | null = null;
-    for (const mid of t.messageIds) {
-      const m = /^imap_(.+)_\d+$/.exec(mid);
-      if (m) {
-        accountId = m[1];
-        break;
-      }
-    }
+    const accountId = inferThreadAccountId(t, messages);
     return accountId ? { ...t, accountId } : t;
   });
 }
@@ -385,8 +378,9 @@ export const useMailStore = create<MailStore>()(
         const thread = get().threads.find((t) => t.id === id);
         if (!thread) return;
         const active = get().inboxAccountId;
-        if (active && thread.accountId && thread.accountId !== active) {
-          set({ toast: "That email belongs to another account — switch accounts to open it." });
+        if (active && !threadBelongsToAccount(thread, active, get().messages)) {
+          // Should never surface in UI — lists are account-scoped. Fail closed.
+          set({ toast: null });
           return;
         }
         set({
@@ -733,7 +727,12 @@ export const useMailStore = create<MailStore>()(
         return token;
       },
 
-      clipText: (threadId, subject, text) =>
+      clipText: (threadId, subject, text) => {
+        const thread = get().threads.find((t) => t.id === threadId);
+        const accountId =
+          (thread ? inferThreadAccountId(thread, get().messages) : null) ||
+          get().inboxAccountId ||
+          null;
         set({
           clips: [
             {
@@ -742,11 +741,13 @@ export const useMailStore = create<MailStore>()(
               sourceThreadId: threadId,
               sourceSubject: subject,
               createdAt: new Date().toISOString(),
+              accountId,
             },
             ...get().clips,
           ],
           toast: "Saved highlight",
-        }),
+        });
+      },
 
       deleteClip: (id) => set({ clips: get().clips.filter((c) => c.id !== id) }),
 
@@ -1790,12 +1791,20 @@ export const useMailStore = create<MailStore>()(
           ),
         };
         delete (settings as { spamCorps?: boolean }).spamCorps;
+        const clipsRaw = Array.isArray(p.clips) ? p.clips : current.clips || [];
+        const clips = clipsRaw.map((c) => {
+          if (c.accountId) return c;
+          const t = rescued.find((x) => x.id === c.sourceThreadId);
+          const accountId = t ? inferThreadAccountId(t, messages) : null;
+          return accountId ? { ...c, accountId } : c;
+        });
         return {
           ...current,
           ...p,
           threads: rescued,
           contacts,
           messages,
+          clips,
           signatures: p.signatures || current.signatures || [],
           collections: p.collections?.length ? p.collections : current.collections || [],
           workflows: p.workflows?.length ? p.workflows : current.workflows || [],
@@ -1821,7 +1830,7 @@ export const useMailStore = create<MailStore>()(
 export function selectBoxThreads(
   threads: Thread[],
   box: Box,
-  opts?: { onlyNew?: boolean; accountId?: string | null },
+  opts?: { onlyNew?: boolean; accountId?: string | null; messages?: Record<string, Message | undefined> },
 ) {
   const now = Date.now();
   const want = normalizeBox(box);
@@ -1829,10 +1838,7 @@ export function selectBoxThreads(
     .filter((t) => {
       if (normalizeBox(t.box) !== want) return false;
       // Strict account isolation — never leak another account’s mail
-      if (opts?.accountId) {
-        // Keep legacy threads (no accountId) visible so upgrades never hide read mail
-        if (t.accountId && t.accountId !== opts.accountId) return false;
-      }
+      if (opts?.accountId && !threadBelongsToAccount(t, opts.accountId, opts.messages)) return false;
       if (t.muted && t.seen) return want === "lesbox" ? false : true;
       if (t.bubbleUpAt && +new Date(t.bubbleUpAt) > now && t.seen) return false;
       if (opts?.onlyNew && t.seen) return false;
@@ -1845,9 +1851,10 @@ export function selectBoxThreads(
 export function selectAccountThreads(
   threads: Thread[],
   accountId: string | null | undefined,
+  messages?: Record<string, Message | undefined>,
 ) {
   if (!accountId) return threads;
-  return threads.filter((t) => !t.accountId || t.accountId === accountId);
+  return threads.filter((t) => threadBelongsToAccount(t, accountId, messages));
 }
 
 /** Real Snooze / On Hold items only — same rules for badge counts and lists. */
@@ -1861,7 +1868,7 @@ export function selectDockThreads(
 ) {
   const accountId = opts?.accountId;
   const messages = opts?.messages;
-  return selectAccountThreads(threads, accountId).filter((t) => {
+  return selectAccountThreads(threads, accountId, messages).filter((t) => {
     if (t.box === "trash" || t.box === "spam") return false;
     if (messages && !threadHasContent(t, messages)) return false;
     return mode === "reply_later" ? t.replyLater : t.setAside;

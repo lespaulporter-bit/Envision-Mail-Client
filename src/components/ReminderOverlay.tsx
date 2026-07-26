@@ -1,5 +1,6 @@
 "use client";
 
+import { threadBelongsToAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
 import type { Reminder } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -142,12 +143,24 @@ function ReminderCard({
 /** Prestigious Outlook-style reminder stack — ticks the reminder engine. */
 export function ReminderOverlay() {
   const reminders = useMailStore((s) => s.reminders || []);
+  const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const tickReminders = useMailStore((s) => s.tickReminders);
   const notifiedRef = useRef<Set<string>>(new Set());
 
   const active = useMemo(
-    () => reminders.filter((r) => r.status === "active").slice(0, 4),
-    [reminders],
+    () =>
+      reminders
+        .filter((r) => {
+          if (r.status !== "active") return false;
+          if (r.source !== "mail" || !inboxAccountId) return true;
+          const thread = threads.find((t) => t.id === r.sourceId);
+          if (!thread) return false;
+          return threadBelongsToAccount(thread, inboxAccountId, messages);
+        })
+        .slice(0, 4),
+    [reminders, threads, messages, inboxAccountId],
   );
 
   useEffect(() => {
