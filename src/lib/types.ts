@@ -215,6 +215,23 @@ export interface SometimeTask {
   createdAt: string;
 }
 
+/** Outlook-style on-screen reminder (calendar, mail, or manual) */
+export interface Reminder {
+  id: string;
+  title: string;
+  subtitle?: string;
+  /** When the reminder should appear (ISO) */
+  dueAt: string;
+  source: "calendar" | "mail" | "manual";
+  sourceId: string;
+  /** Prevents re-firing the same calendar offset / mail bump */
+  occurrenceKey: string;
+  status: "pending" | "active" | "dismissed";
+  location?: string;
+  meetingUrl?: string;
+  createdAt: string;
+}
+
 export interface Settings {
   displayName: string;
   email: string;
@@ -257,6 +274,7 @@ export interface AppStateData {
   journal: JournalEntry[];
   dayLabels: DayLabel[];
   sometimeTasks: SometimeTask[];
+  reminders: Reminder[];
   settings: Settings;
 }
 

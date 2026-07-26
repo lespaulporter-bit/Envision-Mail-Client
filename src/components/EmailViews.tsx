@@ -29,8 +29,9 @@ export function MoneyBoxView() {
   );
   const now = Date.now();
   const bubbled = all.filter((t) => t.bubbleUpAt && +new Date(t.bubbleUpAt) <= now);
+  const bubbledIds = new Set(bubbled.map((t) => t.id));
   const fresh = all.filter((t) => !t.seen && !(t.bubbleUpAt && +new Date(t.bubbleUpAt) > now));
-  const seen = all.filter((t) => t.seen);
+  const seen = all.filter((t) => t.seen && !bubbledIds.has(t.id));
 
   // Bundle: show only newest per bundled contact in list
   const displayFresh = useMemo(() => {

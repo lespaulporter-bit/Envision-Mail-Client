@@ -11,6 +11,7 @@ import type {
   EmailTemplate,
   MailBox,
   Message,
+  Reminder,
   Settings,
   SignatureTemplate,
   Thread,
@@ -18,6 +19,12 @@ import type {
 } from "./types";
 import { normalizeBox, normalizeMailBox } from "./types";
 import { syncThreadTags, threadHasContent } from "./thread-tags";
+import {
+  activatePendingReminders,
+  buildMailReminder,
+  collectDueReminders,
+  mergeNewReminders,
+} from "./reminders";
 import { uid } from "./utils";
 
 export type AppView =
@@ -188,6 +195,12 @@ interface Actions {
   setJournal: (date: string, body: string) => void;
   setDayLabel: (date: string, label: string) => void;
   createEventFromThread: (threadId: string) => void;
+  /** Fire due calendar/mail reminders; activate pending. Returns newly active count. */
+  tickReminders: () => number;
+  scheduleMailReminder: (threadId: string, minutesFromNow: number) => void;
+  dismissReminder: (id: string) => void;
+  snoozeReminder: (id: string, minutes: number) => void;
+  openReminder: (id: string) => void;
 
   createWorkflow: (name: string) => void;
   resetDemo: () => void;
@@ -1371,7 +1384,90 @@ export const useMailStore = create<MailStore>()(
           fromThreadId: threadId,
           reminderMinutes: [15],
         });
-        set({ view: "calendar" });
+        set({ view: "calendar", toast: "Event created with a 15-minute reminder" });
+      },
+
+      tickReminders: () => {
+        const state = get();
+        const existing = state.reminders || [];
+        let reminders = activatePendingReminders(existing);
+        const incoming = collectDueReminders({
+          events: state.events || [],
+          threads: state.threads || [],
+          existing: reminders,
+        });
+        reminders = mergeNewReminders(reminders, incoming);
+        const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+        reminders = reminders.filter(
+          (r) => r.status !== "dismissed" || +new Date(r.createdAt) > cutoff,
+        );
+        const beforeActive = existing.filter((r) => r.status === "active").length;
+        const afterActive = reminders.filter((r) => r.status === "active").length;
+        const same =
+          reminders.length === existing.length &&
+          reminders.every(
+            (r, i) =>
+              r.id === existing[i]?.id &&
+              r.status === existing[i]?.status &&
+              r.dueAt === existing[i]?.dueAt,
+          );
+        if (!same) set({ reminders });
+        return Math.max(0, afterActive - beforeActive);
+      },
+
+      scheduleMailReminder: (threadId, minutesFromNow) => {
+        const thread = get().threads.find((t) => t.id === threadId);
+        if (!thread) return;
+        const mins = Math.max(1, Math.round(minutesFromNow));
+        const due = new Date(Date.now() + mins * 60_000);
+        const draft = buildMailReminder(thread, due, `Remind in ${mins} minute${mins === 1 ? "" : "s"}`);
+        const reminder: Reminder = {
+          ...draft,
+          id: uid("rem"),
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        };
+        set({
+          reminders: [...(get().reminders || []), reminder],
+          toast: `Reminder set — ${mins} minute${mins === 1 ? "" : "s"}`,
+        });
+      },
+
+      dismissReminder: (id) =>
+        set({
+          reminders: (get().reminders || []).map((r) =>
+            r.id === id ? { ...r, status: "dismissed" as const } : r,
+          ),
+        }),
+
+      snoozeReminder: (id, minutes) => {
+        const mins = minutes === 15 ? 15 : 5;
+        const dueAt = new Date(Date.now() + mins * 60_000).toISOString();
+        set({
+          reminders: (get().reminders || []).map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  status: "pending" as const,
+                  dueAt,
+                  subtitle: `Snoozed ${mins} min`,
+                }
+              : r,
+          ),
+          toast: `Snoozed ${mins} minutes`,
+        });
+      },
+
+      openReminder: (id) => {
+        const r = (get().reminders || []).find((x) => x.id === id);
+        if (!r) return;
+        if (r.source === "calendar") {
+          const ev = get().events.find((e) => e.id === r.sourceId);
+          if (ev) set({ view: "calendar", calendarDate: ev.start.slice(0, 10) });
+          else set({ view: "calendar" });
+        } else if (r.source === "mail") {
+          get().openThread(r.sourceId);
+        }
       },
 
       createWorkflow: (name) =>
@@ -1437,6 +1533,7 @@ export const useMailStore = create<MailStore>()(
           journal: state.journal,
           dayLabels: state.dayLabels,
           sometimeTasks: state.sometimeTasks,
+          reminders: state.reminders || [],
           settings: state.settings,
           inboxAccountId: state.inboxAccountId,
         }) as MailStore,
@@ -1503,6 +1600,7 @@ export const useMailStore = create<MailStore>()(
           emailTemplates: p.emailTemplates?.length
             ? p.emailTemplates
             : current.emailTemplates || [],
+          reminders: Array.isArray(p.reminders) ? p.reminders : current.reminders || [],
           settings,
           inboxAccountId: p.inboxAccountId ?? current.inboxAccountId ?? null,
         };

@@ -36,6 +36,7 @@ export function ThreadView() {
   const setWorkflowStage = useMailStore((s) => s.setWorkflowStage);
   const addToCollection = useMailStore((s) => s.addToCollection);
   const createEventFromThread = useMailStore((s) => s.createEventFromThread);
+  const scheduleMailReminder = useMailStore((s) => s.scheduleMailReminder);
   const toggleThreadNotify = useMailStore((s) => s.toggleThreadNotify);
   const toggleBundleContact = useMailStore((s) => s.toggleBundleContact);
   const mergeThreads = useMailStore((s) => s.mergeThreads);
@@ -183,6 +184,15 @@ export function ThreadView() {
           onClick={() => toggleThreadNotify(thread.id)}
         >
           {thread.notify ? "Notify on ✓" : "Notify me"}
+        </Button>
+        <Button size="sm" variant="soft" onClick={() => scheduleMailReminder(thread.id, 5)}>
+          Remind 5 min
+        </Button>
+        <Button size="sm" variant="soft" onClick={() => scheduleMailReminder(thread.id, 15)}>
+          Remind 15 min
+        </Button>
+        <Button size="sm" variant="soft" onClick={() => scheduleMailReminder(thread.id, 60)}>
+          Remind 1 hr
         </Button>
         <Button
           size="sm"

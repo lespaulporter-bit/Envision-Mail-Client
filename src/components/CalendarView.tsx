@@ -98,6 +98,8 @@ export function CalendarView() {
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedCalId, setSelectedCalId] = useState("");
+  /** Minutes before start — 0 = at start time; -1 = none */
+  const [reminderMinutesBefore, setReminderMinutesBefore] = useState(15);
   const isMacDesktop = isDesktop() && desktopApi()?.platform === "darwin";
 
   const defaultCalId =
@@ -199,6 +201,8 @@ export function CalendarView() {
     setTeamsUrl(e.meetingUrl || "");
     setUseTeams(e.meetingProvider === "teams" || Boolean(e.meetingUrl));
     setSelectedCalId(e.calendarId || defaultCalId);
+    const mins = e.reminderMinutes?.[0];
+    setReminderMinutesBefore(typeof mins === "number" ? mins : 15);
   };
 
   const resetForm = () => {
@@ -213,6 +217,7 @@ export function CalendarView() {
     setEndTime(addOneHour(defaultStartTime()));
     setEventDate(calendarDate);
     setSelectedCalId(defaultCalId);
+    setReminderMinutesBefore(15);
   };
 
   const saveEvent = async () => {
@@ -269,7 +274,7 @@ export function CalendarView() {
       calendarId: selectedCalId || defaultCalId,
       location: location.trim() || undefined,
       notes: notes.trim() || undefined,
-      reminderMinutes: [15, 60],
+      reminderMinutes: reminderMinutesBefore < 0 ? [] : [reminderMinutesBefore],
       invitees,
       meetingUrl: meetingUrl || undefined,
       meetingProvider,
@@ -715,6 +720,24 @@ export function CalendarView() {
                   ))}
                 </select>
               </label>
+              <label className="block text-xs font-medium text-muted">
+                Reminder
+                <select
+                  className="mt-1 w-full cursor-pointer rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                  value={reminderMinutesBefore}
+                  onChange={(e) => setReminderMinutesBefore(Number(e.target.value))}
+                >
+                  <option value={-1}>None</option>
+                  <option value={0}>At event time</option>
+                  <option value={5}>5 minutes before</option>
+                  <option value={15}>15 minutes before</option>
+                  <option value={30}>30 minutes before</option>
+                  <option value={60}>1 hour before</option>
+                  <option value={1440}>1 day before</option>
+                </select>
+              </label>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
               <label className="flex items-end gap-2 pb-2 text-sm">
                 <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
                 All-day event

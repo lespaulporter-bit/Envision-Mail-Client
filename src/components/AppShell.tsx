@@ -23,6 +23,7 @@ import {
   SnippetsView,
   WorkflowsView,
 } from "@/components/MoreViews";
+import { ReminderOverlay } from "@/components/ReminderOverlay";
 import { ThreadView } from "@/components/ThreadView";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button, Toast } from "@/components/ui";
@@ -408,6 +409,8 @@ export function AppShell() {
           <Toast message={toast} onClose={() => setToast(null)} />
         </div>
       ) : null}
+
+      <ReminderOverlay />
     </div>
   );
 }
