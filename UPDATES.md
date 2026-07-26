@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.20
+- Calendar timezone clocks are **smaller and side-by-side** in one neat strip (easy ET ↔ PT comparison, less vertical space).
+- Clocks sit next to the Calendar title; update on the minute.
+- Dual-timezone settings won’t let primary and secondary be the same zone; event time hints no longer duplicate identical conversions.
+
 ## 2.6.19
 - **App password UI stays hidden** when a Gmail/Yahoo/AOL account is already connected and working.
 - Settings → Accounts opens your working address first (not a blank Gmail “Add” form with the purple App Password card).

@@ -520,8 +520,20 @@ export function SettingsView() {
                 Primary timezone
                 <select
                   className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2"
-                  value={settings.timezone || ""}
-                  onChange={(e) => updateSettings({ timezone: e.target.value })}
+                  value={settings.timezone || localTimezoneId()}
+                  onChange={(e) => {
+                    const timezone = e.target.value;
+                    const secondary = settings.secondaryTimezone || "America/Los_Angeles";
+                    updateSettings(
+                      secondary === timezone
+                        ? {
+                            timezone,
+                            secondaryTimezone:
+                              timezone === "America/Los_Angeles" ? "America/New_York" : "America/Los_Angeles",
+                          }
+                        : { timezone },
+                    );
+                  }}
                 >
                   <TimezoneOptions />
                 </select>
@@ -532,7 +544,18 @@ export function SettingsView() {
                   className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2 disabled:opacity-50"
                   disabled={!settings.showDualCalendarTimezones}
                   value={settings.secondaryTimezone || "America/Los_Angeles"}
-                  onChange={(e) => updateSettings({ secondaryTimezone: e.target.value })}
+                  onChange={(e) => {
+                    const secondaryTimezone = e.target.value;
+                    const primary = settings.timezone || localTimezoneId();
+                    if (secondaryTimezone === primary) {
+                      updateSettings({
+                        secondaryTimezone:
+                          primary === "America/Los_Angeles" ? "America/New_York" : "America/Los_Angeles",
+                      });
+                      return;
+                    }
+                    updateSettings({ secondaryTimezone });
+                  }}
                 >
                   <TimezoneOptions />
                 </select>

@@ -405,10 +405,19 @@ export function CalendarView() {
 
   const eventZoneHint = (hhmm: string) => {
     if (!dualZones || !hhmm || !eventDate || allDay) return null;
+    // Event time pickers use the Mac’s local wall clock
     const source = localTimezoneId();
     const a = formatLocalHhmmInZone(eventDate, hhmm, source, primaryZone);
     const b = formatLocalHhmmInZone(eventDate, hhmm, source, secondaryZone);
     if (!a && !b) return null;
+    // Same zone twice (e.g. primary = local) — show one line only
+    if (a && b && a === b) {
+      return (
+        <p className="mb-1 text-[11px] leading-snug text-muted">
+          <span className="font-medium text-ink">{a}</span>
+        </p>
+      );
+    }
     return (
       <p className="mb-1 text-[11px] leading-snug text-muted">
         <span className="font-medium text-ink">{a}</span>
@@ -422,14 +431,15 @@ export function CalendarView() {
     <div className="px-4 py-6 md:px-8">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-3xl tracking-tight text-ink">Calendar</h1>
-          <CalendarTimezoneClocks
-            className="mt-3"
-            primaryZone={primaryZone}
-            secondaryZone={secondaryZone}
-            dual={dualZones}
-          />
-          <p className="mt-2.5 max-w-xl text-sm text-muted">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 className="font-display text-3xl tracking-tight text-ink">Calendar</h1>
+            <CalendarTimezoneClocks
+              primaryZone={primaryZone}
+              secondaryZone={secondaryZone}
+              dual={dualZones}
+            />
+          </div>
+          <p className="mt-2 max-w-xl text-sm text-muted">
             Day · week · month · agenda — Teams/Zoom invites, Mac sync, habits, journal, and countdowns.
           </p>
         </div>
