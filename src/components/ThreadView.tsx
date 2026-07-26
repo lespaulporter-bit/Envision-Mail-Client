@@ -16,6 +16,8 @@ import {
 } from "@/lib/mail-delete";
 import { useEffect, useMemo, useState } from "react";
 import { bodyToHtml } from "@/lib/html-body";
+import { resolveUnsubscribeTargets } from "@/lib/unsubscribe";
+import { Check } from "lucide-react";
 
 export function ThreadView() {
   const threadId = useMailStore((s) => s.selectedThreadId);
@@ -42,6 +44,7 @@ export function ThreadView() {
   const toggleThreadNotify = useMailStore((s) => s.toggleThreadNotify);
   const toggleBundleContact = useMailStore((s) => s.toggleBundleContact);
   const mergeThreads = useMailStore((s) => s.mergeThreads);
+  const markMessageUnsubscribed = useMailStore((s) => s.markMessageUnsubscribed);
   const setView = useMailStore((s) => s.setView);
   const setToast = useMailStore((s) => s.setToast);
 
@@ -56,6 +59,8 @@ export function ThreadView() {
   const [accountId, setAccountId] = useState("");
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [unsubBusy, setUnsubBusy] = useState(false);
+  const [unsubFlash, setUnsubFlash] = useState(false);
   const [signatureId, setSignatureId] = useState("");
   const [requestReceipt, setRequestReceipt] = useState(true);
   const [brandsTick, setBrandsTick] = useState(0);
@@ -85,10 +90,21 @@ export function ThreadView() {
     setRequestReceipt(settings.requestReadReceiptsByDefault ?? true);
   }, [settings.defaultSignatureId, settings.requestReadReceiptsByDefault]);
 
+  const storeMessages = useMailStore((s) => s.messages);
   const messages = useMemo(
     () => (threadId ? getThreadMessages(threadId) : []),
-    [threadId, getThreadMessages, threads],
+    [threadId, getThreadMessages, threads, storeMessages],
   );
+
+  const unsubscribeTarget = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m.isOutgoing) continue;
+      const targets = resolveUnsubscribeTargets(m);
+      if (targets || m.unsubscribedAt) return { message: m, targets };
+    }
+    return null;
+  }, [messages]);
 
   if (!thread) {
     return (
@@ -220,6 +236,61 @@ export function ThreadView() {
         >
           {thread.muted ? "Muted ✓" : "Mute"}
         </Button>
+        {unsubscribeTarget ? (
+          <Button
+            size="sm"
+            variant={unsubscribeTarget.message.unsubscribedAt || unsubFlash ? "primary" : "soft"}
+            className={cn(
+              (unsubscribeTarget.message.unsubscribedAt || unsubFlash) &&
+                "bg-emerald-600 text-white hover:bg-emerald-700 ring-2 ring-emerald-500/30",
+            )}
+            disabled={
+              unsubBusy || Boolean(unsubscribeTarget.message.unsubscribedAt) || unsubFlash
+            }
+            onClick={() => {
+              void (async () => {
+                const api = desktopApi();
+                const targets = unsubscribeTarget.targets;
+                if (!api?.unsubscribeMail || !targets) {
+                  setToast("No unsubscribe link on this email");
+                  return;
+                }
+                setUnsubBusy(true);
+                try {
+                  const result = await api.unsubscribeMail({
+                    accountId: accountId || inboxAccountId || thread.accountId || undefined,
+                    unsubscribeHttpUrl: targets.httpUrl,
+                    unsubscribeMailto: targets.mailto,
+                    unsubscribeOneClick: targets.oneClick,
+                  });
+                  if (!result.ok) {
+                    setToast(result.error || "Unsubscribe failed");
+                    return;
+                  }
+                  markMessageUnsubscribed(unsubscribeTarget.message.id);
+                  setUnsubFlash(true);
+                  setToast("Unsubscribed");
+                  window.setTimeout(() => setUnsubFlash(false), 2800);
+                } catch (err) {
+                  setToast(err instanceof Error ? err.message : "Unsubscribe failed");
+                } finally {
+                  setUnsubBusy(false);
+                }
+              })();
+            }}
+          >
+            {unsubscribeTarget.message.unsubscribedAt || unsubFlash ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                Unsubscribed
+              </span>
+            ) : unsubBusy ? (
+              "Unsubscribing…"
+            ) : (
+              "Unsubscribe"
+            )}
+          </Button>
+        ) : null}
         <Button
           size="sm"
           variant={thread.shareToken ? "primary" : "soft"}

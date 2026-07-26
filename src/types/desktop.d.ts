@@ -52,6 +52,11 @@ export interface DesktopSyncedMessage {
     receivedAt: string;
   }>;
   trackersBlocked: string[];
+  listUnsubscribe?: string | null;
+  listUnsubscribePost?: string | null;
+  unsubscribeHttpUrl?: string | null;
+  unsubscribeMailto?: string | null;
+  unsubscribeOneClick?: boolean;
 }
 
 export interface DiscoveredMailSettings {
@@ -109,6 +114,13 @@ export interface LesMailDesktopApi {
     references?: string;
     requestReadReceipt?: boolean;
   }) => Promise<{ ok: boolean; error?: string; messageId?: string }>;
+  /** Silent List-Unsubscribe (one-click POST, HTTP GET, or mailto). */
+  unsubscribeMail: (payload: {
+    accountId?: string | null;
+    unsubscribeHttpUrl?: string | null;
+    unsubscribeMailto?: string | null;
+    unsubscribeOneClick?: boolean;
+  }) => Promise<{ ok: boolean; method?: string; error?: string }>;
   moveMessages: (payload: {
     accountId: string;
     sourceFolder: string;

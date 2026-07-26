@@ -190,6 +190,27 @@ async function sendMail(
   };
 }
 
+/** Minimal send for List-Unsubscribe mailto — no brand header. */
+async function sendPlainMail(account, { to, subject, text }) {
+  if (!account?.email) throw Object.assign(new Error("Account not found"), { code: "ENOACCOUNT" });
+  if (!account.password) {
+    const err = new Error(
+      "App password missing. Open Settings → Accounts and paste a new app password, then Save.",
+    );
+    err.code = "ENEEDPASSWORD";
+    throw err;
+  }
+  if (!to) throw new Error("Missing unsubscribe address");
+  const transport = createTransport(account);
+  const info = await transport.sendMail({
+    from: `"${account.name || account.email}" <${account.email}>`,
+    to,
+    subject: subject || "unsubscribe",
+    text: text || "unsubscribe",
+  });
+  return { ok: true, messageId: info.messageId };
+}
+
 async function sendCalendarInvites(account, event) {
   const invitees = event.invitees || [];
   if (!invitees.length) return { ok: false, error: "Add at least one invitee email." };
@@ -242,4 +263,4 @@ async function sendCalendarInvites(account, event) {
   };
 }
 
-module.exports = { testSmtp, sendMail, sendCalendarInvites, formatSmtpError };
+module.exports = { testSmtp, sendMail, sendPlainMail, sendCalendarInvites, formatSmtpError };

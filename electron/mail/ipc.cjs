@@ -4,7 +4,8 @@ const path = require("path");
 const { PRESETS } = require("./presets.cjs");
 const accounts = require("./accounts-store.cjs");
 const { testImap, fetchMail, moveMessages, deleteMessages, emptyFolder } = require("./imap.cjs");
-const { testSmtp, sendMail, sendCalendarInvites } = require("./smtp.cjs");
+const { testSmtp, sendMail, sendPlainMail, sendCalendarInvites } = require("./smtp.cjs");
+const { performUnsubscribe } = require("./unsubscribe.cjs");
 const appState = require("./app-state.cjs");
 const autoUpdate = require("./auto-update.cjs");
 const { detectMicrosoftTeams, openTeamsNewMeeting } = require("./calendar-invite.cjs");
@@ -218,6 +219,23 @@ function registerMailIpc() {
 
   ipcMain.handle("app:loadState", async () => appState.loadAppState());
   ipcMain.handle("app:saveState", async (_e, payload) => appState.saveAppState(payload));
+
+  ipcMain.handle("mail:unsubscribe", async (_e, payload) => {
+    try {
+      const p = payload || {};
+      const account = p.accountId ? accounts.getAccountSecret(p.accountId) : null;
+      const result = await performUnsubscribe({
+        account,
+        sendPlainMail,
+        unsubscribeHttpUrl: p.unsubscribeHttpUrl,
+        unsubscribeMailto: p.unsubscribeMailto,
+        unsubscribeOneClick: Boolean(p.unsubscribeOneClick),
+      });
+      return result;
+    } catch (err) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
 
   ipcMain.handle("mail:send", async (_e, payload) => {
     let account;

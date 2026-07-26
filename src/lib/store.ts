@@ -186,6 +186,11 @@ interface Actions {
         trackersBlocked: string[];
         messageIdHeader?: string | null;
         inReplyTo?: string | null;
+        listUnsubscribe?: string | null;
+        listUnsubscribePost?: string | null;
+        unsubscribeHttpUrl?: string | null;
+        unsubscribeMailto?: string | null;
+        unsubscribeOneClick?: boolean;
       }>;
     },
     opts?: {
@@ -193,6 +198,7 @@ interface Actions {
       background?: boolean;
     },
   ) => { imported: number; screened: number };
+  markMessageUnsubscribed: (messageId: string) => void;
 
   addEvent: (event: Omit<CalendarEvent, "id">) => void;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
@@ -1031,6 +1037,7 @@ export const useMailStore = create<MailStore>()(
       importSyncedMail: ({ accountId, email, messages: incoming }, opts) => {
         let imported = 0;
         let screened = 0;
+        let metaUpdated = false;
         const background = Boolean(opts?.background);
         const state = get();
         let threads = [...state.threads];
@@ -1088,7 +1095,27 @@ export const useMailStore = create<MailStore>()(
               : fromTrashFolder
                 ? `imap_${accountId}_trash_${item.uid}`
                 : `imap_${accountId}_${item.uid}`;
-          if (msgs[messageId]) continue;
+          if (msgs[messageId]) {
+            // Backfill unsubscribe metadata on already-imported mail when headers arrive later
+            const prev = msgs[messageId];
+            if (
+              !prev.isOutgoing &&
+              !prev.unsubscribeHttpUrl &&
+              !prev.unsubscribeMailto &&
+              (item.unsubscribeHttpUrl || item.unsubscribeMailto || item.listUnsubscribe)
+            ) {
+              msgs[messageId] = {
+                ...prev,
+                listUnsubscribe: item.listUnsubscribe || prev.listUnsubscribe || null,
+                listUnsubscribePost: item.listUnsubscribePost || prev.listUnsubscribePost || null,
+                unsubscribeHttpUrl: item.unsubscribeHttpUrl || prev.unsubscribeHttpUrl || null,
+                unsubscribeMailto: item.unsubscribeMailto || prev.unsubscribeMailto || null,
+                unsubscribeOneClick: Boolean(item.unsubscribeOneClick || prev.unsubscribeOneClick),
+              };
+              metaUpdated = true;
+            }
+            continue;
+          }
 
           const isOutgoing = fromSentFolder || item.from.toLowerCase() === own;
           // Thread by counterparty (sender for inbound, recipient for outbound)
@@ -1181,6 +1208,11 @@ export const useMailStore = create<MailStore>()(
             attachments: attachmentList,
             trackersBlocked: item.trackersBlocked || [],
             isOutgoing,
+            listUnsubscribe: item.listUnsubscribe || null,
+            listUnsubscribePost: item.listUnsubscribePost || null,
+            unsubscribeHttpUrl: item.unsubscribeHttpUrl || null,
+            unsubscribeMailto: item.unsubscribeMailto || null,
+            unsubscribeOneClick: Boolean(item.unsubscribeOneClick),
           };
 
           if (!thread) {
@@ -1255,7 +1287,17 @@ export const useMailStore = create<MailStore>()(
 
         // Never change `view` on sync — that unmounted Settings/Compose/Calendar and wiped drafts.
         if (imported === 0) {
-          if (!background) set({ toast: "Already up to date" });
+          if (metaUpdated) {
+            set({
+              threads,
+              contacts,
+              messages: msgs,
+              settings,
+              inboxAccountId: keepActive || accountId,
+            });
+          } else if (!background) {
+            set({ toast: "Already up to date" });
+          }
           return { imported: 0, screened: 0 };
         }
 
@@ -1270,6 +1312,17 @@ export const useMailStore = create<MailStore>()(
             : `Synced ${imported} message${imported === 1 ? "" : "s"}${email ? ` (${email})` : ""}`,
         });
         return { imported, screened };
+      },
+
+      markMessageUnsubscribed: (messageId) => {
+        const prev = get().messages[messageId];
+        if (!prev) return;
+        set({
+          messages: {
+            ...get().messages,
+            [messageId]: { ...prev, unsubscribedAt: new Date().toISOString() },
+          },
+        });
       },
 
       addEvent: (event) => {

@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("lesMail", {
   loadAppState: () => ipcRenderer.invoke("app:loadState"),
   saveAppState: (payload) => ipcRenderer.invoke("app:saveState", payload),
   sendMail: (payload) => ipcRenderer.invoke("mail:send", payload),
+  unsubscribeMail: (payload) => ipcRenderer.invoke("mail:unsubscribe", payload),
   moveMessages: (payload) => ipcRenderer.invoke("mail:moveMessages", payload),
   deleteMessages: (payload) => ipcRenderer.invoke("mail:deleteMessages", payload),
   emptyFolder: (payload) => ipcRenderer.invoke("mail:emptyFolder", payload),

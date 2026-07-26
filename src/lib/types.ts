@@ -88,6 +88,14 @@ export interface Message {
   requestReadReceipt?: boolean;
   readReceipts?: ReadReceipt[];
   smtpMessageId?: string | null;
+  /** Raw List-Unsubscribe header when present */
+  listUnsubscribe?: string | null;
+  listUnsubscribePost?: string | null;
+  unsubscribeHttpUrl?: string | null;
+  unsubscribeMailto?: string | null;
+  unsubscribeOneClick?: boolean;
+  /** Set after a successful in-app unsubscribe */
+  unsubscribedAt?: string | null;
 }
 
 export interface Thread {

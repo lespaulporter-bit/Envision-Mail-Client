@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.15
+- **Unsubscribe** on email view when a list has a List-Unsubscribe / unsubscribe link.
+- One click runs silently in the background (one-click POST, HTTP, or mailto) — success shows a green ✓ **Unsubscribed**.
+- Button only appears when an unsubscribe link is available.
+
 ## 2.6.14
 - **Background mail sync no longer steals your screen** — editing templates, signatures, calendar events, compose, etc. stays put when mail checks run.
 - Sync refreshes mail data in place; it does not jump to MoneyBox / New Senders or wipe in-progress form drafts.

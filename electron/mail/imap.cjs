@@ -1,5 +1,6 @@
 const { ImapFlow } = require("imapflow");
 const { simpleParser } = require("mailparser");
+const { extractUnsubscribeInfo } = require("./unsubscribe.cjs");
 
 function formatImapError(err) {
   if (!err) return "Unknown IMAP error";
@@ -257,6 +258,7 @@ async function fetchFolderMessages(client, mailboxPath, account, { limit = 40, f
         threadId: "",
         receivedAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
       }));
+      const unsub = extractUnsubscribeInfo(parsed, html);
 
       messages.push({
         uid: msg.uid,
@@ -274,6 +276,11 @@ async function fetchFolderMessages(client, mailboxPath, account, { limit = 40, f
         seen: Boolean(msg.flags?.has("\\Seen")),
         attachments,
         trackersBlocked: extractTrackers(parsed.html || ""),
+        listUnsubscribe: unsub.listUnsubscribe,
+        listUnsubscribePost: unsub.listUnsubscribePost,
+        unsubscribeHttpUrl: unsub.unsubscribeHttpUrl,
+        unsubscribeMailto: unsub.unsubscribeMailto,
+        unsubscribeOneClick: unsub.unsubscribeOneClick,
       });
     }
   } finally {

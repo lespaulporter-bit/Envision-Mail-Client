@@ -141,11 +141,34 @@ export function Badge({ children, tone = "soft" }: { children: ReactNode; tone?:
   );
 }
 
-export function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+export function Toast({
+  message,
+  onClose,
+  tone,
+}: {
+  message: string;
+  onClose: () => void;
+  tone?: "default" | "success";
+}) {
+  const success =
+    tone === "success" || /^(✓|✔)\s*unsubscribed\b/i.test(message) || /^unsubscribed\b/i.test(message);
   return (
     <div className="animate-slide-up">
-      <div className="flex items-center gap-3 rounded-full bg-ink px-4 py-2.5 text-sm text-white shadow-lg">
-        <span>{message}</span>
+      <div
+        className={cn(
+          "flex items-center gap-2.5 rounded-full px-4 py-2.5 text-sm font-medium text-white shadow-lg",
+          success ? "bg-emerald-600" : "bg-ink",
+        )}
+      >
+        {success ? (
+          <span
+            className="grid h-5 w-5 place-items-center rounded-full bg-white/20 text-xs font-bold"
+            aria-hidden
+          >
+            ✓
+          </span>
+        ) : null}
+        <span>{message.replace(/^(✓|✔)\s*/u, "")}</span>
         <button type="button" className="opacity-70 hover:opacity-100" onClick={onClose}>
           ✕
         </button>
