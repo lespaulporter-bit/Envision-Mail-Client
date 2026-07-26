@@ -381,9 +381,8 @@ export function SettingsView() {
   const settings = useMailStore((s) => s.settings);
   const updateSettings = useMailStore((s) => s.updateSettings);
   const resetDemo = useMailStore((s) => s.resetDemo);
-  const [tab, setTab] = useState<"accounts" | "general" | "mail" | "appearance" | "templates" | "about">(
-    "accounts",
-  );
+  const tab = useMailStore((s) => s.settingsTab);
+  const setTab = useMailStore((s) => s.setSettingsTab);
   const [appVersion, setAppVersion] = useState("2.6.0");
   const [updateStatus, setUpdateStatus] = useState<{
     feedUrl: string;

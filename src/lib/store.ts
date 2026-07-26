@@ -72,6 +72,8 @@ interface UiState {
   };
   calendarDate: string;
   calendarView: "day" | "week" | "month" | "agenda";
+  /** Settings sub-tab — survives remounts so edits aren't lost after background sync */
+  settingsTab: "accounts" | "general" | "mail" | "appearance" | "templates" | "about";
   toast: string | null;
 }
 
@@ -101,6 +103,7 @@ interface Actions {
   ) => void;
   setCalendarDate: (isoDate: string) => void;
   setCalendarView: (v: UiState["calendarView"]) => void;
+  setSettingsTab: (tab: UiState["settingsTab"]) => void;
 
   screenContact: (
     email: string,
@@ -163,27 +166,33 @@ interface Actions {
   ) => void;
   rememberRecipients: (emails: string[], names?: Record<string, string>) => void;
   replyToEveryone: (threadIds: string[], body: string) => void;
-  importSyncedMail: (payload: {
-    accountId: string;
-    email: string;
-    displayName?: string;
-    messages: Array<{
-      uid: number;
-      folder?: "inbox" | "sent" | string;
-      from: string;
-      fromName: string;
-      to: string[];
-      subject: string;
-      bodyHtml: string;
-      bodyText: string;
-      sentAt: string;
-      seen: boolean;
-      attachments: Message["attachments"];
-      trackersBlocked: string[];
-      messageIdHeader?: string | null;
-      inReplyTo?: string | null;
-    }>;
-  }) => { imported: number; screened: number };
+  importSyncedMail: (
+    payload: {
+      accountId: string;
+      email: string;
+      displayName?: string;
+      messages: Array<{
+        uid: number;
+        folder?: "inbox" | "sent" | string;
+        from: string;
+        fromName: string;
+        to: string[];
+        subject: string;
+        bodyHtml: string;
+        bodyText: string;
+        sentAt: string;
+        seen: boolean;
+        attachments: Message["attachments"];
+        trackersBlocked: string[];
+        messageIdHeader?: string | null;
+        inReplyTo?: string | null;
+      }>;
+    },
+    opts?: {
+      /** Background poll — no toast spam; never steals the current screen. */
+      background?: boolean;
+    },
+  ) => { imported: number; screened: number };
 
   addEvent: (event: Omit<CalendarEvent, "id">) => void;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
@@ -355,6 +364,7 @@ export const useMailStore = create<MailStore>()(
       composeDraft: { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
       calendarDate: new Date().toISOString().slice(0, 10),
       calendarView: "week",
+      settingsTab: "accounts",
       toast: null,
 
       setView: (view) => set({ view, selectedThreadId: view === "thread" ? get().selectedThreadId : get().selectedThreadId }),
@@ -388,26 +398,39 @@ export const useMailStore = create<MailStore>()(
         get().switchAccount(inboxAccountId, { silent: true }),
       switchAccount: (accountId, meta) => {
         const prev = get().inboxAccountId;
-        if (prev === accountId && !meta?.email) {
-          set({ view: "lesbox" });
+        const silent = Boolean(meta?.silent);
+        const nextSettings = meta?.email
+          ? {
+              ...get().settings,
+              email: meta.email,
+              displayName: meta.name || meta.email.split("@")[0] || get().settings.displayName,
+            }
+          : get().settings;
+
+        // Same account — update profile only; never yank user out of Settings / Compose / Calendar
+        if (prev === accountId) {
+          if (meta?.email) {
+            set({
+              settings: nextSettings,
+              toast: silent ? get().toast : `Switched to ${meta.email}`,
+            });
+          }
           return;
         }
+
         set({
           inboxAccountId: accountId,
           selectedThreadId: null,
           multiOpenIds: [],
-          searchQuery: "",
-          selectedContactId: null,
-          composeDraft: { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
-          view: "lesbox",
-          settings: meta?.email
-            ? {
-                ...get().settings,
-                email: meta.email,
-                displayName: meta.name || meta.email.split("@")[0] || get().settings.displayName,
-              }
-            : get().settings,
-          toast: meta?.silent
+          // Silent switches (sync) must not wipe in-progress UI work
+          searchQuery: silent ? get().searchQuery : "",
+          selectedContactId: silent ? get().selectedContactId : null,
+          composeDraft: silent
+            ? get().composeDraft
+            : { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
+          view: silent ? get().view : "lesbox",
+          settings: nextSettings,
+          toast: silent
             ? get().toast
             : accountId && meta?.email
               ? `Switched to ${meta.email}`
@@ -454,6 +477,7 @@ export const useMailStore = create<MailStore>()(
       },
       setCalendarDate: (calendarDate) => set({ calendarDate }),
       setCalendarView: (calendarView) => set({ calendarView }),
+      setSettingsTab: (settingsTab) => set({ settingsTab }),
 
       screenContact: (email, decision, box = "lesbox") => {
         const activeId = get().inboxAccountId;
@@ -1004,9 +1028,10 @@ export const useMailStore = create<MailStore>()(
         set({ toast: `Replied to ${threadIds.length} emails` });
       },
 
-      importSyncedMail: ({ accountId, email, messages: incoming }) => {
+      importSyncedMail: ({ accountId, email, messages: incoming }, opts) => {
         let imported = 0;
         let screened = 0;
+        const background = Boolean(opts?.background);
         const state = get();
         let threads = [...state.threads];
         let contacts = [...state.contacts];
@@ -1228,36 +1253,22 @@ export const useMailStore = create<MailStore>()(
         threads = backfillImapAccountIds(threads, msgs);
         const keepActive = get().inboxAccountId;
 
-        if (screened > 0) {
-          set({
-            threads,
-            contacts,
-            messages: msgs,
-            settings,
-            // Stay on active account workspace; jump to New Senders for this account
-            inboxAccountId: keepActive || accountId,
-            view: "screener",
-            toast: `Synced ${imported} · ${screened} need New Senders review`,
-          });
-        } else if (imported > 0) {
-          set({
-            threads,
-            contacts,
-            messages: msgs,
-            settings,
-            inboxAccountId: keepActive || accountId,
-            view: keepActive && keepActive !== accountId ? get().view : "lesbox",
-            toast: `Synced ${imported} message${imported === 1 ? "" : "s"}${email ? ` (${email})` : ""}`,
-          });
-        } else {
-          set({
-            threads,
-            contacts,
-            messages: msgs,
-            settings,
-            toast: "Already up to date",
-          });
+        // Never change `view` on sync — that unmounted Settings/Compose/Calendar and wiped drafts.
+        if (imported === 0) {
+          if (!background) set({ toast: "Already up to date" });
+          return { imported: 0, screened: 0 };
         }
+
+        set({
+          threads,
+          contacts,
+          messages: msgs,
+          settings,
+          inboxAccountId: keepActive || accountId,
+          toast: screened > 0
+            ? `Synced ${imported} · ${screened} need New Senders review`
+            : `Synced ${imported} message${imported === 1 ? "" : "s"}${email ? ` (${email})` : ""}`,
+        });
         return { imported, screened };
       },
 

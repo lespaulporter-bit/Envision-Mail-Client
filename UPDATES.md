@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.14
+- **Background mail sync no longer steals your screen** — editing templates, signatures, calendar events, compose, etc. stays put when mail checks run.
+- Sync refreshes mail data in place; it does not jump to MoneyBox / New Senders or wipe in-progress form drafts.
+- Quiet when nothing new arrives (no “Already up to date” toast spam on auto-check).
+
 ## 2.6.13
 - **mailto: links stay in Envision Mail** — no longer hand off to Outlook (which was restoring unrelated draft text, including other people’s notes).
 - New mail from a link or **Write** always starts **blank** (body never prefilled). Only To / Cc / Bcc / Subject come from the link when present.

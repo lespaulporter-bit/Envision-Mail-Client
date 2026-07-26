@@ -265,16 +265,15 @@ export function AccountsPanel() {
         displayName: result.displayName,
         messages: result.messages,
       });
-      updateSettings({ email: result.email!, displayName: result.displayName || result.email! });
-      setStatusTone("ok");
+      // Refresh profile for this account without leaving Settings / wiping form drafts
       useMailStore.getState().switchAccount(id, {
         email: result.email!,
         name: result.displayName || result.email!,
         silent: true,
       });
+      setStatusTone("ok");
       if (stats.screened > 0) {
         setStatus(`Imported ${stats.imported} · ${stats.screened} in New Senders`);
-        useMailStore.getState().setView("screener");
       } else {
         setStatus(stats.imported ? `Imported ${stats.imported} for this account` : "Already up to date");
       }
@@ -871,7 +870,10 @@ export function AccountsPanel() {
   );
 }
 
-export async function syncDesktopAccount(accountId: string) {
+export async function syncDesktopAccount(
+  accountId: string,
+  opts?: { background?: boolean },
+) {
   const api = desktopApi();
   if (!api) return { synced: 0, screened: 0, imported: 0, ok: false as const };
   const importSyncedMail = useMailStore.getState().importSyncedMail;
@@ -881,13 +883,16 @@ export async function syncDesktopAccount(accountId: string) {
   if (!result.ok || !result.messages) {
     return { synced: 0, screened: 0, imported: 0, ok: false as const, error: result.error };
   }
-  const stats = importSyncedMail({
-    accountId: result.accountId!,
-    email: result.email!,
-    displayName: result.displayName,
-    messages: result.messages,
-  });
-  // Only update profile display when syncing the active account
+  const stats = importSyncedMail(
+    {
+      accountId: result.accountId!,
+      email: result.email!,
+      displayName: result.displayName,
+      messages: result.messages,
+    },
+    { background: opts?.background !== false },
+  );
+  // Only update profile display when syncing the active account (no navigation)
   if (!activeId || activeId === accountId) {
     updateSettings({ email: result.email!, displayName: result.displayName || result.email! });
   }
@@ -899,8 +904,9 @@ export async function syncDesktopAccount(accountId: string) {
   };
 }
 
-/** Sync only the active account (isolated workspace). */
-export async function syncActiveDesktopAccount() {
+/** Sync only the active account (isolated workspace). Background by default. */
+export async function syncActiveDesktopAccount(opts?: { background?: boolean }) {
+  const background = opts?.background !== false;
   const activeId = useMailStore.getState().inboxAccountId;
   const api = desktopApi();
   if (!api) return { synced: 0, screened: 0, imported: 0 };
@@ -912,9 +918,9 @@ export async function syncActiveDesktopAccount() {
       name: list[0].name,
       silent: true,
     });
-    return syncDesktopAccount(list[0].id);
+    return syncDesktopAccount(list[0].id, { background });
   }
-  return syncDesktopAccount(activeId);
+  return syncDesktopAccount(activeId, { background });
 }
 
 /** Background: sync every account’s mail into storage, without changing active workspace. */
@@ -930,12 +936,15 @@ export async function syncAllDesktopAccounts() {
   for (const a of list) {
     const result = await api.syncAccount(a.id);
     if (result.ok && result.messages) {
-      const stats = importSyncedMail({
-        accountId: result.accountId!,
-        email: result.email!,
-        displayName: result.displayName,
-        messages: result.messages,
-      });
+      const stats = importSyncedMail(
+        {
+          accountId: result.accountId!,
+          email: result.email!,
+          displayName: result.displayName,
+          messages: result.messages,
+        },
+        { background: true },
+      );
       synced += result.messages.length;
       if (!activeId || a.id === activeId) screened += stats.screened;
       imported += stats.imported;
