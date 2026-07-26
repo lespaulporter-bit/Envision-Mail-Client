@@ -27,6 +27,7 @@ import {
 } from "./reminders";
 import { normalizeSometimeTasks, weekStartKey } from "./sometime-tasks";
 import { mergeRecentRecipients } from "./recipient-suggest";
+import { parseMailtoUrl } from "./mailto";
 import { uid } from "./utils";
 
 export type AppView =
@@ -89,6 +90,15 @@ interface Actions {
     meta?: { email?: string; name?: string; silent?: boolean },
   ) => void;
   setCompose: (draft: Partial<UiState["composeDraft"]>) => void;
+  /**
+   * Open a brand-new compose. Always clears body.
+   * Pass a mailto: URL or partial fields — never carries over prior draft text.
+   */
+  startCompose: (
+    mailtoOrFields?:
+      | string
+      | Partial<{ to: string; cc: string; bcc: string; subject: string }>,
+  ) => void;
   setCalendarDate: (isoDate: string) => void;
   setCalendarView: (v: UiState["calendarView"]) => void;
 
@@ -407,6 +417,41 @@ export const useMailStore = create<MailStore>()(
         });
       },
       setCompose: (draft) => set({ composeDraft: { ...get().composeDraft, ...draft } }),
+      startCompose: (mailtoOrFields) => {
+        // Fresh slate every time — never reuse prior draft body (avoids leaked notes)
+        let to = "";
+        let cc = "";
+        let bcc = "";
+        let subject = "";
+        if (typeof mailtoOrFields === "string" && mailtoOrFields.trim()) {
+          const parsed = parseMailtoUrl(mailtoOrFields);
+          if (parsed) {
+            to = parsed.to;
+            cc = parsed.cc;
+            bcc = parsed.bcc;
+            subject = parsed.subject;
+          } else if (mailtoOrFields.includes("@") && !mailtoOrFields.includes("://")) {
+            to = mailtoOrFields.trim();
+          }
+        } else if (mailtoOrFields && typeof mailtoOrFields === "object") {
+          to = String(mailtoOrFields.to || "");
+          cc = String(mailtoOrFields.cc || "");
+          bcc = String(mailtoOrFields.bcc || "");
+          subject = String(mailtoOrFields.subject || "");
+        }
+        set({
+          composeDraft: {
+            to,
+            cc,
+            bcc,
+            subject,
+            body: "",
+            replyToThreadId: null,
+          },
+          view: "compose",
+          selectedThreadId: null,
+        });
+      },
       setCalendarDate: (calendarDate) => set({ calendarDate }),
       setCalendarView: (calendarView) => set({ calendarView }),
 

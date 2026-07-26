@@ -856,6 +856,7 @@ export function SearchView() {
 export function ComposeView() {
   const composeDraft = useMailStore((s) => s.composeDraft);
   const setCompose = useMailStore((s) => s.setCompose);
+  const startCompose = useMailStore((s) => s.startCompose);
   const sendNewEmail = useMailStore((s) => s.sendNewEmail);
   const signatures = useMailStore((s) => s.signatures || []);
   const settings = useMailStore((s) => s.settings);
@@ -999,10 +1000,24 @@ export function ComposeView() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 pb-36 md:px-8">
-      <SectionHeader title="Compose" subtitle="SMTP send with To, Cc, Bcc, signatures, and optional read receipts." />
+      <SectionHeader
+        title="Compose"
+        subtitle="New messages start blank — links only fill To/Cc/Bcc/Subject, never the body."
+      />
       <div className="sticky top-0 z-30 mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white/95 p-3 shadow-sm backdrop-blur">
         <Button disabled={sending} onClick={() => void doSend()}>
           {sending ? "Sending…" : "Send via SMTP"}
+        </Button>
+        <Button
+          type="button"
+          variant="soft"
+          disabled={sending}
+          onClick={() => {
+            startCompose();
+            setToast("Draft cleared");
+          }}
+        >
+          Discard
         </Button>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={requestReceipt} onChange={(e) => setRequestReceipt(e.target.checked)} />

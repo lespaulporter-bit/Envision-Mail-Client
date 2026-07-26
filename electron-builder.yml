@@ -2,6 +2,10 @@ appId: app.envisionmail.desktop
 productName: Envision Mail
 copyright: Copyright © 2026 Envision Mail
 asar: true
+protocols:
+  - name: Envision Mail
+    schemes:
+      - mailto
 asarUnpack:
   - "**/*.{node,dll,dylib,so}"
 directories:

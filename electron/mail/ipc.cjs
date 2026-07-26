@@ -367,7 +367,19 @@ function registerMailIpc() {
   });
 
   ipcMain.handle("shell:openExternal", async (_e, url) => {
-    await shell.openExternal(url);
+    const raw = String(url || "").trim();
+    // Never hand mailto: to Outlook / system mail — compose stays inside Envision Mail
+    if (/^mailto:/i.test(raw)) {
+      const { BrowserWindow } = require("electron");
+      const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+      if (win && !win.isDestroyed()) {
+        win.webContents.send("mail:open-mailto", raw);
+        if (win.isMinimized()) win.restore();
+        win.focus();
+      }
+      return { ok: true, mailto: true };
+    }
+    await shell.openExternal(raw);
     return { ok: true };
   });
 }

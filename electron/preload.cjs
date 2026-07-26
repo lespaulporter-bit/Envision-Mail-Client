@@ -42,4 +42,9 @@ contextBridge.exposeInMainWorld("lesMail", {
     ipcRenderer.on("app:open-settings", listener);
     return () => ipcRenderer.removeListener("app:open-settings", listener);
   },
+  onOpenMailto: (cb) => {
+    const listener = (_e, url) => cb(String(url || ""));
+    ipcRenderer.on("mail:open-mailto", listener);
+    return () => ipcRenderer.removeListener("mail:open-mailto", listener);
+  },
 });

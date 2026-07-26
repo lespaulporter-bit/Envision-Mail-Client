@@ -3,6 +3,7 @@
 import { CoverArt } from "@/components/CoverArt";
 import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
+import { MailHtml } from "@/components/MailHtml";
 import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
 import { desktopApi } from "@/lib/desktop";
 import { selectBoxThreads, selectDockThreads, useMailStore } from "@/lib/store";
@@ -277,10 +278,7 @@ function ScreenerCard({
       </div>
       {hasBody ? (
         expanded ? (
-          <div
-            className="prose-mail mt-3 rounded-xl bg-soft p-4 text-sm"
-            dangerouslySetInnerHTML={{ __html: bodyHtml }}
-          />
+          <MailHtml className="mt-3 rounded-xl bg-soft p-4 text-sm" html={bodyHtml} />
         ) : (
           <div className="mt-3 rounded-xl bg-soft p-4 text-sm text-ink">
             <p className="line-clamp-4 whitespace-pre-wrap">{plainSummary}</p>
@@ -705,9 +703,7 @@ export function FocusReplyView() {
         <p className="mt-1 text-sm text-muted">
           {current.contactName} · {current.contactEmail}
         </p>
-        {last ? (
-          <div className="prose-mail mt-4 rounded-xl bg-soft p-4" dangerouslySetInnerHTML={{ __html: last.bodyHtml }} />
-        ) : null}
+        {last ? <MailHtml className="mt-4 rounded-xl bg-soft p-4" html={last.bodyHtml} /> : null}
         <div className="mt-4">
           <EmailTemplatePickers
             showSubjectTemplates={false}

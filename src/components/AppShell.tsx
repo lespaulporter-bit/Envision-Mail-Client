@@ -103,6 +103,7 @@ export function AppShell() {
   const hydrated = useHydrated();
   const view = useMailStore((s) => s.view);
   const setView = useMailStore((s) => s.setView);
+  const startCompose = useMailStore((s) => s.startCompose);
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const toast = useMailStore((s) => s.toast);
@@ -114,7 +115,7 @@ export function AppShell() {
   const rolloverSometimeTasks = useMailStore((s) => s.rolloverSometimeTasks);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("2.6.0");
+  const [appVersion, setAppVersion] = useState("2.6.13");
 
   const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
   const scoped = inboxAccountId;
@@ -172,12 +173,18 @@ export function AppShell() {
       })();
     });
     const offSettings = api.onOpenSettings(() => setView("settings"));
+    const offMailto = api.onOpenMailto
+      ? api.onOpenMailto((url) => {
+          startCompose(url);
+        })
+      : () => {};
     return () => {
       offUninstall();
       offSync();
       offSettings();
+      offMailto();
     };
-  }, [setView, switchAccount]);
+  }, [setView, switchAccount, startCompose]);
 
   useEffect(() => {
     if (!isDesktop()) return;
@@ -267,7 +274,7 @@ export function AppShell() {
           )}
         </div>
         <div className="space-y-1 p-2">
-          <Button className="w-full justify-start" onClick={() => setView("compose")}>
+          <Button className="w-full justify-start" onClick={() => startCompose()}>
             <PenSquare className="h-4 w-4" /> Write
           </Button>
           {isDesktop() ? (

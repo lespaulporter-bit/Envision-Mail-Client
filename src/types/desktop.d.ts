@@ -179,6 +179,8 @@ export interface LesMailDesktopApi {
   onRequestUninstall: (cb: () => void) => () => void;
   onRequestSync: (cb: () => void) => () => void;
   onOpenSettings: (cb: () => void) => () => void;
+  /** System / in-app mailto: → open blank Envision compose (To only from the link). */
+  onOpenMailto: (cb: (url: string) => void) => () => void;
 }
 
 declare global {

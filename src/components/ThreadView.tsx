@@ -2,6 +2,7 @@
 
 import { Avatar, Badge, Button, Input, Textarea } from "@/components/ui";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
+import { MailHtml } from "@/components/MailHtml";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
@@ -400,7 +401,7 @@ export function ThreadView() {
                 <Badge tone="salmon">{m.trackersBlocked.length} tracker{m.trackersBlocked.length > 1 ? "s" : ""} blocked</Badge>
               ) : null}
             </div>
-            <div className="prose-mail text-[15px]" dangerouslySetInnerHTML={{ __html: m.bodyHtml }} />
+            <MailHtml className="text-[15px]" html={m.bodyHtml} />
             {m.attachments.length > 0 && (
               <ul className="mt-4 space-y-2">
                 {m.attachments.map((a) => (

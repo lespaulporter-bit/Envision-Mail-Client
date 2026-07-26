@@ -48,6 +48,40 @@ const MIN_HEIGHT = 560;
 let mainWindow = null;
 let staticServer = null;
 let staticPort = 0;
+/** mailto: received before the renderer is ready */
+let pendingMailto = null;
+
+function isMailtoUrl(url) {
+  return /^mailto:/i.test(String(url || "").trim());
+}
+
+function deliverMailto(url) {
+  const raw = String(url || "").trim();
+  if (!isMailtoUrl(raw)) return false;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("mail:open-mailto", raw);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    pendingMailto = null;
+    return true;
+  }
+  pendingMailto = raw;
+  return true;
+}
+
+function registerMailtoProtocolClient() {
+  try {
+    if (process.defaultApp) {
+      if (process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient("mailto", process.execPath, [path.resolve(process.argv[1])]);
+      }
+    } else {
+      app.setAsDefaultProtocolClient("mailto");
+    }
+  } catch (err) {
+    console.warn("mailto protocol registration:", err);
+  }
+}
 
 function getOutDir() {
   if (isDev) return path.join(__dirname, "..", "out");
@@ -150,8 +184,27 @@ function createWindow(startUrl) {
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isMailtoUrl(url)) {
+      deliverMailto(url);
+      return { action: "deny" };
+    }
     shell.openExternal(url);
     return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (isMailtoUrl(url)) {
+      event.preventDefault();
+      deliverMailto(url);
+      return;
+    }
+    // Keep the app on its local server; open http(s) externally
+    if (/^https?:/i.test(url) && !url.startsWith(`http://127.0.0.1:${staticPort}`)) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+  mainWindow.webContents.on("did-finish-load", () => {
+    if (pendingMailto) deliverMailto(pendingMailto);
   });
   mainWindow.loadURL(startUrl);
   mainWindow.on("closed", () => {
@@ -256,14 +309,31 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
+  // macOS: cold-start / click mailto: while running
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    deliverMailto(url);
+  });
+
+  app.on("second-instance", (_event, argv) => {
+    const mailtoArg = (argv || []).find((a) => isMailtoUrl(a));
+    if (mailtoArg) deliverMailto(mailtoArg);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
   });
 
+  // Capture mailto from argv before ready (Windows / Linux)
+  for (const arg of process.argv) {
+    if (isMailtoUrl(arg)) {
+      pendingMailto = arg;
+      break;
+    }
+  }
+
   app.whenReady().then(async () => {
+    registerMailtoProtocolClient();
     try {
       const mig = migrateFromLesMail();
       if (mig && (mig.accounts || mig.localStorage)) {

@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.13
+- **mailto: links stay in Envision Mail** — no longer hand off to Outlook (which was restoring unrelated draft text, including other people’s notes).
+- New mail from a link or **Write** always starts **blank** (body never prefilled). Only To / Cc / Bcc / Subject come from the link when present.
+- Compose **Discard** clears the draft. App can register as the system mailto handler.
+
 ## 2.6.12
 - **Teams meetings**: no more fake join links. Creates meetings only via **Microsoft Teams installed on this computer**, signed in as **you**.
 - If Teams isn’t installed, the option is disabled with clear guidance.

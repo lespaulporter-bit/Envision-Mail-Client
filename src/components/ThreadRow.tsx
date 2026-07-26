@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar, Badge, Button } from "@/components/ui";
+import { MailHtml } from "@/components/MailHtml";
 import { useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
 import type { Thread } from "@/lib/types";
@@ -123,10 +124,7 @@ export function ThreadRow({
             <p className="mt-1 line-clamp-2 text-sm text-muted">{previewText(last.bodyHtml, openBody ? 280 : 140)}</p>
           ) : null}
           {openBody && last ? (
-            <div
-              className="prose-mail mt-3 rounded-xl bg-soft/80 p-4 text-sm text-ink"
-              dangerouslySetInnerHTML={{ __html: last.bodyHtml }}
-            />
+            <MailHtml className="mt-3 rounded-xl bg-soft/80 p-4 text-sm text-ink" html={last.bodyHtml} />
           ) : null}
         </div>
       </button>
