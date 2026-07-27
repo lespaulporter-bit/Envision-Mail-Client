@@ -4,6 +4,7 @@ import { CoverArt } from "@/components/CoverArt";
 import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { MailHtml } from "@/components/MailHtml";
+import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
 import { selectBoxThreads, selectDockThreads, useMailStore } from "@/lib/store";
@@ -374,6 +375,7 @@ function ScreenerCard({
             {expanded ? "Collapse" : "Expand"}
           </Button>
         ) : null}
+        <UnsubscribeButton thread={thread} messageId={last?.id} />
         <Button onClick={onAllow}>
           Allow → {boxChoice === "lesbox" ? "MoneyBox $" : boxChoice === "feed" ? "Feed" : "Receipts"}
         </Button>
@@ -397,12 +399,14 @@ export function ScreenerView() {
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const screenContact = useMailStore((s) => s.screenContact);
   const markSpam = useMailStore((s) => s.markSpam);
+  const setToast = useMailStore((s) => s.setToast);
   const list = useMemo(
-    () => selectBoxThreads(threads, "screener", { accountId: inboxAccountId }),
-    [threads, inboxAccountId],
+    () => selectBoxThreads(threads, "screener", { accountId: inboxAccountId, messages }),
+    [threads, inboxAccountId, messages],
   );
   const [boxChoice, setBoxChoice] = useState<"lesbox" | "feed" | "paper_trail">("lesbox");
   const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+  const [unsubBusy, setUnsubBusy] = useState(false);
 
   const allowAllVisible = () => {
     const seen = new Set<string>();
@@ -414,6 +418,45 @@ export function ScreenerView() {
     }
   };
 
+  const unsubscribeAllWithLinks = () => {
+    void (async () => {
+      const { findUnsubscribeForThread, performSilentUnsubscribe } = await import(
+        "@/lib/unsubscribe-action"
+      );
+      setUnsubBusy(true);
+      let ok = 0;
+      let skipped = 0;
+      try {
+        const seen = new Set<string>();
+        for (const t of list) {
+          const key = t.contactEmail.toLowerCase();
+          if (seen.has(key)) continue;
+          const candidate = findUnsubscribeForThread(t, messages);
+          if (!candidate?.targets || candidate.message.unsubscribedAt) {
+            skipped += 1;
+            continue;
+          }
+          seen.add(key);
+          // eslint-disable-next-line no-await-in-loop
+          const result = await performSilentUnsubscribe({
+            thread: t,
+            candidate,
+            accountId: inboxAccountId || t.accountId,
+          });
+          if (result.ok && !result.already) ok += 1;
+          else skipped += 1;
+        }
+        setToast(
+          ok > 0
+            ? `✓ Unsubscribed from ${ok} sender${ok === 1 ? "" : "s"}${skipped ? ` · ${skipped} skipped` : ""}`
+            : "No unsubscribe links found on visible New Senders",
+        );
+      } finally {
+        setUnsubBusy(false);
+      }
+    })();
+  };
+
   const toggleExpanded = (id: string) => {
     setExpandedById((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -422,7 +465,7 @@ export function ScreenerView() {
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="New Senders"
-        subtitle="New synced senders wait here. Allow them into MoneyBox $, Newsstand, or Receipts — or block."
+        subtitle="Screen unknown senders — Allow, Block, or Unsubscribe from their lists before they reach MoneyBox $."
         actions={
           <>
             <label className="flex items-center gap-2 text-sm text-muted">
@@ -438,9 +481,14 @@ export function ScreenerView() {
               </select>
             </label>
             {list.length > 0 ? (
-              <Button size="sm" variant="soft" onClick={allowAllVisible}>
-                Allow all visible to MoneyBox $
-              </Button>
+              <>
+                <Button size="sm" variant="soft" disabled={unsubBusy} onClick={unsubscribeAllWithLinks}>
+                  {unsubBusy ? "Unsubscribing…" : "Unsubscribe all with links"}
+                </Button>
+                <Button size="sm" variant="soft" onClick={allowAllVisible}>
+                  Allow all visible to MoneyBox $
+                </Button>
+              </>
             ) : null}
           </>
         }
@@ -532,38 +580,85 @@ export function SentView() {
 
 export function SpamView() {
   const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const setToast = useMailStore((s) => s.setToast);
   const [busy, setBusy] = useState(false);
+  const [unsubBusy, setUnsubBusy] = useState(false);
   const list = useMemo(
-    () => selectBoxThreads(threads, "spam", { accountId: inboxAccountId }),
-    [threads, inboxAccountId],
+    () => selectBoxThreads(threads, "spam", { accountId: inboxAccountId, messages }),
+    [threads, inboxAccountId, messages],
   );
+
+  const unsubscribeAllWithLinks = () => {
+    void (async () => {
+      const { findUnsubscribeForThread, performSilentUnsubscribe } = await import(
+        "@/lib/unsubscribe-action"
+      );
+      setUnsubBusy(true);
+      let ok = 0;
+      let skipped = 0;
+      try {
+        const seen = new Set<string>();
+        for (const t of list) {
+          const key = t.contactEmail.toLowerCase();
+          if (seen.has(key)) continue;
+          const candidate = findUnsubscribeForThread(t, messages);
+          if (!candidate?.targets || candidate.message.unsubscribedAt) {
+            skipped += 1;
+            continue;
+          }
+          seen.add(key);
+          // eslint-disable-next-line no-await-in-loop
+          const result = await performSilentUnsubscribe({
+            thread: t,
+            candidate,
+            accountId: inboxAccountId || t.accountId,
+          });
+          if (result.ok && !result.already) ok += 1;
+          else skipped += 1;
+        }
+        setToast(
+          ok > 0
+            ? `✓ Unsubscribed from ${ok} spam sender${ok === 1 ? "" : "s"}${skipped ? ` · ${skipped} skipped` : ""}`
+            : "No unsubscribe links found in Spam",
+        );
+      } finally {
+        setUnsubBusy(false);
+      }
+    })();
+  };
 
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="Spam"
-        subtitle="Junk from your provider’s Spam/Junk folder, plus senders you’ve blocked."
+        subtitle="Junk from your provider’s Spam/Junk folder, plus senders you’ve blocked. Unsubscribe before you empty."
         actions={
           list.length > 0 ? (
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={busy}
-              onClick={() => {
-                void (async () => {
-                  setBusy(true);
-                  try {
-                    const { emptySpamFolder } = await import("@/lib/mail-delete");
-                    await emptySpamFolder();
-                  } finally {
-                    setBusy(false);
-                  }
-                })();
-              }}
-            >
-              Empty Spam
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="soft" disabled={unsubBusy} onClick={unsubscribeAllWithLinks}>
+                {unsubBusy ? "Unsubscribing…" : "Unsubscribe all with links"}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={busy}
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    try {
+                      const { emptySpamFolder } = await import("@/lib/mail-delete");
+                      await emptySpamFolder();
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
+                }}
+              >
+                Empty Spam
+              </Button>
+            </div>
           ) : null
         }
       />
@@ -574,40 +669,45 @@ export function SpamView() {
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
-          {list.map((t) => (
-            <div key={t.id} className="border-b border-line last:border-b-0">
-              <ThreadRow thread={t} />
-              <div className="flex flex-wrap gap-2 px-4 pb-3">
-                <Button
-                  size="sm"
-                  variant="soft"
-                  onClick={() => {
-                    useMailStore.getState().unblockSender(t.contactEmail, "lesbox");
-                  }}
-                >
-                  Unblock · Not spam → MoneyBox $
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  disabled={busy}
-                  onClick={() => {
-                    void (async () => {
-                      setBusy(true);
-                      try {
-                        const { permanentlyDeleteThread } = await import("@/lib/mail-delete");
-                        await permanentlyDeleteThread(t.id);
-                      } finally {
-                        setBusy(false);
-                      }
-                    })();
-                  }}
-                >
-                  Delete forever
-                </Button>
+          {list.map((t) => {
+            const lastId = t.messageIds[t.messageIds.length - 1];
+            const last = lastId ? messages[lastId] : undefined;
+            return (
+              <div key={t.id} className="border-b border-line last:border-b-0">
+                <ThreadRow thread={t} />
+                <div className="flex flex-wrap gap-2 px-4 pb-3">
+                  <UnsubscribeButton thread={t} messageId={last?.id} />
+                  <Button
+                    size="sm"
+                    variant="soft"
+                    onClick={() => {
+                      useMailStore.getState().unblockSender(t.contactEmail, "lesbox");
+                    }}
+                  >
+                    Unblock · Not spam → MoneyBox $
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={busy}
+                    onClick={() => {
+                      void (async () => {
+                        setBusy(true);
+                        try {
+                          const { permanentlyDeleteThread } = await import("@/lib/mail-delete");
+                          await permanentlyDeleteThread(t.id);
+                        } finally {
+                          setBusy(false);
+                        }
+                      })();
+                    }}
+                  >
+                    Delete forever
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

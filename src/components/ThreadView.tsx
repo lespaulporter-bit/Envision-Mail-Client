@@ -5,7 +5,7 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { MailHtml } from "@/components/MailHtml";
 import { PriorEmailsPanel } from "@/components/PriorEmailsPanel";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
-import { UnsubscribeFollowUpDialog } from "@/components/UnsubscribeFollowUpDialog";
+import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { threadBelongsToAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
@@ -17,12 +17,9 @@ import {
   deleteThreadSmart,
   permanentlyDeleteThread,
   restoreThreadFromTrash,
-  trashAllFromSenderSmart,
 } from "@/lib/mail-delete";
 import { useEffect, useMemo, useState } from "react";
 import { bodyToHtml } from "@/lib/html-body";
-import { resolveUnsubscribeTargets } from "@/lib/unsubscribe";
-import { Check } from "lucide-react";
 
 export function ThreadView() {
   const threadId = useMailStore((s) => s.selectedThreadId);
@@ -49,7 +46,6 @@ export function ThreadView() {
   const toggleThreadNotify = useMailStore((s) => s.toggleThreadNotify);
   const toggleBundleContact = useMailStore((s) => s.toggleBundleContact);
   const mergeThreads = useMailStore((s) => s.mergeThreads);
-  const markMessageUnsubscribed = useMailStore((s) => s.markMessageUnsubscribed);
   const setView = useMailStore((s) => s.setView);
   const setToast = useMailStore((s) => s.setToast);
 
@@ -64,9 +60,6 @@ export function ThreadView() {
   const [accountId, setAccountId] = useState("");
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [unsubBusy, setUnsubBusy] = useState(false);
-  const [unsubFlash, setUnsubFlash] = useState(false);
-  const [unsubFollowUp, setUnsubFollowUp] = useState<{ email: string; name: string } | null>(null);
   const [signatureId, setSignatureId] = useState("");
   const [requestReceipt, setRequestReceipt] = useState(true);
   const [brandsTick, setBrandsTick] = useState(0);
@@ -101,22 +94,6 @@ export function ThreadView() {
     () => (threadId ? getThreadMessages(threadId) : []),
     [threadId, getThreadMessages, threads, storeMessages],
   );
-
-  const unsubscribeTarget = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const m = messages[i];
-      if (m.isOutgoing) continue;
-      const targets = resolveUnsubscribeTargets(m);
-      if (targets || m.unsubscribedAt) return { message: m, targets };
-    }
-    // Always offer Unsubscribe for inbound mail — even if headers weren't stored yet
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      if (!messages[i].isOutgoing) {
-        return { message: messages[i], targets: null as ReturnType<typeof resolveUnsubscribeTargets> };
-      }
-    }
-    return null;
-  }, [messages]);
 
   if (!thread) {
     return (
@@ -252,74 +229,7 @@ export function ThreadView() {
         >
           {thread.muted ? "Muted ✓" : "Mute"}
         </Button>
-        {unsubscribeTarget ? (
-          <Button
-            size="sm"
-            variant={unsubscribeTarget.message.unsubscribedAt || unsubFlash ? "primary" : "soft"}
-            className={cn(
-              (unsubscribeTarget.message.unsubscribedAt || unsubFlash) &&
-                "bg-emerald-600 text-white hover:bg-emerald-700 ring-2 ring-emerald-500/30",
-            )}
-            disabled={
-              unsubBusy || Boolean(unsubscribeTarget.message.unsubscribedAt) || unsubFlash
-            }
-            title={
-              unsubscribeTarget.targets
-                ? "Silently unsubscribe using the list’s unsubscribe link"
-                : "No unsubscribe link found on this email yet — try after sync, or open the message body"
-            }
-            onClick={() => {
-              void (async () => {
-                const api = desktopApi();
-                const targets = unsubscribeTarget.targets;
-                if (!targets) {
-                  setToast("No unsubscribe link on this email");
-                  return;
-                }
-                if (!api?.unsubscribeMail) {
-                  setToast("Unsubscribe needs the Envision Mail desktop app");
-                  return;
-                }
-                setUnsubBusy(true);
-                try {
-                  const result = await api.unsubscribeMail({
-                    accountId: accountId || inboxAccountId || thread.accountId || undefined,
-                    unsubscribeHttpUrl: targets.httpUrl,
-                    unsubscribeMailto: targets.mailto,
-                    unsubscribeOneClick: targets.oneClick,
-                  });
-                  if (!result.ok) {
-                    setToast(result.error || "Unsubscribe failed");
-                    return;
-                  }
-                  markMessageUnsubscribed(unsubscribeTarget.message.id);
-                  setUnsubFlash(true);
-                  setToast("✓ Unsubscribed");
-                  setUnsubFollowUp({
-                    email: thread.contactEmail,
-                    name: thread.contactName || thread.contactEmail,
-                  });
-                  window.setTimeout(() => setUnsubFlash(false), 3200);
-                } catch (err) {
-                  setToast(err instanceof Error ? err.message : "Unsubscribe failed");
-                } finally {
-                  setUnsubBusy(false);
-                }
-              })();
-            }}
-          >
-            {unsubscribeTarget.message.unsubscribedAt || unsubFlash ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                Unsubscribed
-              </span>
-            ) : unsubBusy ? (
-              "Unsubscribing…"
-            ) : (
-              "Unsubscribe"
-            )}
-          </Button>
-        ) : null}
+        <UnsubscribeButton thread={thread} />
         {contact?.status === "blocked" ? (
           <Button
             size="sm"
@@ -782,33 +692,6 @@ export function ThreadView() {
           </div>
         </div>
       </div>
-
-      {unsubFollowUp ? (
-        <UnsubscribeFollowUpDialog
-          senderEmail={unsubFollowUp.email}
-          senderName={unsubFollowUp.name}
-          onDismiss={() => setUnsubFollowUp(null)}
-          onTrash={() => {
-            const email = unsubFollowUp.email;
-            setUnsubFollowUp(null);
-            void trashAllFromSenderSmart(email);
-          }}
-          onBlock={() => {
-            const email = unsubFollowUp.email;
-            setUnsubFollowUp(null);
-            void blockAllFromSenderSmart(email);
-          }}
-          onBoth={() => {
-            const email = unsubFollowUp.email;
-            setUnsubFollowUp(null);
-            void (async () => {
-              await trashAllFromSenderSmart(email);
-              await blockAllFromSenderSmart(email);
-              useMailStore.getState().setToast(`✓ Unsubscribed · trashed & blocked ${email}`);
-            })();
-          }}
-        />
-      ) : null}
     </div>
   );
 }

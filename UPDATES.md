@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.27
+- **Unsubscribe in New Senders and Spam** — same silent unsubscribe + trash/block follow-up as reading an email.
+- **Unsubscribe all with links** bulk action on New Senders and Spam.
+- MoneyBox hover actions also offer Unsubscribe; shared control used across modules.
+
 ## 2.6.26
 - **Snooze / On Hold badges update immediately** when you mark mail — sidebar counts stay in sync (and toast shows the new total).
 - Fixed a bug that hid Snooze/On Hold counts when message bodies weren’t loaded yet, and that cleared those flags on reload.

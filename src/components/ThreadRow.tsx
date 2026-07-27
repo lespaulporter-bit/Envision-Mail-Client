@@ -1,5 +1,6 @@
 "use client";
 
+import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Avatar, Badge, Button } from "@/components/ui";
 import { MailHtml } from "@/components/MailHtml";
 import { useMailStore } from "@/lib/store";
@@ -14,11 +15,14 @@ export function ThreadRow({
   compact,
   openBody,
   showReadReceipt,
+  showUnsubscribe,
 }: {
   thread: Thread;
   compact?: boolean;
   openBody?: boolean;
   showReadReceipt?: boolean;
+  /** Show Unsubscribe in the hover action strip (MoneyBox, Feed, etc.). */
+  showUnsubscribe?: boolean;
 }) {
   const messages = useMailStore((s) => s.messages);
   const contacts = useMailStore((s) => s.contacts);
@@ -129,6 +133,9 @@ export function ThreadRow({
         </div>
       </button>
       <div className="absolute right-3 top-3 hidden gap-1 group-hover:flex">
+        {(showUnsubscribe || thread.box === "screener" || thread.box === "spam" || thread.box === "lesbox") ? (
+          <UnsubscribeButton thread={thread} messageId={last?.id} />
+        ) : null}
         <Button
           size="sm"
           variant={selected ? "primary" : "soft"}
