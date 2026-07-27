@@ -4,7 +4,7 @@
 |---|---|
 | New Senders (allow / block + box routing) | Done |
 | MoneyBox $ + Fresh / Seen | Done |
-| Newsstand | Done |
+| Screening | Done |
 | Receipts | Done |
 | Snooze | Done |
 | On Hold | Done |

@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 const features = [
-  { title: "New Senders", body: "Screen first-time senders. Allow into MoneyBox $, Newsstand, or Receipts — or block." },
-  { title: "MoneyBox $", body: "Fresh mail on top, Day Cover for what’s already seen, Clear New to knock them out." },
+  { title: "Screening", body: "New senders land here. Allow → MoneyBox $ forever — or leave them in Screening." },
+  { title: "MoneyBox $", body: "Fresh mail on top from senders you’ve allowed. Day Cover for what’s already seen." },
+  { title: "New Senders", body: "First-time senders waiting for a decision — same Allow → MoneyBox $ forever action." },
   { title: "Snooze & On Hold", body: "Park replies for later or hold a thread without losing it." },
   { title: "Calendar + Day Cover", body: "Events, habits, countdowns, and Teams invites alongside your mail." },
   { title: "HTML signatures", body: "Paste your Outlook/Gmail signature — formatting and links stay intact." },
@@ -114,8 +115,8 @@ export default function HomePage() {
             <h2 className="font-display text-4xl">How Envision Mail works</h2>
             <div className="mt-8 grid gap-6 md:grid-cols-3">
               {[
-                ["MoneyBox $", "Important email from people and services you want to hear from."],
-                ["Newsstand", "Newsletters already open — scroll when you feel like it."],
+                ["MoneyBox $", "Mail from senders you’ve Allowed — they live here forever."],
+                ["Screening", "New and unapproved senders wait here until you Allow → MoneyBox $."],
                 ["Receipts", "Confirmations and invoices waiting when you need them."],
               ].map(([title, body]) => (
                 <article key={title} className="rounded-2xl border border-line bg-white p-6 shadow-sm">

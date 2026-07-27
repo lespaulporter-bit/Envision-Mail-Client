@@ -322,7 +322,7 @@ export function boxLabel(box: Box | string): string {
   const b = normalizeBox(box);
   if (b === "lesbox") return "MoneyBox $";
   if (b === "paper_trail") return "Receipts";
-  if (b === "feed") return "Newsstand";
+  if (b === "feed") return "Screening";
   if (b === "screener") return "New Senders";
   if (b === "sent") return "Sent";
   if (b === "spam") return "Spam";

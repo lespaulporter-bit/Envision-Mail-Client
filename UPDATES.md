@@ -1,5 +1,11 @@
 # Envision Mail updates
 
+## 2.6.28
+- **Newsstand → Screening**: new/unapproved senders land in Screening by default (not MoneyBox).
+- **Allow → MoneyBox $ forever**: that email and all future mail from the sender go to MoneyBox automatically.
+- Without Allow, mail stays in **Screening** forever; **New Senders** lists pending first-time senders for the same decision.
+- Sync re-applies forever routing so allowed senders never drift back into Screening.
+
 ## 2.6.27
 - **Unsubscribe in New Senders and Spam** — same silent unsubscribe + trash/block follow-up as reading an email.
 - **Unsubscribe all with links** bulk action on New Senders and Spam.

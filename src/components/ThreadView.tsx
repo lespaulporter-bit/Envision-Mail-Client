@@ -120,7 +120,7 @@ export function ThreadView() {
   return (
     <div className="mx-auto max-w-3xl animate-fade-in px-4 py-6 md:px-8">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => setView(thread.box === "feed" ? "feed" : thread.box === "paper_trail" ? "paper_trail" : "lesbox")}>
+        <Button variant="ghost" size="sm" onClick={() => setView(thread.box === "feed" || thread.box === "screener" ? "feed" : thread.box === "paper_trail" ? "paper_trail" : "lesbox")}>
           ← Back
         </Button>
         <Badge tone="blurple">{thread.box.replace("_", " ")}</Badge>
@@ -243,16 +243,31 @@ export function ThreadView() {
             Unblock sender
           </Button>
         ) : (
-          <Button
-            size="sm"
-            variant="soft"
-            title="Block this sender forever — future mail goes to Spam (you can Unblock later)"
-            onClick={() => {
-              void blockAllFromSenderSmart(thread.contactEmail);
-            }}
-          >
-            Block forever
-          </Button>
+          <>
+            {contact?.status !== "allowed" ||
+            thread.box === "feed" ||
+            thread.box === "screener" ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  useMailStore.getState().screenContact(thread.contactEmail, "allow", "lesbox");
+                }}
+                title="This sender’s mail goes to MoneyBox $ forever"
+              >
+                Allow → MoneyBox $
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              variant="soft"
+              title="Block this sender forever — future mail goes to Spam (you can Unblock later)"
+              onClick={() => {
+                void blockAllFromSenderSmart(thread.contactEmail);
+              }}
+            >
+              Block forever
+            </Button>
+          </>
         )}
         <Button
           size="sm"
@@ -268,7 +283,7 @@ export function ThreadView() {
           → MoneyBox $
         </Button>
         <Button size="sm" variant="soft" onClick={() => moveThread(thread.id, "feed")}>
-          → Feed
+          → Screening
         </Button>
         <Button size="sm" variant="soft" onClick={() => moveThread(thread.id, "paper_trail")}>
           → Receipts

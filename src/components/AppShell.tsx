@@ -33,6 +33,8 @@ import { desktopApi, isDesktop } from "@/lib/desktop";
 import {
   selectBoxThreads,
   selectDockThreads,
+  selectNewSenderThreads,
+  selectScreeningThreads,
   useMailStore,
   type AppView,
 } from "@/lib/store";
@@ -72,9 +74,9 @@ const nav: {
   pastelActive?: string;
 }[] = [
   { id: "lesbox", label: "MoneyBox $", icon: Inbox, countKey: "lesbox", pastel: "bg-[#d6e8ff]", pastelActive: "bg-[#b8d6ff]" },
-  { id: "feed", label: "Newsstand", icon: Newspaper, countKey: "feed", pastel: "bg-[#d8f5e8]", pastelActive: "bg-[#b8ebd4]" },
+  { id: "feed", label: "Screening", icon: ShieldCheck, countKey: "feed", pastel: "bg-[#d8f5e8]", pastelActive: "bg-[#b8ebd4]" },
   { id: "paper_trail", label: "Receipts", icon: Receipt, countKey: "paper_trail", pastel: "bg-[#ffe4d6]", pastelActive: "bg-[#ffd0b8]" },
-  { id: "screener", label: "New Senders", icon: ShieldCheck, countKey: "screener", pastel: "bg-[#fff0c8]", pastelActive: "bg-[#ffe29a]" },
+  { id: "screener", label: "New Senders", icon: Newspaper, countKey: "screener", pastel: "bg-[#fff0c8]", pastelActive: "bg-[#ffe29a]" },
   { id: "sent", label: "Sent", icon: Send, pastel: "bg-[#e0eefc]", pastelActive: "bg-[#c8dff8]" },
   { id: "spam", label: "Spam", icon: ShieldAlert, countKey: "spam", pastel: "bg-[#ffe8e4]", pastelActive: "bg-[#ffd4cc]" },
   { id: "trash", label: "Trash", icon: Trash2, countKey: "trash", pastel: "bg-[#ececec]", pastelActive: "bg-[#dddddd]" },
@@ -106,6 +108,7 @@ export function AppShell() {
   const startCompose = useMailStore((s) => s.startCompose);
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
+  const contacts = useMailStore((s) => s.contacts);
   const toast = useMailStore((s) => s.toast);
   const setToast = useMailStore((s) => s.setToast);
   const setSearch = useMailStore((s) => s.setSearch);
@@ -115,7 +118,7 @@ export function AppShell() {
   const rolloverSometimeTasks = useMailStore((s) => s.rolloverSometimeTasks);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("2.6.27");
+  const [appVersion, setAppVersion] = useState("2.6.28");
 
   const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
   const scoped = inboxAccountId;
@@ -213,13 +216,20 @@ export function AppShell() {
   const counts = useMemo(
     () => ({
       lesbox: selectBoxThreads(threads, "lesbox", { onlyNew: true, accountId: scoped, messages }).length,
-      feed: selectBoxThreads(threads, "feed", { onlyNew: true, accountId: scoped, messages }).length,
+      feed: selectScreeningThreads(threads, {
+        onlyNew: true,
+        accountId: scoped,
+        messages,
+      }).length,
       paper_trail: selectBoxThreads(threads, "paper_trail", {
         onlyNew: true,
         accountId: scoped,
         messages,
       }).length,
-      screener: selectBoxThreads(threads, "screener", { accountId: scoped, messages }).length,
+      screener: selectNewSenderThreads(threads, contacts, {
+        accountId: scoped,
+        messages,
+      }).length,
       spam: selectBoxThreads(threads, "spam", { accountId: scoped, messages }).length,
       trash: selectBoxThreads(threads, "trash", { accountId: scoped, messages }).length,
       reply_later: selectDockThreads(threads, "reply_later", {
@@ -236,7 +246,7 @@ export function AppShell() {
         messages,
       }).length,
     }),
-    [threads, messages, scoped],
+    [threads, messages, contacts, scoped],
   );
 
   if (!hydrated) {

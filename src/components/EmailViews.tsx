@@ -7,7 +7,7 @@ import { MailHtml } from "@/components/MailHtml";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
-import { selectBoxThreads, selectDockThreads, useMailStore } from "@/lib/store";
+import { selectBoxThreads, selectDockThreads, selectNewSenderThreads, selectScreeningThreads, useMailStore } from "@/lib/store";
 import type { Message, Thread } from "@/lib/types";
 import { previewText } from "@/lib/utils";
 import { useMemo, useState } from "react";
@@ -149,7 +149,7 @@ export function MoneyBoxView() {
               title="You're caught up on new mail"
               body={
                 all.length === 0
-                  ? "Sync an account in Settings. Allowed contacts land here; new senders go to New Senders first."
+                  ? "Sync an account in Settings. Allowed contacts land in MoneyBox $; everyone else waits in Screening."
                   : "No unread mail — your previously read emails are listed below."
               }
             />
@@ -264,27 +264,78 @@ export function MoneyBoxView() {
 
 export function FeedView() {
   const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
+  const contacts = useMailStore((s) => s.contacts);
+  const settings = useMailStore((s) => s.settings);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const screenContact = useMailStore((s) => s.screenContact);
+  const markSpam = useMailStore((s) => s.markSpam);
   const list = useMemo(
-    () => selectBoxThreads(threads, "feed", { accountId: inboxAccountId }),
-    [threads, inboxAccountId],
+    () => selectScreeningThreads(threads, { accountId: inboxAccountId, messages }),
+    [threads, inboxAccountId, messages],
   );
+  const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
-        title="Newsstand"
-        subtitle="Newsletters and long-reads, already open. Scroll and enjoy."
+        title="Screening"
+        subtitle="New and unapproved senders land here. Allow → MoneyBox $ forever — or leave them in Screening."
       />
       {list.length === 0 ? (
-        <EmptyState title="Newsstand is empty" body="Screen newsletters into Newsstand and they'll show up here expanded." />
+        <EmptyState
+          title="Screening is clear"
+          body="Mail from new senders waits here until you Allow → MoneyBox $. Allowed senders skip Screening forever."
+        />
       ) : (
         <div className="mx-auto max-w-2xl space-y-4">
-          {list.map((t) => (
-            <div key={t.id} className="overflow-hidden rounded-2xl border border-line shadow-sm">
-              <ThreadRow thread={t} openBody />
-            </div>
-          ))}
+          {list.map((t) => {
+            const last = messages[t.messageIds[t.messageIds.length - 1]];
+            const contact = contacts.find((c) => c.email.toLowerCase() === t.contactEmail.toLowerCase());
+            const pending = !contact || contact.status === "pending";
+            return (
+              <ScreenerCard
+                key={t.id}
+                thread={t}
+                last={last}
+                expanded={Boolean(expandedById[t.id] ?? true)}
+                onToggleExpand={() =>
+                  setExpandedById((prev) => ({ ...prev, [t.id]: !(prev[t.id] ?? true) }))
+                }
+                boxChoice="lesbox"
+                spamCentral={settings.spamCentral ?? settings.spamCorps ?? true}
+                showAllowMoneyBox
+                pending={pending}
+                onAllow={() => screenContact(t.contactEmail, "allow", "lesbox")}
+                onBlock={() => screenContact(t.contactEmail, "block")}
+                onSpam={() => {
+                  markSpam(t.id);
+                  void (async () => {
+                    const api = desktopApi();
+                    if (!api || !t.accountId) return;
+                    const uids = t.messageIds
+                      .map((id) => {
+                        const m =
+                          /^imap_[^_]+_(?:inbox_)?(\d+)$/.exec(id) || /^imap_[^_]+_(\d+)$/.exec(id);
+                        return m ? Number(m[1]) : 0;
+                      })
+                      .filter((u) => u > 0);
+                    if (!uids.length) return;
+                    try {
+                      await api.moveMessages({
+                        accountId: t.accountId,
+                        sourceFolder: "inbox",
+                        destFolder: "spam",
+                        uids,
+                      });
+                    } catch {
+                      /* local already updated */
+                    }
+                  })();
+                }}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -328,6 +379,8 @@ function ScreenerCard({
   onAllow,
   onBlock,
   onSpam,
+  showAllowMoneyBox,
+  pending,
 }: {
   thread: Thread;
   last?: Message;
@@ -338,6 +391,8 @@ function ScreenerCard({
   onAllow: () => void;
   onBlock: () => void;
   onSpam: () => void;
+  showAllowMoneyBox?: boolean;
+  pending?: boolean;
 }) {
   const bodyHtml = last?.bodyHtml?.trim() ?? "";
   const hasBody = Boolean(bodyHtml);
@@ -350,11 +405,10 @@ function ScreenerCard({
           <h3 className="text-lg font-semibold">{thread.contactName}</h3>
           <p className="text-sm text-muted">{thread.contactEmail}</p>
           <p className="mt-2 font-medium">{thread.subject}</p>
-          {thread.accountEmail ? (
-            <p className="mt-1">
-              <Badge tone="blurple">{thread.accountEmail}</Badge>
-            </p>
-          ) : null}
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {pending ? <Badge tone="blurple">New sender</Badge> : <Badge tone="soft">In Screening</Badge>}
+            {thread.accountEmail ? <Badge tone="blurple">{thread.accountEmail}</Badge> : null}
+          </div>
         </div>
         {last?.trackersBlocked.length ? (
           <Badge tone="salmon">Spy trackers blocked</Badge>
@@ -376,9 +430,15 @@ function ScreenerCard({
           </Button>
         ) : null}
         <UnsubscribeButton thread={thread} messageId={last?.id} />
-        <Button onClick={onAllow}>
-          Allow → {boxChoice === "lesbox" ? "MoneyBox $" : boxChoice === "feed" ? "Feed" : "Receipts"}
-        </Button>
+        {showAllowMoneyBox || boxChoice === "lesbox" ? (
+          <Button onClick={onAllow} title="This sender’s mail goes to MoneyBox $ forever">
+            Allow → MoneyBox $
+          </Button>
+        ) : (
+          <Button onClick={onAllow}>
+            Allow → {boxChoice === "feed" ? "Screening" : "Receipts"}
+          </Button>
+        )}
         <Button variant="danger" onClick={onBlock}>
           Block
         </Button>
@@ -395,20 +455,21 @@ function ScreenerCard({
 export function ScreenerView() {
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
+  const contacts = useMailStore((s) => s.contacts);
   const settings = useMailStore((s) => s.settings);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const screenContact = useMailStore((s) => s.screenContact);
   const markSpam = useMailStore((s) => s.markSpam);
   const setToast = useMailStore((s) => s.setToast);
+  const setView = useMailStore((s) => s.setView);
   const list = useMemo(
-    () => selectBoxThreads(threads, "screener", { accountId: inboxAccountId, messages }),
-    [threads, inboxAccountId, messages],
+    () => selectNewSenderThreads(threads, contacts, { accountId: inboxAccountId, messages }),
+    [threads, contacts, inboxAccountId, messages],
   );
-  const [boxChoice, setBoxChoice] = useState<"lesbox" | "feed" | "paper_trail">("lesbox");
   const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
   const [unsubBusy, setUnsubBusy] = useState(false);
 
-  const allowAllVisible = () => {
+  const allowAllToMoneyBox = () => {
     const seen = new Set<string>();
     for (const t of list) {
       const email = t.contactEmail.toLowerCase();
@@ -465,28 +526,19 @@ export function ScreenerView() {
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="New Senders"
-        subtitle="Screen unknown senders — Allow, Block, or Unsubscribe from their lists before they reach MoneyBox $."
+        subtitle="First-time senders waiting in Screening. Allow → MoneyBox $ forever, or leave them in Screening."
         actions={
           <>
-            <label className="flex items-center gap-2 text-sm text-muted">
-              Allow into
-              <select
-                className="rounded-lg border border-line bg-white px-2 py-1.5"
-                value={boxChoice}
-                onChange={(e) => setBoxChoice(e.target.value as typeof boxChoice)}
-              >
-                <option value="lesbox">MoneyBox $</option>
-                <option value="feed">Newsstand</option>
-                <option value="paper_trail">Receipts</option>
-              </select>
-            </label>
+            <Button size="sm" variant="soft" onClick={() => setView("feed")}>
+              Open Screening
+            </Button>
             {list.length > 0 ? (
               <>
                 <Button size="sm" variant="soft" disabled={unsubBusy} onClick={unsubscribeAllWithLinks}>
                   {unsubBusy ? "Unsubscribing…" : "Unsubscribe all with links"}
                 </Button>
-                <Button size="sm" variant="soft" onClick={allowAllVisible}>
-                  Allow all visible to MoneyBox $
+                <Button size="sm" onClick={allowAllToMoneyBox}>
+                  Allow all → MoneyBox $ forever
                 </Button>
               </>
             ) : null}
@@ -496,8 +548,8 @@ export function ScreenerView() {
 
       {list.length === 0 ? (
         <EmptyState
-          title="New Senders is clear"
-          body="Sync mail from Settings or the sidebar. Unknown senders land here first — Allow moves them to MoneyBox $ (or Feed / Receipts)."
+          title="No new senders waiting"
+          body="Unknown senders appear here and in Screening. Once you Allow → MoneyBox $, their mail skips Screening forever."
         />
       ) : (
         <div className="space-y-4">
@@ -510,19 +562,21 @@ export function ScreenerView() {
                 last={last}
                 expanded={Boolean(expandedById[t.id])}
                 onToggleExpand={() => toggleExpanded(t.id)}
-                boxChoice={boxChoice}
+                boxChoice="lesbox"
                 spamCentral={settings.spamCentral ?? settings.spamCorps ?? true}
-                onAllow={() => screenContact(t.contactEmail, "allow", boxChoice)}
+                showAllowMoneyBox
+                pending
+                onAllow={() => screenContact(t.contactEmail, "allow", "lesbox")}
                 onBlock={() => screenContact(t.contactEmail, "block")}
                 onSpam={() => {
                   markSpam(t.id);
-                  // Best-effort: also move IMAP messages into the server Spam folder
                   void (async () => {
                     const api = desktopApi();
                     if (!api || !t.accountId) return;
                     const uids = t.messageIds
                       .map((id) => {
-                        const m = /^imap_[^_]+_(?:inbox_)?(\d+)$/.exec(id) || /^imap_[^_]+_(\d+)$/.exec(id);
+                        const m =
+                          /^imap_[^_]+_(?:inbox_)?(\d+)$/.exec(id) || /^imap_[^_]+_(\d+)$/.exec(id);
                         return m ? Number(m[1]) : 0;
                       })
                       .filter((u) => u > 0);

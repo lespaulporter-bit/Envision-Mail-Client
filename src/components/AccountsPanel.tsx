@@ -300,7 +300,7 @@ export function AccountsPanel() {
       });
       setStatusTone("ok");
       if (stats.screened > 0) {
-        setStatus(`Imported ${stats.imported} · ${stats.screened} in New Senders`);
+        setStatus(`Imported ${stats.imported} · ${stats.screened} in Screening`);
       } else {
         setStatus(stats.imported ? `Imported ${stats.imported} for this account` : "Already up to date");
       }

@@ -7,6 +7,7 @@ import type {
   AppStateData,
   Box,
   CalendarEvent,
+  Contact,
   CoverArtMode,
   EmailTemplate,
   MailBox,
@@ -17,7 +18,7 @@ import type {
   Thread,
   Workflow,
 } from "./types";
-import { normalizeBox, normalizeMailBox } from "./types";
+import { normalizeBox, normalizeMailBox, boxLabel } from "./types";
 import { syncThreadTags, threadHasContent } from "./thread-tags";
 import {
   activatePendingReminders,
@@ -501,6 +502,7 @@ export const useMailStore = create<MailStore>()(
             ? {
                 ...c,
                 status: decision === "allow" ? ("allowed" as const) : ("blocked" as const),
+                // Forever routing: Allow → MoneyBox (or chosen box) sticks for all future mail
                 defaultBox: decision === "allow" ? box : c.defaultBox,
               }
             : c,
@@ -512,14 +514,20 @@ export const useMailStore = create<MailStore>()(
             if (t.box === "spam" || t.box === "trash") return t;
             return { ...t, box: "spam" as Box, seen: true };
           }
-          // Allow: pull out of New Senders and Spam
-          if (t.box !== "screener" && t.box !== "spam") return t;
-          return bumpThread({ ...t, box });
+          // Allow: pull every conversation out of Screening / New Senders / Spam into the chosen box
+          if (t.box !== "screener" && t.box !== "spam" && t.box !== "feed") return t;
+          return bumpThread({ ...t, box, seen: t.box === "spam" ? false : t.seen });
         });
+        const forever =
+          decision === "allow" && box === "lesbox"
+            ? `Allowed → MoneyBox $ forever — all mail from ${addr} goes there`
+            : decision === "allow"
+              ? `Allowed → ${boxLabel(box)} forever`
+              : "Blocked / spam";
         set({
           contacts,
           threads,
-          toast: decision === "allow" ? `Allowed → ${box.replace("_", " ")}` : "Blocked / spam",
+          toast: forever,
         });
       },
 
@@ -1311,7 +1319,8 @@ export const useMailStore = create<MailStore>()(
                 : autoAllow
                   ? ("allowed" as const)
                   : ("pending" as const),
-              defaultBox: "lesbox",
+              // Pending / new senders live in Screening until Allow → MoneyBox
+              defaultBox: autoAllow ? ("lesbox" as const) : ("feed" as const),
               notes: bypass
                 ? "Speakeasy bypass"
                 : deliverToInbox
@@ -1320,7 +1329,7 @@ export const useMailStore = create<MailStore>()(
                     ? "From Spam folder"
                     : fromTrashFolder
                       ? "From Trash"
-                      : "",
+                      : "Awaiting Screening",
               notify: Boolean(bypass),
               avatarColor: `#${((counterpartyEmail.length * 37) % 0xffffff).toString(16).padStart(6, "0")}`,
               bundled: false,
@@ -1332,10 +1341,12 @@ export const useMailStore = create<MailStore>()(
             !fromSpamFolder &&
             !fromTrashFolder
           ) {
-            contact = { ...contact, status: "allowed" as const };
+            contact = { ...contact, status: "allowed" as const, defaultBox: "lesbox" as const };
             contacts = contacts.map((c) => (c.id === contact!.id ? contact! : c));
           }
 
+          // Forever routing: allowed → defaultBox (MoneyBox when Allowed);
+          // pending / new senders → Screening (feed); blocked → spam
           const box: Box = fromSentFolder
             ? "sent"
             : fromSpamFolder
@@ -1344,9 +1355,9 @@ export const useMailStore = create<MailStore>()(
                 ? "trash"
                 : contact.status === "blocked"
                   ? "spam"
-                  : contact.status === "pending" && !deliverToInbox
-                    ? "screener"
-                    : contact.defaultBox || "lesbox";
+                  : contact.status === "allowed"
+                    ? contact.defaultBox || "lesbox"
+                    : "feed";
 
           const subjectKey = item.subject.replace(/^(re|fwd|fw):\s*/i, "").trim().toLowerCase();
           const cleanMid = (v: string) => String(v || "").replace(/[<>]/g, "").trim().toLowerCase();
@@ -1449,23 +1460,25 @@ export const useMailStore = create<MailStore>()(
               updatedAt: item.sentAt,
             };
             threads = [thread, ...threads];
-            if (box === "screener") screened += 1;
+            if (box === "feed" && contact.status === "pending") screened += 1;
           } else {
             message.threadId = thread.id;
             message.attachments = attachmentList.map((a) => ({ ...a, threadId: thread!.id }));
+            // Re-apply forever routing on every sync — allowed senders always land in their box
             const nextBox: Box = fromSentFolder
               ? "sent"
               : fromTrashFolder || thread.box === "trash" || box === "trash"
                 ? "trash"
-                : thread.box === "spam" || box === "spam"
+                : contact.status === "blocked" || thread.box === "spam" || box === "spam"
                   ? "spam"
-                  : thread.box === "screener"
-                    ? "screener"
-                    : thread.box === "sent"
-                      ? "sent"
-                      : thread.box;
-            if (nextBox === "screener" && thread.box !== "screener") screened += 1;
-            else if (box === "screener" && thread.box === "screener") screened += 1;
+                  : contact.status === "allowed"
+                    ? contact.defaultBox || "lesbox"
+                    : "feed";
+            if (nextBox === "feed" && contact.status === "pending" && thread.box !== "feed") {
+              screened += 1;
+            } else if (box === "feed" && contact.status === "pending" && thread.box === "feed") {
+              screened += 1;
+            }
             threads = threads.map((t) =>
               t.id === thread!.id
                 ? {
@@ -1475,7 +1488,6 @@ export const useMailStore = create<MailStore>()(
                       : [...t.messageIds, messageId],
                     seen: item.seen && t.seen,
                     updatedAt: item.sentAt > t.updatedAt ? item.sentAt : t.updatedAt,
-                    // Never force screener → lesbox on sync
                     box: nextBox,
                     accountId: t.accountId || accountId,
                     accountEmail: t.accountEmail || email,
@@ -1514,7 +1526,7 @@ export const useMailStore = create<MailStore>()(
 
         const defaultToast =
           screened > 0
-            ? `Synced ${imported} · ${screened} need New Senders review`
+            ? `Synced ${imported} · ${screened} in Screening`
             : `Synced ${imported} message${imported === 1 ? "" : "s"}${email ? ` (${email})` : ""}`;
         set({
           threads,
@@ -1931,6 +1943,10 @@ export const useMailStore = create<MailStore>()(
               bubbleUpAt: null,
             };
           }
+          // Migrate legacy New Senders (screener) → Screening (feed)
+          if (next.box === "screener") {
+            next = { ...next, box: "feed" };
+          }
           next = {
             ...next,
             replyLater: Boolean(next.replyLater),
@@ -1943,10 +1959,14 @@ export const useMailStore = create<MailStore>()(
           };
           return next;
         });
-        const contactsRaw = (p.contacts || current.contacts).map((c) => ({
-          ...c,
-          defaultBox: normalizeMailBox(c.defaultBox),
-        }));
+        const contactsRaw = (p.contacts || current.contacts).map((c) => {
+          let defaultBox = normalizeMailBox(c.defaultBox);
+          // Pending senders default to Screening until Allow → MoneyBox
+          if (c.status === "pending" && defaultBox === "lesbox") {
+            defaultBox = "feed";
+          }
+          return { ...c, defaultBox };
+        });
         const rescued = backfillImapAccountIds(threads, messages);
         const contacts = contactsRaw;
         const rawSettings = { ...current.settings, ...(p.settings || {}) } as typeof current.settings & {
@@ -2045,6 +2065,33 @@ export function selectBoxThreads(
       return true;
     })
     .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+}
+
+/** Screening = former Newsstand (feed). Includes legacy screener until migrated. */
+export function selectScreeningThreads(
+  threads: Thread[],
+  opts?: { accountId?: string | null; messages?: Record<string, Message | undefined>; onlyNew?: boolean },
+) {
+  const feed = selectBoxThreads(threads, "feed", opts);
+  const legacy = selectBoxThreads(threads, "screener", opts);
+  const seen = new Set(feed.map((t) => t.id));
+  return [...feed, ...legacy.filter((t) => !seen.has(t.id))].sort(
+    (a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt),
+  );
+}
+
+/** New Senders = Screening mail from contacts still pending Allow / Block. */
+export function selectNewSenderThreads(
+  threads: Thread[],
+  contacts: Contact[],
+  opts?: { accountId?: string | null; messages?: Record<string, Message | undefined> },
+) {
+  const pending = new Set(
+    contacts.filter((c) => c.status === "pending").map((c) => c.email.toLowerCase()),
+  );
+  return selectScreeningThreads(threads, opts).filter((t) =>
+    pending.has(t.contactEmail.toLowerCase()),
+  );
 }
 
 /** Threads for the active account across any box (Snooze, Search, etc.). */
