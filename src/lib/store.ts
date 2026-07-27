@@ -570,7 +570,7 @@ export const useMailStore = create<MailStore>()(
           threads,
           toast:
             restored > 0
-              ? `Unblocked ${addr} · ${restored} conversation${restored === 1 ? "" : "s"} → ${box === "lesbox" ? "MoneyBox $" : box}`
+              ? `Unblocked ${addr} · ${restored} conversation${restored === 1 ? "" : "s"} → ${boxLabel(box)}`
               : `Unblocked ${addr} — future mail is allowed`,
         });
         return restored;
@@ -672,7 +672,7 @@ export const useMailStore = create<MailStore>()(
       moveThread: (threadId, box) =>
         set({
           threads: get().threads.map((t) => (t.id === threadId ? bumpThread({ ...t, box }) : t)),
-          toast: `Moved to ${box.replace("_", " ")}`,
+          toast: `Moved to ${boxLabel(box)}`,
         }),
 
       deleteThreadsToTrash: (threadIds) => {

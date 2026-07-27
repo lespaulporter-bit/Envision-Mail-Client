@@ -19,6 +19,7 @@ import {
 } from "@/lib/mail-delete";
 import { useEffect, useMemo, useState } from "react";
 import { bodyToHtml } from "@/lib/html-body";
+import { boxLabel } from "@/lib/types";
 
 export function ThreadView() {
   const threadId = useMailStore((s) => s.selectedThreadId);
@@ -122,7 +123,7 @@ export function ThreadView() {
         <Button variant="ghost" size="sm" onClick={() => setView(thread.box === "feed" || thread.box === "screener" ? "feed" : thread.box === "paper_trail" ? "paper_trail" : "lesbox")}>
           ← Back
         </Button>
-        <Badge tone="blurple">{thread.box.replace("_", " ")}</Badge>
+        <Badge tone="blurple">{boxLabel(thread.box)}</Badge>
         {(thread.tags || []).map((tag) => (
           <Badge key={tag} tone={tag === "muted" || tag === "on-hold" ? "salmon" : tag === "snoozed" ? "mint" : "soft"}>
             {tagLabel(tag)}

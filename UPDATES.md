@@ -1,5 +1,8 @@
 # Envision Mail updates
 
+## 2.6.30
+- Toasts and badges say **MoneyBox $** (never “lesbox”) when you move mail there — same friendly names for Screening, Receipts, etc.
+
 ## Railway
 - Update service deploys via a minimal **Dockerfile** (Node 22) — no Electron/Next install on Railway. Fixes failed Nixpacks/Node 18 builds.
 
