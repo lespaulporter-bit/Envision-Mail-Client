@@ -5,7 +5,7 @@ import { MailHtml } from "@/components/MailHtml";
 import { threadBelongsToAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
 import type { Thread } from "@/lib/types";
-import { cn, formatThreadTime, previewText, relativeTime } from "@/lib/utils";
+import { cn, formatThreadTime, formatMailDateTime, previewText, relativeTime } from "@/lib/utils";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -140,7 +140,7 @@ export function PriorEmailsPanel({ thread }: Props) {
                       >
                         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted">
                           <span className="font-medium text-ink">{m.fromName}</span>
-                          <span title={m.sentAt}>{relativeTime(m.sentAt)}</span>
+                          <span title={relativeTime(m.sentAt)}>{formatMailDateTime(m.sentAt)}</span>
                         </div>
                         <MailHtml className="text-sm" html={m.bodyHtml} />
                       </article>

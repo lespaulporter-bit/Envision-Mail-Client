@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.32
+- Mail timestamps show **date and time** (e.g. Today · 9:10 AM, Jul 25 · 3:15 PM) — not time alone.
+- Open message headers use the full date (e.g. Mon, Jul 27, 2026 · 9:10 AM).
+
 ## 2.6.31
 - **Reply Queue** button on the email action bar — add mail to the queue (or open it if already queued).
 - List hover actions use Reply Queue; toasts say “Added to Reply Queue.”

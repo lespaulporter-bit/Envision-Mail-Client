@@ -9,7 +9,7 @@ import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { threadBelongsToAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
-import { cn, formatBytes, relativeTime } from "@/lib/utils";
+import { cn, formatBytes, formatMailDateTime, relativeTime } from "@/lib/utils";
 import { desktopApi } from "@/lib/desktop";
 import { brandForEmail, loadAccountBrands } from "@/lib/account-brands";
 import {
@@ -477,8 +477,8 @@ export function ThreadView() {
               })()}
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{m.fromName}</div>
-                <div className="text-xs text-muted">
-                  {m.from} · {relativeTime(m.sentAt)}
+                <div className="text-xs text-muted" title={relativeTime(m.sentAt)}>
+                  {m.from} · {formatMailDateTime(m.sentAt)}
                 </div>
                 {(m.to?.length || m.cc?.length || (m.bcc && m.bcc.length)) ? (
                   <div className="mt-0.5 text-[11px] text-muted">

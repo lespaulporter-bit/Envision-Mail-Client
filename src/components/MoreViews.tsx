@@ -13,7 +13,7 @@ import { selectAccountThreads, selectDockThreads, useMailStore } from "@/lib/sto
 import { clipBelongsToAccount } from "@/lib/account-scope";
 import { blockAllFromSenderSmart } from "@/lib/mail-delete";
 import { CALENDAR_TIMEZONE_OPTIONS, localTimezoneId } from "@/lib/timezones";
-import { formatBytes, relativeTime } from "@/lib/utils";
+import { formatBytes, formatThreadTime } from "@/lib/utils";
 import { boxLabel } from "@/lib/types";
 import { useMemo, useState, useEffect } from "react";
 
@@ -229,7 +229,7 @@ export function AttachmentsView() {
               <div>
                 <div className="font-medium">{a.name}</div>
                 <div className="text-xs text-muted">
-                  {formatBytes(a.size)} · {relativeTime(a.receivedAt)}
+                  {formatBytes(a.size)} · {formatThreadTime(a.receivedAt)}
                 </div>
               </div>
               <Button size="sm" variant="soft" onClick={() => openThread(a.threadId)}>

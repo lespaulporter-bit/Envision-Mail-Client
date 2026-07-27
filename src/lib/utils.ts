@@ -17,9 +17,21 @@ export function formatBytes(bytes: number) {
 
 export function formatThreadTime(iso: string) {
   const d = parseISO(iso);
-  if (isToday(d)) return format(d, "h:mm a");
-  if (isYesterday(d)) return "Yesterday";
-  return format(d, "MMM d");
+  if (Number.isNaN(+d)) return "";
+  const time = format(d, "h:mm a");
+  if (isToday(d)) return `Today · ${time}`;
+  if (isYesterday(d)) return `Yesterday · ${time}`;
+  if (d.getFullYear() === new Date().getFullYear()) {
+    return `${format(d, "MMM d")} · ${time}`;
+  }
+  return `${format(d, "MMM d, yyyy")} · ${time}`;
+}
+
+/** Full weekday + date + time for message detail headers. */
+export function formatMailDateTime(iso: string) {
+  const d = parseISO(iso);
+  if (Number.isNaN(+d)) return "";
+  return format(d, "EEE, MMM d, yyyy · h:mm a");
 }
 
 export function relativeTime(iso: string) {
