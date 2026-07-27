@@ -43,7 +43,8 @@ function extractUnsubscribeInfo(parsed, bodyHtml) {
 
   if (!httpUrl && bodyHtml) {
     const fromBody = extractUnsubscribeFromHtml(bodyHtml);
-    if (fromBody) httpUrl = fromBody;
+    if (fromBody.httpUrl) httpUrl = fromBody.httpUrl;
+    if (!mailtoUrl && fromBody.mailto) mailtoUrl = fromBody.mailto;
   }
 
   return {
@@ -57,19 +58,28 @@ function extractUnsubscribeInfo(parsed, bodyHtml) {
 
 function extractUnsubscribeFromHtml(html) {
   const src = String(html || "");
-  const hrefRe = /href\s*=\s*["'](https?:\/\/[^"']+)["']/gi;
-  const candidates = [];
+  const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+  const httpCandidates = [];
+  const mailtoCandidates = [];
   let m;
   while ((m = hrefRe.exec(src))) {
-    const url = m[1];
-    const around = src.slice(Math.max(0, m.index - 80), m.index + url.length + 80).toLowerCase();
+    const raw = String(m[1] || "").trim();
+    const around = src.slice(Math.max(0, m.index - 100), m.index + raw.length + 100).toLowerCase();
     const score =
-      (/unsubscribe|opt[\s-]?out|manage\s+preferences|email\s+preferences/i.test(url) ? 3 : 0) +
-      (/unsubscribe|opt[\s-]?out|manage preferences|email preferences/i.test(around) ? 2 : 0);
-    if (score > 0) candidates.push({ url, score });
+      (/unsubscribe|opt[\s-]?out|manage\s+preferences|email\s+preferences|remove\s+me/i.test(raw) ? 3 : 0) +
+      (/unsubscribe|opt[\s-]?out|manage preferences|email preferences|remove me|stop receiving/i.test(around)
+        ? 2
+        : 0);
+    if (score <= 0) continue;
+    if (/^https?:\/\//i.test(raw)) httpCandidates.push({ url: raw, score });
+    else if (/^mailto:/i.test(raw)) mailtoCandidates.push({ url: raw, score });
   }
-  candidates.sort((a, b) => b.score - a.score);
-  return candidates[0]?.url || null;
+  httpCandidates.sort((a, b) => b.score - a.score);
+  mailtoCandidates.sort((a, b) => b.score - a.score);
+  return {
+    httpUrl: httpCandidates[0]?.url || "",
+    mailto: mailtoCandidates[0]?.url || "",
+  };
 }
 
 function parseMailto(mailtoUrl) {

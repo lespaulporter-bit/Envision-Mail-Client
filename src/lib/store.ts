@@ -112,6 +112,10 @@ interface Actions {
     box?: MailBox,
   ) => void;
   markSpam: (threadId: string) => void;
+  /** Move every thread from this sender (active account) to Trash. Returns count. */
+  trashAllFromSender: (email: string) => number;
+  /** Block sender and move their threads (active account) to Spam. Returns count. */
+  blockAllFromSender: (email: string) => number;
   moveThread: (threadId: string, box: Box) => void;
   deleteThreadsToTrash: (threadIds: string[]) => void;
   permanentlyDeleteThreads: (threadIds: string[]) => void;
@@ -517,6 +521,87 @@ export const useMailStore = create<MailStore>()(
           ),
           toast: "Blocked & reported to Spam Central",
         });
+      },
+
+      trashAllFromSender: (email) => {
+        const addr = String(email || "").toLowerCase().trim();
+        if (!addr) return 0;
+        const activeId = get().inboxAccountId;
+        const ids = get()
+          .threads.filter((t) => {
+            if (t.contactEmail.toLowerCase() !== addr) return false;
+            if (t.box === "trash") return false;
+            if (activeId && t.accountId && t.accountId !== activeId) return false;
+            return true;
+          })
+          .map((t) => t.id);
+        if (!ids.length) {
+          set({ toast: "No mail from this sender to trash" });
+          return 0;
+        }
+        get().deleteThreadsToTrash(ids);
+        set({
+          toast: `Moved ${ids.length} conversation${ids.length === 1 ? "" : "s"} from ${addr} to Trash`,
+          view:
+            get().view === "thread" && ids.includes(get().selectedThreadId || "")
+              ? "lesbox"
+              : get().view,
+          selectedThreadId:
+            get().view === "thread" && ids.includes(get().selectedThreadId || "")
+              ? null
+              : get().selectedThreadId,
+        });
+        return ids.length;
+      },
+
+      blockAllFromSender: (email) => {
+        const addr = String(email || "").toLowerCase().trim();
+        if (!addr) return 0;
+        const activeId = get().inboxAccountId;
+        const selectedId = get().selectedThreadId;
+        const selectedIsSender = get().threads.some(
+          (t) => t.id === selectedId && t.contactEmail.toLowerCase() === addr,
+        );
+        let count = 0;
+        const contacts = get().contacts.map((c) =>
+          c.email.toLowerCase() === addr ? { ...c, status: "blocked" as const } : c,
+        );
+        const hasContact = contacts.some((c) => c.email.toLowerCase() === addr);
+        const nextContacts = hasContact
+          ? contacts
+          : [
+              ...contacts,
+              {
+                id: uid("c"),
+                email: addr,
+                name: addr.split("@")[0] || addr,
+                status: "blocked" as const,
+                defaultBox: "lesbox" as const,
+                notes: "Blocked after unsubscribe",
+                notify: false,
+                avatarColor: `#${((addr.length * 37) % 0xffffff).toString(16).padStart(6, "0")}`,
+                bundled: false,
+              },
+            ];
+        const threads = get().threads.map((t) => {
+          if (t.contactEmail.toLowerCase() !== addr) return t;
+          if (activeId && t.accountId && t.accountId !== activeId) return t;
+          if (t.box === "spam" || t.box === "trash") return t;
+          count += 1;
+          return { ...t, box: "spam" as Box, seen: true, replyLater: false, setAside: false };
+        });
+        set({
+          contacts: nextContacts,
+          threads,
+          toast:
+            count > 0
+              ? `Blocked ${addr} · ${count} conversation${count === 1 ? "" : "s"} → Spam`
+              : `Blocked ${addr} — future mail goes to Spam`,
+          ...(selectedIsSender
+            ? { view: "lesbox" as const, selectedThreadId: null }
+            : {}),
+        });
+        return count;
       },
 
       moveThread: (threadId, box) =>

@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.25
+- **Unsubscribe** silently uses List-Unsubscribe / one-click / body links (HTTP or mailto), then shows **✓ Unsubscribed**.
+- After a successful unsubscribe, choose **Trash all**, **Block all**, or **both** from that sender — or keep their mail.
+- Stronger unsubscribe link detection in HTML and plain-text bodies; trash/block sync to IMAP when connected.
+
 ## 2.6.24
 - When reading mail, **Previous emails from this person** shows other conversations with that sender.
 - Expand any prior email to read the full thread, reply in place, open it, or **Link into this conversation**.

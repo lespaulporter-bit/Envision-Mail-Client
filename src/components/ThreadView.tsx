@@ -5,6 +5,7 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { MailHtml } from "@/components/MailHtml";
 import { PriorEmailsPanel } from "@/components/PriorEmailsPanel";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
+import { UnsubscribeFollowUpDialog } from "@/components/UnsubscribeFollowUpDialog";
 import { threadBelongsToAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
@@ -12,9 +13,11 @@ import { cn, formatBytes, relativeTime } from "@/lib/utils";
 import { desktopApi } from "@/lib/desktop";
 import { brandForEmail, loadAccountBrands } from "@/lib/account-brands";
 import {
+  blockAllFromSenderSmart,
   deleteThreadSmart,
   permanentlyDeleteThread,
   restoreThreadFromTrash,
+  trashAllFromSenderSmart,
 } from "@/lib/mail-delete";
 import { useEffect, useMemo, useState } from "react";
 import { bodyToHtml } from "@/lib/html-body";
@@ -63,6 +66,7 @@ export function ThreadView() {
   const [deleting, setDeleting] = useState(false);
   const [unsubBusy, setUnsubBusy] = useState(false);
   const [unsubFlash, setUnsubFlash] = useState(false);
+  const [unsubFollowUp, setUnsubFollowUp] = useState<{ email: string; name: string } | null>(null);
   const [signatureId, setSignatureId] = useState("");
   const [requestReceipt, setRequestReceipt] = useState(true);
   const [brandsTick, setBrandsTick] = useState(0);
@@ -253,12 +257,17 @@ export function ThreadView() {
             disabled={
               unsubBusy || Boolean(unsubscribeTarget.message.unsubscribedAt) || unsubFlash
             }
+            title="Silently unsubscribe using the list’s unsubscribe link"
             onClick={() => {
               void (async () => {
                 const api = desktopApi();
                 const targets = unsubscribeTarget.targets;
-                if (!api?.unsubscribeMail || !targets) {
+                if (!targets) {
                   setToast("No unsubscribe link on this email");
+                  return;
+                }
+                if (!api?.unsubscribeMail) {
+                  setToast("Unsubscribe needs the Envision Mail desktop app");
                   return;
                 }
                 setUnsubBusy(true);
@@ -275,8 +284,12 @@ export function ThreadView() {
                   }
                   markMessageUnsubscribed(unsubscribeTarget.message.id);
                   setUnsubFlash(true);
-                  setToast("Unsubscribed");
-                  window.setTimeout(() => setUnsubFlash(false), 2800);
+                  setToast("✓ Unsubscribed");
+                  setUnsubFollowUp({
+                    email: thread.contactEmail,
+                    name: thread.contactName || thread.contactEmail,
+                  });
+                  window.setTimeout(() => setUnsubFlash(false), 3200);
                 } catch (err) {
                   setToast(err instanceof Error ? err.message : "Unsubscribe failed");
                 } finally {
@@ -735,6 +748,33 @@ export function ThreadView() {
           </div>
         </div>
       </div>
+
+      {unsubFollowUp ? (
+        <UnsubscribeFollowUpDialog
+          senderEmail={unsubFollowUp.email}
+          senderName={unsubFollowUp.name}
+          onDismiss={() => setUnsubFollowUp(null)}
+          onTrash={() => {
+            const email = unsubFollowUp.email;
+            setUnsubFollowUp(null);
+            void trashAllFromSenderSmart(email);
+          }}
+          onBlock={() => {
+            const email = unsubFollowUp.email;
+            setUnsubFollowUp(null);
+            void blockAllFromSenderSmart(email);
+          }}
+          onBoth={() => {
+            const email = unsubFollowUp.email;
+            setUnsubFollowUp(null);
+            void (async () => {
+              await trashAllFromSenderSmart(email);
+              await blockAllFromSenderSmart(email);
+              useMailStore.getState().setToast(`✓ Unsubscribed · trashed & blocked ${email}`);
+            })();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -196,3 +196,53 @@ export async function purgeOldTrash(days?: number) {
   store.setToast(`Auto-purged ${stale.length} trash item${stale.length === 1 ? "" : "s"} (older than ${purgeDays}d)`);
   return { ok: true, purged: stale.length };
 }
+
+/** Trash every conversation from a sender (local + IMAP when possible). */
+export async function trashAllFromSenderSmart(email: string) {
+  const store = useMailStore.getState();
+  const addr = String(email || "").toLowerCase().trim();
+  const activeId = store.inboxAccountId;
+  const targets = store.threads.filter((t) => {
+    if (t.contactEmail.toLowerCase() !== addr) return false;
+    if (t.box === "trash" || t.box === "spam") return false;
+    if (activeId && t.accountId && t.accountId !== activeId) return false;
+    return true;
+  });
+  const warnings: string[] = [];
+  for (const t of targets) {
+    const { byAccount } = collectImapRefs(t.id);
+    // eslint-disable-next-line no-await-in-loop
+    const server = await syncMoveToServer(byAccount, "trash");
+    warnings.push(...server.warnings);
+  }
+  const count = store.trashAllFromSender(addr);
+  if (warnings.length) {
+    store.setToast(`Trashed ${count} · server: ${warnings[0]}`);
+  }
+  return { ok: true, count };
+}
+
+/** Block sender and move their conversations to Spam (local + IMAP when possible). */
+export async function blockAllFromSenderSmart(email: string) {
+  const store = useMailStore.getState();
+  const addr = String(email || "").toLowerCase().trim();
+  const activeId = store.inboxAccountId;
+  const targets = store.threads.filter((t) => {
+    if (t.contactEmail.toLowerCase() !== addr) return false;
+    if (t.box === "spam" || t.box === "trash") return false;
+    if (activeId && t.accountId && t.accountId !== activeId) return false;
+    return true;
+  });
+  const warnings: string[] = [];
+  for (const t of targets) {
+    const { byAccount } = collectImapRefs(t.id);
+    // eslint-disable-next-line no-await-in-loop
+    const server = await syncMoveToServer(byAccount, "spam");
+    warnings.push(...server.warnings);
+  }
+  const count = store.blockAllFromSender(addr);
+  if (warnings.length) {
+    store.setToast(`Blocked ${addr} · server: ${warnings[0]}`);
+  }
+  return { ok: true, count };
+}
