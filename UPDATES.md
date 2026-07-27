@@ -1,5 +1,8 @@
 # Envision Mail updates
 
+## 2.6.37
+- **Day Cover** sits under All / Fresh / Previously read — above the Fresh list (not buried at the bottom).
+
 ## 2.6.36
 - **Teams restored**: Create Microsoft Teams is always available in the desktop app again (2.6.35 hid it when detection lagged).
 - **Open Teams** is more reliable on Mac (protocol + app launch fallbacks); works even before an event title is typed.

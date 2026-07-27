@@ -114,6 +114,8 @@ export function MoneyBoxView() {
         ))}
       </div>
 
+      {tab === "all" && !powerThrough && settings.coverArt !== "none" ? <CoverArt /> : null}
+
       {multiOpenIds.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-teal/30 bg-[#e6f7f3] px-4 py-3 text-sm">
           <span>
@@ -256,8 +258,6 @@ export function MoneyBoxView() {
           </p>
         </section>
       ) : null}
-
-      {tab === "all" && !powerThrough && settings.coverArt !== "none" ? <CoverArt /> : null}
     </div>
   );
 }
