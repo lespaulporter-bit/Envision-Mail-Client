@@ -1,0 +1,18 @@
+# Keep the Railway image tiny — only the update-service server is copied.
+node_modules
+.next
+release
+dist
+out
+build
+*.md
+.git
+.github
+electron
+src
+public
+scripts
+*.dmg
+*.zip
+*.exe
+*.blockmap

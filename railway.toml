@@ -2,11 +2,11 @@
 # Deploys the public status/release pointer only. Never hosts or migrates user mail data.
 
 [build]
-builder = "NIXPACKS"
-buildCommand = "node -e \"console.log('Envision Mail Client — update service (no Electron build)')\""
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "node update-service/server.mjs"
+startCommand = "node server.mjs"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

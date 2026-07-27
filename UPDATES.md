@@ -1,5 +1,8 @@
 # Envision Mail updates
 
+## Railway
+- Update service deploys via a minimal **Dockerfile** (Node 22) — no Electron/Next install on Railway. Fixes failed Nixpacks/Node 18 builds.
+
 ## 2.6.29
 - **Move to Trash** on every mail surface — Screening, New Senders, MoneyBox, Spam, thread view, and list hover actions.
 - Trash actually moves the conversation to Trash (local + IMAP); Delete forever stays only in Trash (and optional on Spam).
