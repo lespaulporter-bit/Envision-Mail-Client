@@ -148,8 +148,9 @@ export function ThreadRow({
           size="sm"
           variant={thread.replyLater ? "primary" : "soft"}
           onClick={() => toggleReplyLater(thread.id)}
+          title="Add to Reply Queue / Snooze"
         >
-          {thread.replyLater ? "Snoozed ✓" : "Snooze"}
+          {thread.replyLater ? "Queued ✓" : "Reply Queue"}
         </Button>
         <Button
           size="sm"

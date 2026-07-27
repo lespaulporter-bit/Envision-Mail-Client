@@ -164,6 +164,26 @@ export function ThreadView() {
         </Button>
         <Button
           size="sm"
+          variant={thread.replyLater ? "primary" : "soft"}
+          className={cn(thread.replyLater && "bg-teal text-white hover:bg-teal/90")}
+          title={
+            thread.replyLater
+              ? "Already in Reply Queue — click to remove, or open Reply Queue from the sidebar"
+              : "Add this email to Reply Queue so you can knock out replies later"
+          }
+          onClick={() => {
+            if (!thread.replyLater) {
+              toggleReplyLater(thread.id);
+            } else {
+              setView("focus_reply");
+              setToast("Opening Reply Queue");
+            }
+          }}
+        >
+          {thread.replyLater ? "In Reply Queue ✓" : "Reply Queue"}
+        </Button>
+        <Button
+          size="sm"
           variant={thread.setAside ? "primary" : "soft"}
           className={cn(thread.setAside && "ring-2 ring-teal/30")}
           onClick={() => toggleSetAside(thread.id)}
@@ -684,11 +704,12 @@ export function ThreadView() {
           <Button
             variant="soft"
             onClick={() => {
-              toggleReplyLater(thread.id);
+              if (!thread.replyLater) toggleReplyLater(thread.id);
               setView("focus_reply");
             }}
+            title="Add to Reply Queue and open it"
           >
-            Reply Queue queue
+            {thread.replyLater ? "Open Reply Queue" : "Add to Reply Queue"}
           </Button>
         </div>
       </div>

@@ -755,7 +755,9 @@ export const useMailStore = create<MailStore>()(
         });
         set({
           threads,
-          toast: nextVal ? `Snoozed · ${n} in Snooze` : `Snooze removed · ${n} left`,
+          toast: nextVal
+            ? `Added to Reply Queue · ${n} waiting`
+            : `Removed from Reply Queue · ${n} left`,
         });
       },
 

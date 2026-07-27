@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.31
+- **Reply Queue** button on the email action bar — add mail to the queue (or open it if already queued).
+- List hover actions use Reply Queue; toasts say “Added to Reply Queue.”
+- Fixed the broken “Reply Queue queue” label near Send.
+
 ## 2.6.30
 - Toasts and badges say **MoneyBox $** (never “lesbox”) when you move mail there — same friendly names for Screening, Receipts, etc.
 
