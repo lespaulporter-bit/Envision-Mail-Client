@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.35
+- Meeting options only appear when **Microsoft Teams is installed** (ready on demand) — no Meet/Zoom prompts for users who aren’t set up.
+- **Never auto-fill** a meeting URL; example links like `meet.google.com/abc-defg-hij` are rejected. Teams flow stays: Open Teams → create → paste the real Join link.
+
 ## 2.6.34
 - **Countdown** now live-ticks to the event start (e.g. `02:14:37` or `3d 04h 12m`) — Calendar chips, event rows, and Day Cover.
 

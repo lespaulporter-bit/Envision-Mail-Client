@@ -30,7 +30,7 @@ import { normalizeSometimeTasks, weekStartKey } from "./sometime-tasks";
 import { mergeRecentRecipients } from "./recipient-suggest";
 import { parseMailtoUrl } from "./mailto";
 import { inferThreadAccountId, threadBelongsToAccount } from "./account-scope";
-import { uid } from "./utils";
+import { sanitizeMeetingUrl, uid } from "./utils";
 
 export type AppView =
   | "lesbox"
@@ -1574,6 +1574,7 @@ export const useMailStore = create<MailStore>()(
           get().calendars.find((c) => c.source !== "mac" && c.visible)?.id ||
           get().calendars[0]?.id ||
           "cal_default";
+        const meetingUrl = sanitizeMeetingUrl(event.meetingUrl || "") || undefined;
         set({
           events: [
             ...get().events,
@@ -1582,6 +1583,8 @@ export const useMailStore = create<MailStore>()(
               id: uid("e"),
               calendarId: event.calendarId || fallbackCal,
               source: event.source ?? "local",
+              meetingUrl,
+              meetingProvider: meetingUrl ? event.meetingProvider : "none",
             },
           ],
           toast: "Event added",
@@ -1590,7 +1593,16 @@ export const useMailStore = create<MailStore>()(
 
       updateEvent: (id, patch) =>
         set({
-          events: get().events.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+          events: get().events.map((e) => {
+            if (e.id !== id) return e;
+            const next = { ...e, ...patch };
+            if ("meetingUrl" in patch) {
+              const meetingUrl = sanitizeMeetingUrl(patch.meetingUrl || "") || undefined;
+              next.meetingUrl = meetingUrl;
+              if (!meetingUrl) next.meetingProvider = "none";
+            }
+            return next;
+          }),
         }),
 
       deleteEvent: (id) => set({ events: get().events.filter((e) => e.id !== id) }),
@@ -2056,6 +2068,15 @@ export const useMailStore = create<MailStore>()(
           sometimeTasks: normalizeSometimeTasks(
             Array.isArray(p.sometimeTasks) ? p.sometimeTasks : current.sometimeTasks || [],
           ),
+          events: (Array.isArray(p.events) ? p.events : current.events || []).map((e) => {
+            const meetingUrl = sanitizeMeetingUrl(e.meetingUrl || "") || undefined;
+            if (meetingUrl === (e.meetingUrl || undefined)) return e;
+            return {
+              ...e,
+              meetingUrl,
+              meetingProvider: meetingUrl ? e.meetingProvider : "none",
+            };
+          }),
           settings,
           inboxAccountId: p.inboxAccountId ?? current.inboxAccountId ?? null,
         };

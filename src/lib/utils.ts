@@ -62,6 +62,27 @@ export function formatCountdown(targetIso: string, nowMs = Date.now()) {
   };
 }
 
+/**
+ * Detect example / placeholder join links (e.g. Google's docs sample abc-defg-hij).
+ * We never invent or keep these — they give a false impression of a real meeting.
+ */
+export function isFakeMeetingUrl(url: string) {
+  const u = url.trim().toLowerCase();
+  if (!u) return false;
+  if (/abc-defg-hij|abc-mnop-xyz|xxx-xxxx-xxx|your-meeting-code/.test(u)) return true;
+  if (/example\.(com|org|net)/.test(u)) return true;
+  if (/(placeholder|fake[-_]?meet|test[-_]?meeting|sample[-_]?link)/.test(u)) return true;
+  // "Create meeting" deep links are not join URLs
+  if (/teams\.microsoft\.com\/l\/meeting\/new|msteams:\/l\/meeting\/new/.test(u)) return true;
+  return false;
+}
+
+export function sanitizeMeetingUrl(url: string) {
+  const trimmed = url.trim();
+  if (!trimmed || isFakeMeetingUrl(trimmed)) return "";
+  return trimmed;
+}
+
 export function initials(name: string) {
   return name
     .split(/\s+/)
