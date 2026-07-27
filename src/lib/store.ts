@@ -677,6 +677,19 @@ export const useMailStore = create<MailStore>()(
 
       deleteThreadsToTrash: (threadIds) => {
         const ids = new Set(threadIds);
+        const selected = get().selectedThreadId;
+        const leaving = Boolean(selected && ids.has(selected));
+        const fromBox = leaving ? get().threads.find((t) => t.id === selected)?.box : null;
+        const backView =
+          fromBox === "feed" || fromBox === "screener"
+            ? ("feed" as const)
+            : fromBox === "paper_trail"
+              ? ("paper_trail" as const)
+              : fromBox === "spam"
+                ? ("spam" as const)
+                : fromBox === "sent"
+                  ? ("sent" as const)
+                  : ("lesbox" as const);
         set({
           threads: get().threads.map((t) =>
             ids.has(t.id)
@@ -684,7 +697,9 @@ export const useMailStore = create<MailStore>()(
               : t,
           ),
           toast: threadIds.length > 1 ? `Moved ${threadIds.length} to Trash` : "Moved to Trash",
-          view: get().view === "thread" && ids.has(get().selectedThreadId || "") ? "lesbox" : get().view,
+          ...(leaving
+            ? { view: get().view === "thread" ? backView : get().view, selectedThreadId: null }
+            : {}),
         });
       },
 

@@ -8,7 +8,7 @@ import { tagLabel } from "@/lib/thread-tags";
 import type { Thread } from "@/lib/types";
 import { cn, formatThreadTime, previewText } from "@/lib/utils";
 import { Bell, Bookmark, CheckSquare, Clock3, Layers, Square, Trash2 } from "lucide-react";
-import { deleteThreadSmart } from "@/lib/mail-delete";
+import { moveThreadToTrashSmart, permanentlyDeleteThread } from "@/lib/mail-delete";
 
 export function ThreadRow({
   thread,
@@ -158,16 +158,30 @@ export function ThreadRow({
         >
           {thread.setAside ? "On Hold ✓" : "On Hold"}
         </Button>
-        <Button
-          size="sm"
-          variant="danger"
-          title={thread.box === "trash" || thread.box === "spam" ? "Delete forever" : "Move to Trash"}
-          onClick={() => {
-            void deleteThreadSmart(thread.id);
-          }}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        {thread.box === "trash" ? (
+          <Button
+            size="sm"
+            variant="danger"
+            title="Delete forever"
+            onClick={() => {
+              void permanentlyDeleteThread(thread.id);
+            }}
+          >
+            Delete forever
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="danger"
+            title="Move to Trash"
+            onClick={() => {
+              void moveThreadToTrashSmart(thread.id);
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Move to Trash
+          </Button>
+        )}
       </div>
     </article>
   );

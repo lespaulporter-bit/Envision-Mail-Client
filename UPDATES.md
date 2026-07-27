@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.29
+- **Move to Trash** on every mail surface — Screening, New Senders, MoneyBox, Spam, thread view, and list hover actions.
+- Trash actually moves the conversation to Trash (local + IMAP); Delete forever stays only in Trash (and optional on Spam).
+
 ## 2.6.28
 - **Newsstand → Screening**: new/unapproved senders land in Screening by default (not MoneyBox).
 - **Allow → MoneyBox $ forever**: that email and all future mail from the sender go to MoneyBox automatically.

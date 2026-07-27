@@ -72,13 +72,30 @@ async function syncDeleteOnServer(byAccount: Map<string, Map<ImapFolderKey, numb
   return { ok: warnings.length === 0, warnings };
 }
 
-/** Delete → Trash (local + IMAP when possible). From Trash/Spam → permanent. */
+/** Always move to Trash (local + IMAP). Never permanent delete. */
+export async function moveThreadToTrashSmart(threadId: string) {
+  const { thread, byAccount } = collectImapRefs(threadId);
+  if (!thread) return { ok: false, error: "Thread not found" };
+  const store = useMailStore.getState();
+  if (thread.box === "trash") {
+    store.setToast("Already in Trash");
+    return { ok: true, already: true as const };
+  }
+  const server = await syncMoveToServer(byAccount, "trash");
+  store.deleteThreadsToTrash([threadId]);
+  if (server.warnings.length) {
+    store.setToast(`Moved to Trash — server: ${server.warnings[0]}`);
+  }
+  return { ok: true, permanent: false as const };
+}
+
+/** Delete → Trash (local + IMAP when possible). From Trash → permanent. From Spam → Trash (not permanent). */
 export async function deleteThreadSmart(threadId: string) {
   const { thread, byAccount } = collectImapRefs(threadId);
   if (!thread) return { ok: false, error: "Thread not found" };
   const store = useMailStore.getState();
 
-  if (thread.box === "trash" || thread.box === "spam") {
+  if (thread.box === "trash") {
     const server = await syncDeleteOnServer(byAccount);
     store.permanentlyDeleteThreads([threadId]);
     if (server.warnings.length) {
@@ -87,12 +104,8 @@ export async function deleteThreadSmart(threadId: string) {
     return { ok: true, permanent: true as const };
   }
 
-  const server = await syncMoveToServer(byAccount, "trash");
-  store.deleteThreadsToTrash([threadId]);
-  if (server.warnings.length) {
-    store.setToast(`Moved to Trash — server: ${server.warnings[0]}`);
-  }
-  return { ok: true, permanent: false as const };
+  // Spam and all other boxes: Move to Trash (user asked for trash everywhere)
+  return moveThreadToTrashSmart(threadId);
 }
 
 export async function permanentlyDeleteThread(threadId: string) {

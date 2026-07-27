@@ -447,6 +447,19 @@ function ScreenerCard({
             Block & report
           </Button>
         ) : null}
+        <Button
+          size="sm"
+          variant="danger"
+          title="Move this email to Trash"
+          onClick={() => {
+            void (async () => {
+              const { moveThreadToTrashSmart } = await import("@/lib/mail-delete");
+              await moveThreadToTrashSmart(thread.id);
+            })();
+          }}
+        >
+          Move to Trash
+        </Button>
       </div>
     </article>
   );
@@ -731,6 +744,18 @@ export function SpamView() {
                 <ThreadRow thread={t} />
                 <div className="flex flex-wrap gap-2 px-4 pb-3">
                   <UnsubscribeButton thread={t} messageId={last?.id} />
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => {
+                      void (async () => {
+                        const { moveThreadToTrashSmart } = await import("@/lib/mail-delete");
+                        await moveThreadToTrashSmart(t.id);
+                      })();
+                    }}
+                  >
+                    Move to Trash
+                  </Button>
                   <Button
                     size="sm"
                     variant="soft"

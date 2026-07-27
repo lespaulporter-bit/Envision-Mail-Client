@@ -14,7 +14,6 @@ import { desktopApi } from "@/lib/desktop";
 import { brandForEmail, loadAccountBrands } from "@/lib/account-brands";
 import {
   blockAllFromSenderSmart,
-  deleteThreadSmart,
   permanentlyDeleteThread,
   restoreThreadFromTrash,
 } from "@/lib/mail-delete";
@@ -319,23 +318,45 @@ export function ThreadView() {
             </Button>
           </>
         ) : (
-          <Button
-            size="sm"
-            variant="danger"
-            disabled={deleting}
-            onClick={() => {
-              void (async () => {
-                setDeleting(true);
-                try {
-                  await deleteThreadSmart(thread.id);
-                } finally {
-                  setDeleting(false);
-                }
-              })();
-            }}
-          >
-            {thread.box === "spam" ? "Delete forever" : "Delete"}
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={deleting}
+              onClick={() => {
+                void (async () => {
+                  setDeleting(true);
+                  try {
+                    const { moveThreadToTrashSmart } = await import("@/lib/mail-delete");
+                    await moveThreadToTrashSmart(thread.id);
+                  } finally {
+                    setDeleting(false);
+                  }
+                })();
+              }}
+            >
+              Move to Trash
+            </Button>
+            {thread.box === "spam" ? (
+              <Button
+                size="sm"
+                variant="soft"
+                disabled={deleting}
+                onClick={() => {
+                  void (async () => {
+                    setDeleting(true);
+                    try {
+                      await permanentlyDeleteThread(thread.id);
+                    } finally {
+                      setDeleting(false);
+                    }
+                  })();
+                }}
+              >
+                Delete forever
+              </Button>
+            ) : null}
+          </>
         )}
       </div>
 
