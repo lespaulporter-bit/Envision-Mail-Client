@@ -21,7 +21,6 @@ import {
   startOfDay,
   startOfMonth,
   startOfWeek,
-  differenceInCalendarDays,
   differenceInMinutes,
 } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
@@ -31,6 +30,7 @@ import {
   defaultStartTimeHhmm,
   endAfterStartChange,
 } from "@/lib/event-time";
+import { formatCountdown } from "@/lib/utils";
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am–8pm
 
@@ -104,11 +104,18 @@ export function CalendarView() {
   /** yyyy-MM-dd when the day events popup is open */
   const [daySheetDate, setDaySheetDate] = useState<string | null>(null);
   const [daySheetCompose, setDaySheetCompose] = useState(false);
+  /** Live clock for countdown chips */
+  const [nowMs, setNowMs] = useState(() => Date.now());
   /** Minutes before start — 0 = at start time; -1 = none */
   const [reminderMinutesBefore, setReminderMinutesBefore] = useState(
     () => settings.defaultEventReminderMinutes ?? 15,
   );
   const isMacDesktop = isDesktop() && desktopApi()?.platform === "darwin";
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const defaultCalId =
     calendars.find((c) => c.source !== "mac" && c.visible)?.id ||
@@ -191,15 +198,15 @@ export function CalendarView() {
     calendars.find((c) => c.id === calendarId)?.color || "#0d9488";
 
   const countdowns = useMemo(() => {
-    const now = Date.now();
     return filteredEvents
-      .filter((e) => e.countdown && +new Date(e.start) >= now)
+      .filter((e) => e.countdown && +new Date(e.start) >= nowMs)
+      .sort((a, b) => +new Date(a.start) - +new Date(b.start))
       .slice(0, 5)
       .map((e) => ({
         event: e,
-        days: differenceInCalendarDays(parseISO(e.start), new Date()),
+        cd: formatCountdown(e.start, nowMs),
       }));
-  }, [filteredEvents]);
+  }, [filteredEvents, nowMs]);
 
   const parseInvitees = (text: string): CalendarInvitee[] =>
     text
@@ -579,7 +586,7 @@ export function CalendarView() {
 
       {countdowns.length > 0 ? (
         <div className="mb-4 flex flex-wrap gap-2">
-          {countdowns.map(({ event: e, days: d }) => (
+          {countdowns.map(({ event: e, cd }) => (
             <button
               key={e.id}
               type="button"
@@ -587,10 +594,15 @@ export function CalendarView() {
                 setCalendarDate(format(parseISO(e.start), "yyyy-MM-dd"));
                 beginEdit(e);
               }}
-              className="rounded-xl border border-teal/30 bg-[#ecfdf8] px-3 py-2 text-left text-sm"
+              className="rounded-xl border border-teal/25 bg-[#ecfdf8]/90 px-3 py-2 text-left text-sm transition hover:border-teal/40"
+              title={format(parseISO(e.start), "EEE, MMM d · h:mm a")}
             >
-              <span className="font-semibold text-teal">
-                {d === 0 ? "Today" : d === 1 ? "Tomorrow" : `${d} days`}
+              <span
+                className={`font-mono text-xs tracking-tight ${
+                  cd.urgent ? "text-amber-700" : "text-teal/80"
+                }`}
+              >
+                {cd.label}
               </span>
               <span className="ml-2 text-ink">{e.title}</span>
             </button>
@@ -746,6 +758,15 @@ export function CalendarView() {
                           : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
                         {e.location ? ` · ${e.location}` : ""}
                       </div>
+                      {e.countdown && +new Date(e.start) >= nowMs ? (
+                        <div
+                          className={`mt-0.5 font-mono text-xs tracking-tight ${
+                            formatCountdown(e.start, nowMs).urgent ? "text-amber-700/80" : "text-teal/70"
+                          }`}
+                        >
+                          {formatCountdown(e.start, nowMs).label}
+                        </div>
+                      ) : null}
                       {e.meetingUrl ? (
                         <a
                           className="text-sm text-teal underline"
@@ -1216,6 +1237,17 @@ export function CalendarView() {
                                 : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
                               {e.location ? ` · ${e.location}` : ""}
                             </div>
+                            {e.countdown && +new Date(e.start) >= nowMs ? (
+                              <div
+                                className={`mt-0.5 font-mono text-xs tracking-tight ${
+                                  formatCountdown(e.start, nowMs).urgent
+                                    ? "text-amber-700/80"
+                                    : "text-teal/70"
+                                }`}
+                              >
+                                {formatCountdown(e.start, nowMs).label}
+                              </div>
+                            ) : null}
                             {e.notes ? <p className="mt-1 text-xs text-muted line-clamp-2">{e.notes}</p> : null}
                           </div>
                           <div className="flex flex-wrap gap-1">
@@ -1228,6 +1260,13 @@ export function CalendarView() {
                               }}
                             >
                               Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="soft"
+                              onClick={() => updateEvent(e.id, { countdown: !e.countdown })}
+                            >
+                              {e.countdown ? "Countdown ✓" : "Countdown"}
                             </Button>
                             {e.source !== "mac" ? (
                               <Button

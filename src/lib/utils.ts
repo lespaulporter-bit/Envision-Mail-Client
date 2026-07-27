@@ -38,6 +38,30 @@ export function relativeTime(iso: string) {
   return formatDistanceToNowStrict(parseISO(iso), { addSuffix: true });
 }
 
+/** Live remaining time until an event start — used by Calendar + Day Cover countdowns. */
+export function formatCountdown(targetIso: string, nowMs = Date.now()) {
+  const diff = +new Date(targetIso) - nowMs;
+  if (Number.isNaN(diff)) return { label: "", urgent: false, past: true };
+  if (diff <= 0) return { label: "Now", urgent: true, past: true };
+  const totalSec = Math.floor(diff / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+  if (days >= 1) {
+    return {
+      label: `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`,
+      urgent: days < 2,
+      past: false,
+    };
+  }
+  return {
+    label: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`,
+    urgent: hours < 6,
+    past: false,
+  };
+}
+
 export function initials(name: string) {
   return name
     .split(/\s+/)

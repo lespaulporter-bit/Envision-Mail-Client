@@ -1,5 +1,8 @@
 # Envision Mail updates
 
+## 2.6.34
+- **Countdown** now live-ticks to the event start (e.g. `02:14:37` or `3d 04h 12m`) — Calendar chips, event rows, and Day Cover.
+
 ## 2.6.33
 - Calendar **New event** form loads **collapsed**; expand when you need it (time-slot click / Edit still opens it).
 

@@ -2,28 +2,9 @@
 
 import { Button } from "@/components/ui";
 import { useMailStore } from "@/lib/store";
+import { formatCountdown } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
-
-function formatCountdown(targetIso: string, nowMs: number) {
-  const diff = +new Date(targetIso) - nowMs;
-  if (diff <= 0) return { label: "Now", urgent: true };
-  const totalSec = Math.floor(diff / 1000);
-  const days = Math.floor(totalSec / 86400);
-  const hours = Math.floor((totalSec % 86400) / 3600);
-  const minutes = Math.floor((totalSec % 3600) / 60);
-  const seconds = totalSec % 60;
-  if (days >= 1) {
-    return {
-      label: `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`,
-      urgent: days < 2,
-    };
-  }
-  return {
-    label: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`,
-    urgent: hours < 6,
-  };
-}
 
 export function CoverArt() {
   const settings = useMailStore((s) => s.settings);
@@ -47,13 +28,20 @@ export function CoverArt() {
   const upcoming = useMemo(
     () =>
       events
-        .filter((e) => +new Date(e.end) >= Date.now())
+        .filter((e) => +new Date(e.end) >= nowMs)
         .sort((a, b) => +new Date(a.start) - +new Date(b.start))
         .slice(0, 5),
-    [events],
+    [events, nowMs],
   );
 
-  const countdowns = upcoming.filter((e) => e.countdown);
+  const countdowns = useMemo(
+    () =>
+      events
+        .filter((e) => e.countdown && +new Date(e.start) >= nowMs)
+        .sort((a, b) => +new Date(a.start) - +new Date(b.start))
+        .slice(0, 5),
+    [events, nowMs],
+  );
   const joinable = upcoming.find(
     (e) => e.meetingUrl && +new Date(e.start) - Date.now() < 15 * 60_000 && +new Date(e.start) > Date.now() - 5 * 60_000,
   );
