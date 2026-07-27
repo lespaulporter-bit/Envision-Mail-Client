@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.36
+- **Teams restored**: Create Microsoft Teams is always available in the desktop app again (2.6.35 hid it when detection lagged).
+- **Open Teams** is more reliable on Mac (protocol + app launch fallbacks); works even before an event title is typed.
+- Join link field stays **empty** — never auto-filled; Meet/example URLs are stripped.
+
 ## 2.6.35
 - Meeting options only appear when **Microsoft Teams is installed** (ready on demand) — no Meet/Zoom prompts for users who aren’t set up.
 - **Never auto-fill** a meeting URL; example links like `meet.google.com/abc-defg-hij` are rejected. Teams flow stays: Open Teams → create → paste the real Join link.

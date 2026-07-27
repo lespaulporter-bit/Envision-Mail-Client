@@ -138,16 +138,10 @@ export function CalendarView() {
     const api = desktopApi();
     if (!api) {
       setTeamsInstalled(false);
-      setUseTeams(false);
       return;
     }
     void api.detectTeams?.().then((res) => {
-      const installed = Boolean(res?.installed);
-      setTeamsInstalled(installed);
-      if (!installed) {
-        setUseTeams(false);
-        setTeamsUrl((prev) => (isFakeMeetingUrl(prev) ? "" : prev));
-      }
+      setTeamsInstalled(Boolean(res?.installed));
     });
   }, []);
 
@@ -277,8 +271,7 @@ export function CalendarView() {
     const realUrl = sanitizeMeetingUrl(e.meetingUrl || "");
     setTeamsUrl(realUrl);
     setUseTeams(
-      Boolean(teamsInstalled) &&
-        (e.meetingProvider === "teams" || Boolean(realUrl && /teams\.microsoft|teams\.live/i.test(realUrl))),
+      e.meetingProvider === "teams" || Boolean(realUrl && /teams\.microsoft|teams\.live/i.test(realUrl)),
     );
     setSelectedCalId(e.calendarId || defaultCalId);
     const mins = e.reminderMinutes?.[0];
@@ -347,16 +340,13 @@ export function CalendarView() {
     else if (/teams\.microsoft|teams\.live/i.test(meetingUrl)) meetingProvider = "teams";
 
     if (useTeams) {
-      if (!teamsInstalled) {
-        setToast("Microsoft Teams is not installed — install Teams and sign in with your account.");
-        return;
-      }
       if (!meetingUrl) {
         setToast("Open Teams to create the meeting, then paste your real Join link here.");
         return;
       }
       if (!/teams\.microsoft|teams\.live/i.test(meetingUrl)) {
         setToast("Paste a real Teams join link from your Microsoft Teams meeting.");
+        setTeamsUrl("");
         return;
       }
       meetingProvider = "teams";
@@ -997,108 +987,120 @@ export function CalendarView() {
               value={inviteesText}
               onChange={(e) => setInviteesText(e.target.value)}
             />
-            {/* Only show meeting UI when Teams is installed (on-demand ready) or editing a real saved join link */}
-            {teamsInstalled || (editingId && teamsUrl) ? (
+            {/* Desktop: Teams is always available when the app can open it. Never auto-fill join URLs. */}
+            {isDesktop() ? (
               <div className="space-y-2 rounded-lg border border-line/80 bg-white/60 p-2.5">
-                {teamsInstalled ? (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={useTeams}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setUseTeams(on);
+                      // Always clear — never keep an autofilled Meet/example URL around
+                      setTeamsUrl("");
+                    }}
+                  />
+                  Create Microsoft Teams meeting (your account)
+                </label>
+                {teamsInstalled === false ? (
+                  <p className="text-xs text-amber-800">
+                    Teams wasn&apos;t found in the usual install folders. You can still try{" "}
+                    <strong>Open Teams</strong> — if Teams is signed in on this Mac/PC it should open.
+                  </p>
+                ) : null}
+                {useTeams ? (
                   <>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={useTeams}
-                        onChange={(e) => {
-                          const on = e.target.checked;
-                          setUseTeams(on);
-                          if (!on) setTeamsUrl("");
-                        }}
-                      />
-                      Create Microsoft Teams meeting (your account)
-                    </label>
-                    {useTeams ? (
-                      <>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="soft"
-                            disabled={openingTeams || !title.trim()}
-                            onClick={() => {
-                              void (async () => {
-                                const api = desktopApi();
-                                if (!api?.openTeamsMeeting) {
-                                  setToast("Open Envision Mail desktop to use Teams on this computer.");
-                                  return;
-                                }
-                                if (!title.trim()) {
-                                  setToast("Add an event title first");
-                                  return;
-                                }
-                                setOpeningTeams(true);
-                                try {
-                                  let startIso: string;
-                                  let endIso: string;
-                                  if (allDay) {
-                                    startIso = startOfDay(parseISO(eventDate)).toISOString();
-                                    endIso = endOfDay(parseISO(eventDate)).toISOString();
-                                  } else {
-                                    startIso = parseISO(`${eventDate}T${startTime}:00`).toISOString();
-                                    endIso = parseISO(`${eventDate}T${endTime}:00`).toISOString();
-                                  }
-                                  const res = await api.openTeamsMeeting({
-                                    title: title.trim(),
-                                    startIso,
-                                    endIso,
-                                  });
-                                  if (!res.ok) {
-                                    setToast(res.error || "Could not open Teams");
-                                    if (res.installed === false) setTeamsInstalled(false);
-                                    return;
-                                  }
-                                  // Never invent a join URL — user must paste the real one from Teams
-                                  setTeamsUrl("");
-                                  setToast(
-                                    res.message ||
-                                      "Create the meeting in Teams, then paste the Join link below.",
-                                  );
-                                } finally {
-                                  setOpeningTeams(false);
-                                }
-                              })();
-                            }}
-                          >
-                            {openingTeams ? "Opening Teams…" : "Open Teams to create meeting"}
-                          </Button>
-                          <span className="text-xs text-muted">
-                            Uses the Teams account signed in on this Mac/PC.
-                          </span>
-                        </div>
-                        <Input
-                          name="em-teams-join-url"
-                          type="text"
-                          inputMode="url"
-                          autoComplete="off"
-                          autoCorrect="off"
-                          autoCapitalize="off"
-                          spellCheck={false}
-                          data-1p-ignore="true"
-                          data-lpignore="true"
-                          data-form-type="other"
-                          placeholder="Paste your Teams Join link (empty until you paste)"
-                          value={teamsUrl}
-                          onChange={(e) => setTeamsUrl(e.target.value)}
-                          onBlur={() => {
-                            if (isFakeMeetingUrl(teamsUrl)) {
-                              setTeamsUrl("");
-                              setToast("Removed example link — paste a real Teams Join link only.");
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="soft"
+                        disabled={openingTeams}
+                        onClick={() => {
+                          void (async () => {
+                            const api = desktopApi();
+                            if (!api?.openTeamsMeeting) {
+                              setToast("Open Envision Mail desktop to use Teams on this computer.");
+                              return;
                             }
-                          }}
-                        />
-                        <p className="text-[11px] text-muted">
-                          We never auto-fill a meeting URL. Open Teams, create the meeting, then paste the real Join
-                          link.
-                        </p>
-                      </>
-                    ) : null}
+                            setOpeningTeams(true);
+                            try {
+                              let startIso: string;
+                              let endIso: string;
+                              if (allDay) {
+                                startIso = startOfDay(parseISO(eventDate)).toISOString();
+                                endIso = endOfDay(parseISO(eventDate)).toISOString();
+                              } else {
+                                startIso = parseISO(`${eventDate}T${startTime}:00`).toISOString();
+                                endIso = parseISO(`${eventDate}T${endTime}:00`).toISOString();
+                              }
+                              const res = await api.openTeamsMeeting({
+                                title: title.trim() || "Meeting",
+                                startIso,
+                                endIso,
+                              });
+                              if (!res.ok) {
+                                setToast(res.error || "Could not open Teams");
+                                if (res.installed === false) setTeamsInstalled(false);
+                                return;
+                              }
+                              if (res.installed) setTeamsInstalled(true);
+                              // Never invent a join URL — user must paste the real one from Teams
+                              setTeamsUrl("");
+                              setToast(
+                                res.message ||
+                                  "Create the meeting in Teams, then paste the Join link below.",
+                              );
+                            } finally {
+                              setOpeningTeams(false);
+                            }
+                          })();
+                        }}
+                      >
+                        {openingTeams ? "Opening Teams…" : "Open Teams to create meeting"}
+                      </Button>
+                      <span className="text-xs text-muted">
+                        Uses the Teams account signed in on this Mac/PC.
+                      </span>
+                    </div>
+                    <Input
+                      name="em-teams-join-url"
+                      type="text"
+                      inputMode="url"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      data-1p-ignore="true"
+                      data-lpignore="true"
+                      data-form-type="other"
+                      placeholder="Paste your Teams Join link here (stays empty until you paste)"
+                      value={teamsUrl}
+                      onChange={(e) => setTeamsUrl(e.target.value)}
+                      onFocus={() => {
+                        // Strip browser autofill junk (e.g. Meet example links) immediately
+                        if (isFakeMeetingUrl(teamsUrl) || /meet\.google/i.test(teamsUrl)) {
+                          setTeamsUrl("");
+                        }
+                      }}
+                      onBlur={() => {
+                        const v = teamsUrl.trim();
+                        if (!v) return;
+                        if (isFakeMeetingUrl(v) || /meet\.google/i.test(v) || /zoom\.us/i.test(v)) {
+                          setTeamsUrl("");
+                          setToast("Teams meetings need a real Teams Join link — not Meet or Zoom.");
+                          return;
+                        }
+                        if (!/teams\.microsoft|teams\.live/i.test(v)) {
+                          setTeamsUrl("");
+                          setToast("Paste a real Teams Join link from your meeting.");
+                        }
+                      }}
+                    />
+                    <p className="text-[11px] text-muted">
+                      We never auto-fill a meeting URL. Open Teams → create → copy Join → paste here.
+                    </p>
                   </>
                 ) : null}
                 {!useTeams && editingId && teamsUrl ? (

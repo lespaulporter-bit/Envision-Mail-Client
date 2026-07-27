@@ -22,6 +22,25 @@ function detectMicrosoftTeams() {
     for (const p of candidates) {
       if (p && fs.existsSync(p)) found.push(p);
     }
+    // Spotlight fallback — catches renamed / relocated installs
+    if (!found.length) {
+      try {
+        const { execFileSync } = require("child_process");
+        const out = execFileSync(
+          "mdfind",
+          ["kMDItemCFBundleIdentifier == 'com.microsoft.teams2' || kMDItemCFBundleIdentifier == 'com.microsoft.teams'"],
+          { encoding: "utf8", timeout: 4000 },
+        );
+        for (const line of String(out || "")
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean)) {
+          if (line.endsWith(".app") && fs.existsSync(line)) found.push(line);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
   } else if (platform === "win32") {
     const local = process.env.LOCALAPPDATA || "";
     const programFiles = process.env.PROGRAMFILES || "C:\\Program Files";
@@ -59,23 +78,31 @@ function detectMicrosoftTeams() {
   };
 }
 
+function openViaMacOpen(target) {
+  const { execFile } = require("child_process");
+  return new Promise((resolve, reject) => {
+    execFile("open", [target], (err) => (err ? reject(err) : resolve(true)));
+  });
+}
+
+function launchMacTeamsApp(appPath) {
+  const { execFile } = require("child_process");
+  return new Promise((resolve, reject) => {
+    const args = appPath ? ["-a", appPath] : ["-a", "Microsoft Teams"];
+    execFile("open", args, (err) => (err ? reject(err) : resolve(true)));
+  });
+}
+
 /**
  * Open Microsoft Teams (desktop preferred) to create a meeting as the signed-in user.
- * Returns a deep-link URL; caller must have the user paste the real join link afterward.
+ * Never invents a join URL — caller must paste the real Join link afterward.
  */
 async function openTeamsNewMeeting({ title, startIso, endIso } = {}) {
   const detection = detectMicrosoftTeams();
-  if (!detection.installed) {
-    return {
-      ok: false,
-      error:
-        "Microsoft Teams is not installed on this computer. Install Teams and sign in with your account, then try again.",
-      installed: false,
-    };
-  }
+  const subject = String(title || "Meeting").trim().slice(0, 200) || "Meeting";
 
   const params = new URLSearchParams();
-  if (title) params.set("subject", String(title).slice(0, 200));
+  params.set("subject", subject);
   if (startIso) {
     try {
       params.set("startTime", new Date(startIso).toISOString());
@@ -92,35 +119,67 @@ async function openTeamsNewMeeting({ title, startIso, endIso } = {}) {
   }
   const qs = params.toString();
   // Desktop protocol uses the user's signed-in Teams identity on this machine
-  const desktopUrl = `msteams:/l/meeting/new${qs ? `?${qs}` : ""}`;
-  const webFallback = `https://teams.microsoft.com/l/meeting/new${qs ? `?${qs}` : ""}`;
+  const desktopUrl = `msteams:/l/meeting/new?${qs}`;
+  const webFallback = `https://teams.microsoft.com/l/meeting/new?${qs}`;
+
+  const tryOpen = async () => {
+    if (process.platform === "darwin") {
+      // 1) Launch Services protocol (most reliable with signed-in Teams)
+      try {
+        await openViaMacOpen(desktopUrl);
+        return { opened: desktopUrl, method: "mac-open-protocol" };
+      } catch {
+        /* continue */
+      }
+      // 2) Launch the app, then retry the deep link
+      try {
+        const appPath = detection.paths.find((p) => p.endsWith(".app")) || "Microsoft Teams";
+        await launchMacTeamsApp(appPath);
+        await new Promise((r) => setTimeout(r, 600));
+        await openViaMacOpen(desktopUrl);
+        return { opened: desktopUrl, method: "mac-app-then-protocol" };
+      } catch {
+        /* continue */
+      }
+    }
+
+    try {
+      await shell.openExternal(desktopUrl);
+      return { opened: desktopUrl, method: "electron-protocol" };
+    } catch {
+      /* continue */
+    }
+
+    await shell.openExternal(webFallback);
+    return { opened: webFallback, method: "web-fallback" };
+  };
 
   try {
-    await shell.openExternal(desktopUrl);
+    const result = await tryOpen();
     return {
       ok: true,
-      installed: true,
-      opened: desktopUrl,
+      installed: detection.installed || true,
+      opened: result.opened,
+      method: result.method,
       message:
-        "Teams opened with your account. Create the meeting, then paste the Join link back into Envision Mail.",
+        result.method === "web-fallback"
+          ? "Opened Teams in the browser with your Microsoft account. Create the meeting, then paste the Join link here."
+          : "Teams opened with your account. Create the meeting, then paste the Join link back into Envision Mail.",
     };
-  } catch {
-    try {
-      await shell.openExternal(webFallback);
-      return {
-        ok: true,
-        installed: true,
-        opened: webFallback,
-        message:
-          "Opened Teams in the browser with your Microsoft account. Create the meeting, then paste the Join link here.",
-      };
-    } catch (err) {
+  } catch (err) {
+    if (!detection.installed) {
       return {
         ok: false,
-        installed: true,
-        error: err.message || String(err),
+        installed: false,
+        error:
+          "Microsoft Teams is not installed on this computer. Install Teams and sign in with your account, then try again.",
       };
     }
+    return {
+      ok: false,
+      installed: true,
+      error: err.message || String(err) || "Could not open Microsoft Teams",
+    };
   }
 }
 
