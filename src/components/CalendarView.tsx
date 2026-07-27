@@ -98,6 +98,8 @@ export function CalendarView() {
   const [journalDraft, setJournalDraft] = useState("");
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** Main "New event" composer — collapsed until the user expands or edits */
+  const [eventFormOpen, setEventFormOpen] = useState(false);
   const [selectedCalId, setSelectedCalId] = useState("");
   /** yyyy-MM-dd when the day events popup is open */
   const [daySheetDate, setDaySheetDate] = useState<string | null>(null);
@@ -250,6 +252,7 @@ export function CalendarView() {
   }, [daySheetDate]);
 
   const beginEdit = (e: CalendarEvent) => {
+    setEventFormOpen(true);
     setEditingId(e.id);
     setTitle(e.title);
     setEventDate(format(parseISO(e.start), "yyyy-MM-dd"));
@@ -268,6 +271,7 @@ export function CalendarView() {
 
   const resetForm = () => {
     setEditingId(null);
+    setEventFormOpen(false);
     setTitle("");
     setInviteesText("");
     setTeamsUrl("");
@@ -416,6 +420,7 @@ export function CalendarView() {
                     setStartTime(start);
                     setEndTime(addMinutesHhmm(start, eventDurationMinutes));
                     setEditingId(null);
+                    setEventFormOpen(true);
                     setReminderMinutesBefore(settings.defaultEventReminderMinutes ?? 15);
                     setToast(`New event at ${format(new Date(2000, 0, 1, hour), "h:mm a")}`);
                   }}
@@ -814,6 +819,21 @@ export function CalendarView() {
             </ul>
           ) : null}
 
+          {!eventFormOpen && !editingId ? (
+            <button
+              type="button"
+              onClick={() => setEventFormOpen(true)}
+              className="flex w-full items-center justify-between rounded-xl border border-teal/25 bg-[linear-gradient(145deg,#ecfdf8_0%,#f0f9ff_55%,#fff7ed_100%)] px-3 py-3 text-left transition hover:border-teal/40"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-ink">New event</span>
+                <span className="text-xs text-muted">Click to expand and create</span>
+              </span>
+              <span className="text-sm text-teal" aria-hidden>
+                ▾
+              </span>
+            </button>
+          ) : (
           <form
             className="space-y-2 rounded-xl border border-teal/25 bg-[linear-gradient(145deg,#ecfdf8_0%,#f0f9ff_55%,#fff7ed_100%)] p-3"
             onSubmit={(ev) => {
@@ -821,9 +841,20 @@ export function CalendarView() {
               void saveEvent();
             }}
           >
-            <h4 className="text-sm font-semibold text-ink">
-              {editingId ? "Update event" : "New event"}
-            </h4>
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-sm font-semibold text-ink">
+                {editingId ? "Update event" : "New event"}
+              </h4>
+              {!editingId ? (
+                <button
+                  type="button"
+                  className="text-xs font-medium text-muted hover:text-ink"
+                  onClick={() => setEventFormOpen(false)}
+                >
+                  Collapse
+                </button>
+              ) : null}
+            </div>
             <Input placeholder="Event title" value={title} onChange={(e) => setTitle(e.target.value)} required />
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="block text-xs font-medium text-muted">
@@ -1022,9 +1053,14 @@ export function CalendarView() {
                 <Button type="button" variant="ghost" onClick={resetForm}>
                   Cancel edit
                 </Button>
-              ) : null}
+              ) : (
+                <Button type="button" variant="ghost" onClick={() => setEventFormOpen(false)}>
+                  Cancel
+                </Button>
+              )}
             </div>
           </form>
+          )}
         </section>
 
         <div className="space-y-4">
