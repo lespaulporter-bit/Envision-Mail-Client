@@ -116,6 +116,8 @@ interface Actions {
   trashAllFromSender: (email: string) => number;
   /** Block sender and move their threads (active account) to Spam. Returns count. */
   blockAllFromSender: (email: string) => number;
+  /** Undo a block — allow sender and restore their Spam mail to a box. Returns restored count. */
+  unblockSender: (email: string, box?: MailBox) => number;
   moveThread: (threadId: string, box: Box) => void;
   deleteThreadsToTrash: (threadIds: string[]) => void;
   permanentlyDeleteThreads: (threadIds: string[]) => void;
@@ -492,9 +494,10 @@ export const useMailStore = create<MailStore>()(
       setSettingsTab: (settingsTab) => set({ settingsTab }),
 
       screenContact: (email, decision, box = "lesbox") => {
+        const addr = String(email || "").toLowerCase().trim();
         const activeId = get().inboxAccountId;
         const contacts = get().contacts.map((c) =>
-          c.email === email
+          c.email.toLowerCase() === addr
             ? {
                 ...c,
                 status: decision === "allow" ? ("allowed" as const) : ("blocked" as const),
@@ -503,12 +506,66 @@ export const useMailStore = create<MailStore>()(
             : c,
         );
         const threads = get().threads.map((t) => {
-          if (t.contactEmail !== email || t.box !== "screener") return t;
+          if (t.contactEmail.toLowerCase() !== addr) return t;
           if (activeId && t.accountId && t.accountId !== activeId) return t;
-          if (decision === "block") return { ...t, box: "spam" as Box, seen: true };
+          if (decision === "block") {
+            if (t.box === "spam" || t.box === "trash") return t;
+            return { ...t, box: "spam" as Box, seen: true };
+          }
+          // Allow: pull out of New Senders and Spam
+          if (t.box !== "screener" && t.box !== "spam") return t;
           return bumpThread({ ...t, box });
         });
-        set({ contacts, threads, toast: decision === "allow" ? `Allowed → ${box.replace("_", " ")}` : "Blocked / spam" });
+        set({
+          contacts,
+          threads,
+          toast: decision === "allow" ? `Allowed → ${box.replace("_", " ")}` : "Blocked / spam",
+        });
+      },
+
+      unblockSender: (email, box = "lesbox") => {
+        const addr = String(email || "").toLowerCase().trim();
+        if (!addr) return 0;
+        const activeId = get().inboxAccountId;
+        let restored = 0;
+        const contacts = get().contacts.map((c) =>
+          c.email.toLowerCase() === addr
+            ? { ...c, status: "allowed" as const, defaultBox: box }
+            : c,
+        );
+        const hasContact = contacts.some((c) => c.email.toLowerCase() === addr);
+        const nextContacts = hasContact
+          ? contacts
+          : [
+              ...contacts,
+              {
+                id: uid("c"),
+                email: addr,
+                name: addr.split("@")[0] || addr,
+                status: "allowed" as const,
+                defaultBox: box,
+                notes: "",
+                notify: false,
+                avatarColor: `#${((addr.length * 37) % 0xffffff).toString(16).padStart(6, "0")}`,
+                bundled: false,
+              },
+            ];
+        const threads = get().threads.map((t) => {
+          if (t.contactEmail.toLowerCase() !== addr) return t;
+          if (activeId && t.accountId && t.accountId !== activeId) return t;
+          if (t.box !== "spam" && t.box !== "screener") return t;
+          restored += 1;
+          return bumpThread({ ...t, box });
+        });
+        set({
+          contacts: nextContacts,
+          threads,
+          toast:
+            restored > 0
+              ? `Unblocked ${addr} · ${restored} conversation${restored === 1 ? "" : "s"} → ${box === "lesbox" ? "MoneyBox $" : box}`
+              : `Unblocked ${addr} — future mail is allowed`,
+        });
+        return restored;
       },
 
       markSpam: (threadId) => {
@@ -664,26 +721,36 @@ export const useMailStore = create<MailStore>()(
       toggleReplyLater: (threadId) => {
         const prev = get().threads.find((t) => t.id === threadId);
         const nextVal = !prev?.replyLater;
+        const threads = get().threads.map((t) => {
+          if (t.id !== threadId) return t;
+          const next = bumpThread({ ...t, replyLater: nextVal });
+          return { ...next, tags: syncThreadTags(next) };
+        });
+        const n = countDockThreads(threads, "reply_later", {
+          accountId: get().inboxAccountId,
+          messages: get().messages,
+        });
         set({
-          threads: get().threads.map((t) => {
-            if (t.id !== threadId) return t;
-            const next = bumpThread({ ...t, replyLater: nextVal });
-            return { ...next, tags: syncThreadTags(next) };
-          }),
-          toast: nextVal ? "Snoozed — tagged Snoozed" : "Snooze removed",
+          threads,
+          toast: nextVal ? `Snoozed · ${n} in Snooze` : `Snooze removed · ${n} left`,
         });
       },
 
       toggleSetAside: (threadId) => {
         const prev = get().threads.find((t) => t.id === threadId);
         const nextVal = !prev?.setAside;
+        const threads = get().threads.map((t) => {
+          if (t.id !== threadId) return t;
+          const next = bumpThread({ ...t, setAside: nextVal });
+          return { ...next, tags: syncThreadTags(next) };
+        });
+        const n = countDockThreads(threads, "set_aside", {
+          accountId: get().inboxAccountId,
+          messages: get().messages,
+        });
         set({
-          threads: get().threads.map((t) => {
-            if (t.id !== threadId) return t;
-            const next = bumpThread({ ...t, setAside: nextVal });
-            return { ...next, tags: syncThreadTags(next) };
-          }),
-          toast: nextVal ? "On Hold — tagged On Hold" : "Hold removed",
+          threads,
+          toast: nextVal ? `On Hold · ${n} on hold` : `Hold removed · ${n} left`,
         });
       },
 
@@ -1853,8 +1920,10 @@ export const useMailStore = create<MailStore>()(
             box: normalizeBox(t.box),
             muted: Boolean(legacy.muted ?? legacy.muteed),
           };
-          // Drop ghost dock flags on threads with no remaining messages (old demo leftovers)
-          if (!threadHasContent(next, messages)) {
+          // Drop dock flags only on true orphans (no messages and no account) — never wipe
+          // Snooze / On Hold just because a body hasn't been loaded into memory yet.
+          const hasIds = (next.messageIds || []).length > 0;
+          if (!hasIds && !next.accountId && !threadHasContent(next, messages)) {
             next = {
               ...next,
               replyLater: false,
@@ -1862,7 +1931,16 @@ export const useMailStore = create<MailStore>()(
               bubbleUpAt: null,
             };
           }
-          next = { ...next, tags: syncThreadTags(next) };
+          next = {
+            ...next,
+            replyLater: Boolean(next.replyLater),
+            setAside: Boolean(next.setAside),
+            tags: syncThreadTags({
+              ...next,
+              replyLater: Boolean(next.replyLater),
+              setAside: Boolean(next.setAside),
+            }),
+          };
           return next;
         });
         const contactsRaw = (p.contacts || current.contacts).map((c) => ({
@@ -1979,7 +2057,7 @@ export function selectAccountThreads(
   return threads.filter((t) => threadBelongsToAccount(t, accountId, messages));
 }
 
-/** Real Snooze / On Hold items only — same rules for badge counts and lists. */
+/** Real Snooze / On Hold items — same rules for badge counts and lists. */
 export function selectDockThreads(
   threads: Thread[],
   mode: "reply_later" | "set_aside",
@@ -1992,8 +2070,23 @@ export function selectDockThreads(
   const messages = opts?.messages;
   return selectAccountThreads(threads, accountId, messages).filter((t) => {
     if (t.box === "trash" || t.box === "spam") return false;
-    if (messages && !threadHasContent(t, messages)) return false;
-    return mode === "reply_later" ? t.replyLater : t.setAside;
+    // Count immediately from flags/tags — do not wait on message bodies (that hid badge updates).
+    const flagged = mode === "reply_later" ? Boolean(t.replyLater) : Boolean(t.setAside);
+    if (flagged) return true;
+    const tag = mode === "reply_later" ? "snoozed" : "on-hold";
+    return (t.tags || []).includes(tag);
   });
+}
+
+/** Sidebar / toast helper — live dock badge totals for the active account. */
+export function countDockThreads(
+  threads: Thread[],
+  mode: "reply_later" | "set_aside",
+  opts?: {
+    accountId?: string | null;
+    messages?: Record<string, Message | undefined>;
+  },
+) {
+  return selectDockThreads(threads, mode, opts).length;
 }
 

@@ -1,5 +1,12 @@
 # Envision Mail updates
 
+## 2.6.26
+- **Snooze / On Hold badges update immediately** when you mark mail — sidebar counts stay in sync (and toast shows the new total).
+- Fixed a bug that hid Snooze/On Hold counts when message bodies weren’t loaded yet, and that cleared those flags on reload.
+- **Unsubscribe** always shows on inbound mail; stronger link detection.
+- **Block forever** / **Unblock sender** on the email toolbar, Contacts, and Spam — undo accidental blocks anytime.
+- Fixed Allow/Not-spam leaving mail stuck in Spam.
+
 ## 2.6.25
 - **Unsubscribe** silently uses List-Unsubscribe / one-click / body links (HTTP or mailto), then shows **✓ Unsubscribed**.
 - After a successful unsubscribe, choose **Trash all**, **Block all**, or **both** from that sender — or keep their mail.

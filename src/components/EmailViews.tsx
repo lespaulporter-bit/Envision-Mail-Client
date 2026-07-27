@@ -533,7 +533,6 @@ export function SentView() {
 export function SpamView() {
   const threads = useMailStore((s) => s.threads);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
-  const screenContact = useMailStore((s) => s.screenContact);
   const [busy, setBusy] = useState(false);
   const list = useMemo(
     () => selectBoxThreads(threads, "spam", { accountId: inboxAccountId }),
@@ -582,9 +581,11 @@ export function SpamView() {
                 <Button
                   size="sm"
                   variant="soft"
-                  onClick={() => screenContact(t.contactEmail, "allow", "lesbox")}
+                  onClick={() => {
+                    useMailStore.getState().unblockSender(t.contactEmail, "lesbox");
+                  }}
                 >
-                  Not spam → MoneyBox $
+                  Unblock · Not spam → MoneyBox $
                 </Button>
                 <Button
                   size="sm"

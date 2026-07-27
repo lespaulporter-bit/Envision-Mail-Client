@@ -11,6 +11,7 @@ import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { desktopApi } from "@/lib/desktop";
 import { selectAccountThreads, selectDockThreads, useMailStore } from "@/lib/store";
 import { clipBelongsToAccount } from "@/lib/account-scope";
+import { blockAllFromSenderSmart } from "@/lib/mail-delete";
 import { CALENDAR_TIMEZONE_OPTIONS, localTimezoneId } from "@/lib/timezones";
 import { formatBytes, relativeTime } from "@/lib/utils";
 import { boxLabel } from "@/lib/types";
@@ -145,6 +146,33 @@ export function ContactsView() {
               />
               Loud notifications for this contact
             </label>
+            {contact.status === "blocked" ? (
+              <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-salmon/40 bg-[#fff1ed] px-3 py-2.5">
+                <p className="flex-1 text-sm text-ink">
+                  <span className="font-semibold text-salmon">Blocked forever</span> — their mail goes to Spam.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    useMailStore.getState().unblockSender(contact.email, "lesbox");
+                  }}
+                >
+                  Unblock
+                </Button>
+              </div>
+            ) : (
+              <div className="mb-4">
+                <Button
+                  size="sm"
+                  variant="soft"
+                  onClick={() => {
+                    void blockAllFromSenderSmart(contact.email);
+                  }}
+                >
+                  Block forever
+                </Button>
+              </div>
+            )}
             <h3 className="mb-2 text-sm font-semibold">Contact notes</h3>
             <Textarea
               rows={5}

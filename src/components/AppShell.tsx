@@ -61,7 +61,7 @@ import {
   Trash2,
   Workflow,
 } from "lucide-react";
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 
 const nav: {
   id: AppView;
@@ -81,7 +81,7 @@ const nav: {
   { id: "calendar", label: "Calendar", icon: CalendarDays, pastel: "bg-[#e8ddff]", pastelActive: "bg-[#d4c4ff]" },
   { id: "reply_later", label: "Snooze", icon: Clock3, countKey: "reply_later", pastel: "bg-[#d9f0f7]", pastelActive: "bg-[#bde4f0]" },
   { id: "set_aside", label: "On Hold", icon: Bookmark, countKey: "set_aside", pastel: "bg-[#fce0eb]", pastelActive: "bg-[#f7c5d8]" },
-  { id: "focus_reply", label: "Reply Queue", icon: ClipboardList, pastel: "bg-[#d5f2ef]", pastelActive: "bg-[#b5e8e2]" },
+  { id: "focus_reply", label: "Reply Queue", icon: ClipboardList, countKey: "focus_reply", pastel: "bg-[#d5f2ef]", pastelActive: "bg-[#b5e8e2]" },
   { id: "contacts", label: "Contacts", icon: ContactRound, pastel: "bg-[#ece0f5]", pastelActive: "bg-[#dcc8ed]" },
   { id: "attachments", label: "Attachments", icon: Paperclip },
   { id: "clips", label: "Highlights", icon: Layers3 },
@@ -115,7 +115,7 @@ export function AppShell() {
   const rolloverSometimeTasks = useMailStore((s) => s.rolloverSometimeTasks);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("2.6.25");
+  const [appVersion, setAppVersion] = useState("2.6.26");
 
   const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
   const scoped = inboxAccountId;
@@ -210,26 +210,34 @@ export function AppShell() {
     };
   }, []);
 
-  const counts = {
-    lesbox: selectBoxThreads(threads, "lesbox", { onlyNew: true, accountId: scoped, messages }).length,
-    feed: selectBoxThreads(threads, "feed", { onlyNew: true, accountId: scoped, messages }).length,
-    paper_trail: selectBoxThreads(threads, "paper_trail", {
-      onlyNew: true,
-      accountId: scoped,
-      messages,
-    }).length,
-    screener: selectBoxThreads(threads, "screener", { accountId: scoped, messages }).length,
-    spam: selectBoxThreads(threads, "spam", { accountId: scoped, messages }).length,
-    trash: selectBoxThreads(threads, "trash", { accountId: scoped, messages }).length,
-    reply_later: selectDockThreads(threads, "reply_later", {
-      accountId: scoped,
-      messages,
-    }).length,
-    set_aside: selectDockThreads(threads, "set_aside", {
-      accountId: scoped,
-      messages,
-    }).length,
-  };
+  const counts = useMemo(
+    () => ({
+      lesbox: selectBoxThreads(threads, "lesbox", { onlyNew: true, accountId: scoped, messages }).length,
+      feed: selectBoxThreads(threads, "feed", { onlyNew: true, accountId: scoped, messages }).length,
+      paper_trail: selectBoxThreads(threads, "paper_trail", {
+        onlyNew: true,
+        accountId: scoped,
+        messages,
+      }).length,
+      screener: selectBoxThreads(threads, "screener", { accountId: scoped, messages }).length,
+      spam: selectBoxThreads(threads, "spam", { accountId: scoped, messages }).length,
+      trash: selectBoxThreads(threads, "trash", { accountId: scoped, messages }).length,
+      reply_later: selectDockThreads(threads, "reply_later", {
+        accountId: scoped,
+        messages,
+      }).length,
+      set_aside: selectDockThreads(threads, "set_aside", {
+        accountId: scoped,
+        messages,
+      }).length,
+      // Reply Queue is the same Snooze set — keep badge in sync with Snooze
+      focus_reply: selectDockThreads(threads, "reply_later", {
+        accountId: scoped,
+        messages,
+      }).length,
+    }),
+    [threads, messages, scoped],
+  );
 
   if (!hydrated) {
     return (
@@ -343,8 +351,11 @@ export function AppShell() {
                 <span className={cn("flex-1 truncate", isMoneyBox && "font-bold text-teal")}>
                   {item.label}
                 </span>
-                {count ? (
-                  <span className="rounded-md bg-blurple px-1.5 py-0.5 text-[10px] font-bold text-white">
+                {count > 0 ? (
+                  <span
+                    key={`${item.id}-${count}`}
+                    className="animate-fade-in rounded-md bg-teal px-1.5 py-0.5 text-[10px] font-bold text-white"
+                  >
                     {count}
                   </span>
                 ) : null}

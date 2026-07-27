@@ -109,6 +109,12 @@ export function ThreadView() {
       const targets = resolveUnsubscribeTargets(m);
       if (targets || m.unsubscribedAt) return { message: m, targets };
     }
+    // Always offer Unsubscribe for inbound mail — even if headers weren't stored yet
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (!messages[i].isOutgoing) {
+        return { message: messages[i], targets: null as ReturnType<typeof resolveUnsubscribeTargets> };
+      }
+    }
     return null;
   }, [messages]);
 
@@ -123,7 +129,7 @@ export function ThreadView() {
     );
   }
 
-  const contact = contacts.find((c) => c.email === thread.contactEmail);
+  const contact = contacts.find((c) => c.email.toLowerCase() === thread.contactEmail.toLowerCase());
   const subject = thread.customSubject || thread.subject;
   const workflow = workflows.find((w) => w.id === thread.workflowId);
   const mergeCandidates = threads.filter(
@@ -257,7 +263,11 @@ export function ThreadView() {
             disabled={
               unsubBusy || Boolean(unsubscribeTarget.message.unsubscribedAt) || unsubFlash
             }
-            title="Silently unsubscribe using the list’s unsubscribe link"
+            title={
+              unsubscribeTarget.targets
+                ? "Silently unsubscribe using the list’s unsubscribe link"
+                : "No unsubscribe link found on this email yet — try after sync, or open the message body"
+            }
             onClick={() => {
               void (async () => {
                 const api = desktopApi();
@@ -310,6 +320,30 @@ export function ThreadView() {
             )}
           </Button>
         ) : null}
+        {contact?.status === "blocked" ? (
+          <Button
+            size="sm"
+            variant="primary"
+            className="bg-emerald-700 text-white hover:bg-emerald-800"
+            title="Undo block — allow this sender again and restore their Spam mail"
+            onClick={() => {
+              useMailStore.getState().unblockSender(thread.contactEmail, "lesbox");
+            }}
+          >
+            Unblock sender
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="soft"
+            title="Block this sender forever — future mail goes to Spam (you can Unblock later)"
+            onClick={() => {
+              void blockAllFromSenderSmart(thread.contactEmail);
+            }}
+          >
+            Block forever
+          </Button>
+        )}
         <Button
           size="sm"
           variant={thread.shareToken ? "primary" : "soft"}

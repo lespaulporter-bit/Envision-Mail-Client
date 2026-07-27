@@ -58,22 +58,49 @@ function extractUnsubscribeInfo(parsed, bodyHtml) {
 
 function extractUnsubscribeFromHtml(html) {
   const src = String(html || "");
-  const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+  const UNSUB_WORD =
+    /unsubscribe|opt[\s-]?out|manage\s+(?:email\s+)?preferences|email\s+preferences|remove\s+me|stop\s+receiving|leave\s+(?:this\s+)?list|cancel\s+subscription/i;
   const httpCandidates = [];
   const mailtoCandidates = [];
+  const decodeHref = (raw) =>
+    String(raw || "")
+      .trim()
+      .replace(/&amp;/gi, "&")
+      .replace(/&#38;/g, "&");
+
+  const anchorRe = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
   let m;
-  while ((m = hrefRe.exec(src))) {
-    const raw = String(m[1] || "").trim();
-    const around = src.slice(Math.max(0, m.index - 100), m.index + raw.length + 100).toLowerCase();
-    const score =
-      (/unsubscribe|opt[\s-]?out|manage\s+preferences|email\s+preferences|remove\s+me/i.test(raw) ? 3 : 0) +
-      (/unsubscribe|opt[\s-]?out|manage preferences|email preferences|remove me|stop receiving/i.test(around)
-        ? 2
-        : 0);
+  while ((m = anchorRe.exec(src))) {
+    const attrs = m[1] || "";
+    const inner = String(m[2] || "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const hrefMatch = attrs.match(/href\s*=\s*["']([^"']+)["']/i) || attrs.match(/href\s*=\s*([^\s>]+)/i);
+    if (!hrefMatch) continue;
+    const raw = decodeHref(hrefMatch[1]);
+    const around = `${attrs} ${inner}`.toLowerCase();
+    let score = 0;
+    if (UNSUB_WORD.test(raw)) score += 3;
+    if (UNSUB_WORD.test(inner)) score += 4;
+    if (UNSUB_WORD.test(around)) score += 2;
     if (score <= 0) continue;
     if (/^https?:\/\//i.test(raw)) httpCandidates.push({ url: raw, score });
     else if (/^mailto:/i.test(raw)) mailtoCandidates.push({ url: raw, score });
   }
+
+  if (!httpCandidates.length && !mailtoCandidates.length) {
+    const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+    while ((m = hrefRe.exec(src))) {
+      const raw = decodeHref(m[1]);
+      const around = src.slice(Math.max(0, m.index - 120), m.index + raw.length + 120).toLowerCase();
+      const score = (UNSUB_WORD.test(raw) ? 3 : 0) + (UNSUB_WORD.test(around) ? 2 : 0);
+      if (score <= 0) continue;
+      if (/^https?:\/\//i.test(raw)) httpCandidates.push({ url: raw, score });
+      else if (/^mailto:/i.test(raw)) mailtoCandidates.push({ url: raw, score });
+    }
+  }
+
   httpCandidates.sort((a, b) => b.score - a.score);
   mailtoCandidates.sort((a, b) => b.score - a.score);
   return {
