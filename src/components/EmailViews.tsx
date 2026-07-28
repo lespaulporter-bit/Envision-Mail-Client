@@ -280,7 +280,7 @@ export function FeedView() {
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="Screening"
-        subtitle="New and unapproved senders land here. Allow → MoneyBox $ forever — or leave them in Screening."
+        subtitle="New and unapproved senders land here. Reply Queue or Trash without Allowing into MoneyBox $ — or Allow → MoneyBox $ forever."
       />
       {list.length === 0 ? (
         <EmptyState
@@ -397,6 +397,10 @@ function ScreenerCard({
   const bodyHtml = last?.bodyHtml?.trim() ?? "";
   const hasBody = Boolean(bodyHtml);
   const plainSummary = hasBody ? previewText(bodyHtml, 220) : "";
+  const toggleReplyLater = useMailStore((s) => s.toggleReplyLater);
+  const setView = useMailStore((s) => s.setView);
+  const setToast = useMailStore((s) => s.setToast);
+  const openThread = useMailStore((s) => s.openThread);
 
   return (
     <article className="rounded-2xl border border-line bg-white p-5 animate-slide-up">
@@ -407,6 +411,7 @@ function ScreenerCard({
           <p className="mt-2 font-medium">{thread.subject}</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {pending ? <Badge tone="blurple">New sender</Badge> : <Badge tone="soft">In Screening</Badge>}
+            {thread.replyLater ? <Badge tone="mint">Reply Queue</Badge> : null}
             {thread.accountEmail ? <Badge tone="blurple">{thread.accountEmail}</Badge> : null}
           </div>
         </div>
@@ -429,6 +434,33 @@ function ScreenerCard({
             {expanded ? "Collapse" : "Expand"}
           </Button>
         ) : null}
+        <Button
+          size="sm"
+          variant="soft"
+          title="Open to read / reply without allowing into MoneyBox $"
+          onClick={() => openThread(thread.id)}
+        >
+          Open
+        </Button>
+        <Button
+          size="sm"
+          variant={thread.replyLater ? "primary" : "soft"}
+          title={
+            thread.replyLater
+              ? "Already in Reply Queue — open it from the sidebar"
+              : "Add to Reply Queue without moving this sender into MoneyBox $"
+          }
+          onClick={() => {
+            if (!thread.replyLater) {
+              toggleReplyLater(thread.id);
+            } else {
+              setView("focus_reply");
+              setToast("Opening Reply Queue");
+            }
+          }}
+        >
+          {thread.replyLater ? "In Reply Queue ✓" : "Reply Queue"}
+        </Button>
         <UnsubscribeButton thread={thread} messageId={last?.id} />
         {showAllowMoneyBox || boxChoice === "lesbox" ? (
           <Button onClick={onAllow} title="This sender’s mail goes to MoneyBox $ forever">
@@ -450,7 +482,7 @@ function ScreenerCard({
         <Button
           size="sm"
           variant="danger"
-          title="Move this email to Trash"
+          title="Move to Trash — stays out of MoneyBox $"
           onClick={() => {
             void (async () => {
               const { moveThreadToTrashSmart } = await import("@/lib/mail-delete");
@@ -458,7 +490,7 @@ function ScreenerCard({
             })();
           }}
         >
-          Move to Trash
+          Trash
         </Button>
       </div>
     </article>
@@ -539,7 +571,7 @@ export function ScreenerView() {
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="New Senders"
-        subtitle="First-time senders waiting in Screening. Allow → MoneyBox $ forever, or leave them in Screening."
+        subtitle="First-time senders in Screening. Reply Queue / Trash without MoneyBox $, or Allow → MoneyBox $ forever."
         actions={
           <>
             <Button size="sm" variant="soft" onClick={() => setView("feed")}>
@@ -959,7 +991,7 @@ export function FocusReplyView() {
     <div className="mx-auto max-w-2xl px-4 py-6 md:px-8">
       <SectionHeader
         title="Reply Queue"
-        subtitle={`${index + 1} of ${queue.length} — MoneyBox $ hidden so you can knock these out.`}
+        subtitle={`${index + 1} of ${queue.length} — includes Screening / New Senders mail you queued (MoneyBox $ stays clear).`}
       />
       <article className="rounded-2xl border border-line bg-white p-5">
         <h2 className="font-display text-2xl">{current.customSubject || current.subject}</h2>

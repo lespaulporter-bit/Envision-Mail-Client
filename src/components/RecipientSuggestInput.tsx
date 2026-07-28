@@ -6,6 +6,8 @@ import {
   applyRecipientSuggestion,
   buildRecipientSuggestions,
   currentRecipientQuery,
+  mergePastedRecipients,
+  normalizeRecipientField,
   parseRecipientEmails,
   type RecipientSuggestion,
 } from "@/lib/recipient-suggest";
@@ -24,12 +26,15 @@ export function RecipientSuggestInput({
   placeholder,
   className,
   autoFocus,
+  label,
 }: {
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
   className?: string;
   autoFocus?: boolean;
+  /** Optional short label shown above the field (To / Cc / Bcc). */
+  label?: string;
 }) {
   const contacts = useMailStore((s) => s.contacts);
   const threads = useMailStore((s) => s.threads);
@@ -38,6 +43,7 @@ export function RecipientSuggestInput({
   const settings = useMailStore((s) => s.settings);
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
 
@@ -78,18 +84,37 @@ export function RecipientSuggestInput({
   const pick = (s: RecipientSuggestion) => {
     onChange(applyRecipientSuggestion(value, s.email));
     setOpen(false);
+    // Keep focus so the next address can be typed immediately
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const show = open && suggestions.length > 0;
+  const count = already.length;
 
   return (
     <div ref={wrapRef} className={cn("relative min-w-0 flex-1", className)}>
+      {label ? (
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</span>
+          {count > 0 ? (
+            <span className="text-[11px] text-muted">
+              {count} address{count === 1 ? "" : "es"}
+            </span>
+          ) : null}
+        </div>
+      ) : count > 1 ? (
+        <div className="mb-1 text-right text-[11px] text-muted">
+          {count} addresses
+        </div>
+      ) : null}
       <Input
+        ref={inputRef}
         className="w-full"
         placeholder={placeholder}
         value={value}
         autoFocus={autoFocus}
         autoComplete="off"
+        spellCheck={false}
         role="combobox"
         aria-expanded={show}
         aria-controls={listId}
@@ -99,7 +124,40 @@ export function RecipientSuggestInput({
           onChange(e.target.value);
           setOpen(true);
         }}
+        onBlur={() => {
+          // Normalize "Name <a@x.com>; b@y.com\nc@z.com" → clean comma list
+          const next = normalizeRecipientField(value);
+          if (next && next !== value.trim()) onChange(next);
+        }}
+        onPaste={(e) => {
+          const pasted = e.clipboardData.getData("text");
+          if (!pasted) return;
+          // Multi-recipient paste (Outlook / Excel / Gmail copy)
+          const looksMulti =
+            pastedEmailsQuick(pasted) > 1 || /[,;\n\r\t]/.test(pasted);
+          if (!looksMulti && pastedEmailsQuick(pasted) < 1) return;
+          const el = e.currentTarget;
+          const start = el.selectionStart ?? value.length;
+          const end = el.selectionEnd ?? value.length;
+          const merged = mergePastedRecipients(value, pasted, start, end);
+          if (merged === value) return;
+          e.preventDefault();
+          onChange(merged);
+          setOpen(false);
+        }}
         onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false);
+            return;
+          }
+          // Comma / semicolon commits the current token (Outlook-style)
+          if ((e.key === "," || e.key === ";") && /@/.test(query)) {
+            e.preventDefault();
+            const next = normalizeRecipientField(value);
+            onChange(next ? `${next}, ` : "");
+            setOpen(true);
+            return;
+          }
           if (!show) return;
           if (e.key === "ArrowDown") {
             e.preventDefault();
@@ -112,8 +170,6 @@ export function RecipientSuggestInput({
               e.preventDefault();
               pick(suggestions[active]);
             }
-          } else if (e.key === "Escape") {
-            setOpen(false);
           }
         }}
       />
@@ -157,4 +213,8 @@ export function RecipientSuggestInput({
       ) : null}
     </div>
   );
+}
+
+function pastedEmailsQuick(text: string): number {
+  return parseRecipientEmails(text).length;
 }

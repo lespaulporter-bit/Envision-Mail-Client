@@ -13,6 +13,9 @@ export type RecentRecipient = {
   lastUsedAt: string;
 };
 
+/** Common email pattern — good enough for paste/normalize (not full RFC validation). */
+const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+
 function normalizeEmail(raw: string): string {
   return String(raw || "")
     .trim()
@@ -20,25 +23,89 @@ function normalizeEmail(raw: string): string {
     .replace(/^<|>$/g, "");
 }
 
-/** Last incomplete address token while typing comma-separated recipients. */
+/**
+ * Outlook-style multi-recipient parse.
+ * Accepts commas, semicolons, newlines, tabs, and `Name <email>` forms.
+ * Extracts every real address so paste from Excel/Outlook/Gmail just works.
+ */
+export function parseRecipientEmails(raw: string): string[] {
+  const text = String(raw || "")
+    .replace(/\u00a0/g, " ")
+    .trim();
+  if (!text) return [];
+
+  const found: string[] = [];
+  const seen = new Set<string>();
+  for (const match of text.matchAll(EMAIL_RE)) {
+    const email = normalizeEmail(match[0]);
+    if (!email.includes("@") || seen.has(email)) continue;
+    seen.add(email);
+    found.push(email);
+  }
+  return found;
+}
+
+/** Clean field value to a comma-separated list of emails (Outlook paste friendly). */
+export function normalizeRecipientField(raw: string): string {
+  return parseRecipientEmails(raw).join(", ");
+}
+
+/** Last incomplete address token while typing comma/semicolon/newline-separated recipients. */
 export function currentRecipientQuery(value: string): { prefix: string; query: string } {
   const raw = String(value || "");
-  const parts = raw.split(/[,;]/);
-  const query = (parts[parts.length - 1] || "").trim();
-  const prefix = parts.length > 1 ? parts.slice(0, -1).join(", ").replace(/\s+$/, "") : "";
-  return { prefix: prefix ? `${prefix}, ` : "", query };
+  // Split off the last segment; keep prior complete emails as prefix
+  const parts = raw.split(/[,;\n\r]+/);
+  const lastRaw = parts[parts.length - 1] ?? "";
+  const query = lastRaw.trim();
+  const prior = parts.slice(0, -1).join(", ");
+  const prefixEmails = parseRecipientEmails(prior);
+  const prefix = prefixEmails.length ? `${prefixEmails.join(", ")}, ` : "";
+
+  // Finished address with trailing separator → ready for the next one
+  if (!query && prefixEmails.length) {
+    return { prefix, query: "" };
+  }
+  return { prefix, query };
 }
 
 export function applyRecipientSuggestion(value: string, email: string): string {
   const { prefix } = currentRecipientQuery(value);
-  return `${prefix}${email}`;
+  const clean = normalizeEmail(email);
+  const already = new Set(parseRecipientEmails(prefix));
+  if (already.has(clean)) {
+    return prefix || `${clean}, `;
+  }
+  // Trailing comma + space so the next address is easy (Outlook-style)
+  return `${prefix}${clean}, `;
 }
 
-export function parseRecipientEmails(raw: string): string[] {
-  return String(raw || "")
-    .split(/[,;]+/)
-    .map((s) => normalizeEmail(s.replace(/.*</, "").replace(/>.*/, "")))
-    .filter((s) => s.includes("@"));
+/**
+ * Merge a pasted recipient blob into the current field around the selection.
+ * Replaces the selected range (or appends) with normalized emails.
+ */
+export function mergePastedRecipients(
+  value: string,
+  pasted: string,
+  selectionStart: number,
+  selectionEnd: number,
+): string {
+  const before = value.slice(0, selectionStart);
+  const after = value.slice(selectionEnd);
+  const beforeEmails = parseRecipientEmails(before.replace(/[,;\s]+$/g, ""));
+  const pastedEmails = parseRecipientEmails(pasted);
+  const afterEmails = parseRecipientEmails(after.replace(/^[,;\s]+/g, ""));
+  if (!pastedEmails.length) {
+    // No emails in paste — let the browser do a normal paste
+    return value;
+  }
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  for (const e of [...beforeEmails, ...pastedEmails, ...afterEmails]) {
+    if (seen.has(e)) continue;
+    seen.add(e);
+    merged.push(e);
+  }
+  return merged.join(", ");
 }
 
 /**

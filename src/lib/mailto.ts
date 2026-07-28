@@ -1,5 +1,7 @@
 /** Parse a mailto: URL into compose fields. Body is intentionally ignored. */
 
+import { normalizeRecipientField, parseRecipientEmails } from "@/lib/recipient-suggest";
+
 export type MailtoComposeFields = {
   to: string;
   cc: string;
@@ -18,11 +20,7 @@ function decodeParam(raw: string): string {
 }
 
 function splitAddrs(raw: string): string {
-  return raw
-    .split(/[,;]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.includes("@"))
-    .join(", ");
+  return normalizeRecipientField(raw);
 }
 
 /**
@@ -50,8 +48,9 @@ export function parseMailtoUrl(input: string): MailtoComposeFields | null {
       const key = (eq >= 0 ? pair.slice(0, eq) : pair).trim().toLowerCase();
       const val = eq >= 0 ? decodeParam(pair.slice(eq + 1)) : "";
       if (key === "to") {
-        const extra = splitAddrs(val);
-        fields.to = [fields.to, extra].filter(Boolean).join(", ");
+        const extra = parseRecipientEmails(val);
+        const merged = [...parseRecipientEmails(fields.to), ...extra];
+        fields.to = [...new Set(merged)].join(", ");
       } else if (key === "cc") {
         fields.cc = splitAddrs(val);
       } else if (key === "bcc") {

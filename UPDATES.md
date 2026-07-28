@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.38
+- **Screening & New Senders**: **Reply Queue**, **Open**, and **Trash** — reply or delete without Allowing the sender into MoneyBox $.
+- **Outlook-style multi-recipients**: paste comma-, semicolon-, or newline-separated addresses into To / Cc / Bcc — they all send.
+- Address count on the field; Bcc-only send supported.
+
 ## 2.6.37
 - **Day Cover** sits under All / Fresh / Previously read — above the Fresh list (not buried at the bottom).
 

@@ -610,12 +610,14 @@ export function ThreadView() {
         {showReplyCcBcc ? (
           <div className="space-y-2">
             <RecipientSuggestInput
-              placeholder="Cc — start typing a name or email"
+              label="Cc"
+              placeholder="Cc — paste comma-separated addresses"
               value={replyCc}
               onChange={setReplyCc}
             />
             <RecipientSuggestInput
-              placeholder="Bcc — start typing a name or email"
+              label="Bcc"
+              placeholder="Bcc — paste comma-separated addresses"
               value={replyBcc}
               onChange={setReplyBcc}
             />
@@ -648,13 +650,9 @@ export function ThreadView() {
                       }</div>`
                     : ""
                 }`;
-                const parseAddrs = (raw: string) =>
-                  String(raw || "")
-                    .split(/[,;]+/)
-                    .map((s) => s.trim())
-                    .filter((s) => s.includes("@"));
-                const ccJoined = parseAddrs(replyCc).join(", ") || undefined;
-                const bccJoined = parseAddrs(replyBcc).join(", ") || undefined;
+                const { parseRecipientEmails } = await import("@/lib/recipient-suggest");
+                const ccJoined = parseRecipientEmails(replyCc).join(", ") || undefined;
+                const bccJoined = parseRecipientEmails(replyBcc).join(", ") || undefined;
                 const sendAccountId = accountId || inboxAccountId || thread.accountId || "";
                 if (!api) {
                   setToast("Open the Envision Mail desktop app to send via SMTP");

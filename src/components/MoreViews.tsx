@@ -8,6 +8,7 @@ import { SignaturesPanel } from "@/components/SignaturesPanel";
 import { EmailTemplatesPanel } from "@/components/EmailTemplatesPanel";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
+import { parseRecipientEmails } from "@/lib/recipient-suggest";
 import { desktopApi } from "@/lib/desktop";
 import { selectAccountThreads, selectDockThreads, useMailStore } from "@/lib/store";
 import { clipBelongsToAccount } from "@/lib/account-scope";
@@ -1120,12 +1121,6 @@ export function ComposeView() {
     if ((composeDraft.cc || composeDraft.bcc) && !showCcBcc) setShowCcBcc(true);
   }, [composeDraft.cc, composeDraft.bcc, showCcBcc]);
 
-  const parseAddrs = (raw: string) =>
-    String(raw || "")
-      .split(/[,;]+/)
-      .map((s) => s.trim())
-      .filter((s) => s.includes("@"));
-
   const buildHtml = () => {
     const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
     const raw = String(composeDraft.body || "").trim();
@@ -1145,12 +1140,25 @@ export function ComposeView() {
     setSending(true);
     try {
       const api = desktopApi();
-      const toList = parseAddrs(composeDraft.to);
-      const ccList = parseAddrs(composeDraft.cc || "");
-      const bccList = parseAddrs(composeDraft.bcc || "");
-      if (!toList.length) {
-        setToast("Add at least one To address");
+      let toList = parseRecipientEmails(composeDraft.to);
+      const ccList = parseRecipientEmails(composeDraft.cc || "");
+      const bccList = parseRecipientEmails(composeDraft.bcc || "");
+      const primaryContact = toList[0] || bccList[0] || "";
+      if (!toList.length && !bccList.length) {
+        setToast("Add at least one To or Bcc address");
         return;
+      }
+      if (!toList.length && bccList.length) {
+        // Outlook-style Bcc-only: many SMTP servers need a To — use your From address
+        const self =
+          accounts.find((a) => a.id === (accountId || inboxAccountId))?.email ||
+          settings.email ||
+          "";
+        if (!self) {
+          setToast("Add a To address, or select an account for Bcc-only send");
+          return;
+        }
+        toList = [self];
       }
       if (!String(composeDraft.subject || "").trim()) {
         setToast("Add a subject");
@@ -1194,15 +1202,17 @@ export function ComposeView() {
         setToast(err + authHint);
         return;
       }
-      rememberRecipients([...toList, ...ccList, ...bccList]);
+      rememberRecipients([...parseRecipientEmails(composeDraft.to), ...ccList, ...bccList]);
       setToast(
         requestReceipt
           ? "Sent via SMTP · read receipt requested — check Sent for ✓ when opened"
-          : bccList.length
-            ? `Sent via SMTP · ${bccList.length} Bcc`
-            : "Sent via SMTP",
+          : bccList.length > 1 || toList.length > 1 || ccList.length > 1
+            ? `Sent via SMTP · ${toList.length + ccList.length + bccList.length} recipients`
+            : bccList.length
+              ? `Sent via SMTP · ${bccList.length} Bcc`
+              : "Sent via SMTP",
       );
-      sendNewEmail(toList[0], composeDraft.subject, bodyText || sig?.html || "", {
+      sendNewEmail(primaryContact || toList[0], composeDraft.subject, bodyText || sig?.html || "", {
         requestReadReceipt: requestReceipt,
         smtpMessageId: result.messageId,
         cc: ccList,
@@ -1263,26 +1273,34 @@ export function ComposeView() {
         <div className="flex flex-wrap items-start gap-2">
           <RecipientSuggestInput
             className="min-w-0 flex-1"
-            placeholder="To — start typing a name or email"
+            label="To"
+            placeholder="To — type or paste many: a@x.com, b@y.com"
             value={composeDraft.to}
             onChange={(to) => setCompose({ to })}
+            autoFocus
           />
-          <Button type="button" size="sm" variant="soft" onClick={() => setShowCcBcc((v) => !v)}>
+          <Button type="button" size="sm" variant="soft" className="mt-5" onClick={() => setShowCcBcc((v) => !v)}>
             {showCcBcc ? "Hide Cc/Bcc" : "Cc / Bcc"}
           </Button>
         </div>
         {showCcBcc ? (
           <>
             <RecipientSuggestInput
-              placeholder="Cc — carbon copy"
+              label="Cc"
+              placeholder="Cc — paste comma-separated addresses"
               value={composeDraft.cc || ""}
               onChange={(cc) => setCompose({ cc })}
             />
             <RecipientSuggestInput
-              placeholder="Bcc — blind carbon copy"
+              label="Bcc"
+              placeholder="Bcc — paste comma-separated addresses"
               value={composeDraft.bcc || ""}
               onChange={(bcc) => setCompose({ bcc })}
             />
+            <p className="text-xs text-muted">
+              Tip: copy a list from Outlook, Excel, or Gmail and paste into To / Cc / Bcc — commas, semicolons, or
+              new lines all work.
+            </p>
           </>
         ) : null}
         <Input
