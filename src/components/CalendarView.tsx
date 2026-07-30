@@ -190,6 +190,27 @@ export function CalendarView() {
     return eachDayOfInterval({ start, end: addDays(start, 13) });
   }, [date]);
 
+  /** The month / week / day you are actually looking at, spelled out. */
+  const periodLabel = useMemo(() => {
+    if (calendarView === "month") return format(date, "MMMM yyyy");
+    if (calendarView === "week") {
+      const start = startOfWeek(date);
+      const end = endOfWeek(date);
+      return isSameMonth(start, end)
+        ? `${format(start, "MMMM d")} – ${format(end, "d, yyyy")}`
+        : `${format(start, "MMM d")} – ${format(end, "MMM d, yyyy")}`;
+    }
+    if (calendarView === "agenda") {
+      return `${format(date, "MMM d")} – ${format(addDays(date, 13), "MMM d, yyyy")}`;
+    }
+    return format(date, "EEEE, MMMM d, yyyy");
+  }, [calendarView, date]);
+
+  const stepNoun =
+    calendarView === "month" ? "month" : calendarView === "day" ? "day" : "week";
+  const viewingNow =
+    calendarView === "month" ? isSameMonth(date, new Date()) : days.some((d) => isToday(d));
+
   const dayEvents = (d: Date) =>
     filteredEvents.filter((e) => isSameDay(parseISO(e.start), d));
 
@@ -328,7 +349,7 @@ export function CalendarView() {
       }
     }
     const invitees = parseInvitees(inviteesText);
-    let meetingUrl = sanitizeMeetingUrl(teamsUrl);
+    const meetingUrl = sanitizeMeetingUrl(teamsUrl);
     if (teamsUrl.trim() && isFakeMeetingUrl(teamsUrl)) {
       setToast("That looks like an example link — paste a real Join link from Teams (never auto-filled).");
       setTeamsUrl("");
@@ -403,7 +424,7 @@ export function CalendarView() {
             }`}
             title="Open all events for this day"
           >
-            {format(d, "EEE d")}
+            {format(d, "EEE, MMM d")}
             {isToday(d) ? <span className="ml-1 text-[10px] font-normal">· today</span> : null}
           </button>
         ))}
@@ -521,15 +542,6 @@ export function CalendarView() {
               {v}
             </Button>
           ))}
-          <Button size="sm" variant="soft" onClick={() => shiftDate(-1)}>
-            ←
-          </Button>
-          <Button size="sm" variant="soft" onClick={() => setCalendarDate(format(new Date(), "yyyy-MM-dd"))}>
-            Today
-          </Button>
-          <Button size="sm" variant="soft" onClick={() => shiftDate(1)}>
-            →
-          </Button>
           {isMacDesktop ? (
             <Button
               size="sm"
@@ -613,60 +625,114 @@ export function CalendarView() {
         </div>
       ) : null}
 
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white/85 px-3 py-3 md:px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <Button size="sm" variant="soft" onClick={() => shiftDate(-1)} title={`Previous ${stepNoun}`}>
+            ←
+          </Button>
+          <div className="min-w-0">
+            <h2 className="truncate font-display text-2xl leading-tight tracking-tight text-ink">
+              {periodLabel}
+            </h2>
+            <p className="text-[11px] text-muted">
+              {viewingNow
+                ? `Includes today · ${format(new Date(), "EEE, MMM d, yyyy")}`
+                : `Today is ${format(new Date(), "EEE, MMM d, yyyy")}`}
+            </p>
+          </div>
+          <Button size="sm" variant="soft" onClick={() => shiftDate(1)} title={`Next ${stepNoun}`}>
+            →
+          </Button>
+        </div>
+        <Button
+          size="sm"
+          variant={viewingNow ? "soft" : "primary"}
+          onClick={() => setCalendarDate(format(new Date(), "yyyy-MM-dd"))}
+        >
+          Today
+        </Button>
+      </div>
+
       {calendarView === "month" ? (
-        <div className="mb-6 grid grid-cols-7 gap-2">
-          {days.map((d) => {
-            const key = format(d, "yyyy-MM-dd");
-            const label = dayLabels.find((x) => x.date === key)?.label;
-            const selected = isSameDay(d, date);
-            const list = dayEvents(d);
-            const allDayCount = list.filter((e) => e.allDay).length;
-            const overflow = Math.max(0, list.length - 3);
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => openDaySheet(key)}
-                className={`min-h-28 rounded-2xl border p-2 text-left transition ${
-                  selected || daySheetDate === key
-                    ? "border-teal bg-[#ecfdf8]"
-                    : "border-line bg-white/85 hover:bg-soft/60"
-                } ${!isSameMonth(d, date) ? "opacity-40" : ""} ${isToday(d) ? "ring-1 ring-teal/40" : ""}`}
+        <div className="mb-6">
+          <div className="mb-2 grid grid-cols-7 gap-2">
+            {days.slice(0, 7).map((d) => (
+              <div
+                key={`weekday-${format(d, "i")}`}
+                className="px-2 text-[11px] font-semibold uppercase tracking-wide text-muted"
               >
-                <div className="mb-1 flex items-center justify-between text-xs">
-                  <span className="font-semibold">{format(d, "d")}</span>
-                  {label ? <span className="truncate text-[10px] text-teal">{label}</span> : null}
-                </div>
-                {allDayCount ? (
-                  <div className="mb-1 text-[10px] font-medium text-muted">{allDayCount} all-day</div>
-                ) : null}
-                <ul className="space-y-1">
-                  {list.slice(0, 3).map((e) => (
-                    <li
-                      key={e.id}
-                      className="truncate rounded px-1.5 py-0.5 text-[11px] text-white"
-                      style={{ background: colorFor(e.calendarId) }}
-                      title={e.title}
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        openDaySheet(key, { edit: e });
-                      }}
-                    >
-                      {e.allDay ? "" : `${format(parseISO(e.start), "h:mma")} `}
-                      {e.title}
-                    </li>
-                  ))}
-                </ul>
-                {overflow > 0 ? (
-                  <div className="mt-1 text-[10px] font-medium text-teal">+{overflow} more · open day</div>
-                ) : list.length === 0 ? (
-                  <div className="mt-1 text-[10px] text-muted">Click to add</div>
-                ) : (
-                  <div className="mt-1 text-[10px] text-muted">Click for all</div>
-                )}
-              </button>
-            );
-          })}
+                {format(d, "EEE")}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-2">
+            {days.map((d) => {
+              const key = format(d, "yyyy-MM-dd");
+              const label = dayLabels.find((x) => x.date === key)?.label;
+              const selected = isSameDay(d, date);
+              const list = dayEvents(d);
+              const allDayCount = list.filter((e) => e.allDay).length;
+              const overflow = Math.max(0, list.length - 3);
+              const otherMonth = !isSameMonth(d, date);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => openDaySheet(key)}
+                  className={`min-h-28 rounded-2xl border p-2 text-left transition ${
+                    selected || daySheetDate === key
+                      ? "border-teal bg-[#ecfdf8]"
+                      : otherMonth
+                        ? "border-line/70 bg-soft/50 hover:bg-soft"
+                        : "border-line bg-white/85 hover:bg-soft/60"
+                  } ${isToday(d) ? "ring-1 ring-teal/40" : ""}`}
+                  title={format(d, "EEEE, MMMM d, yyyy")}
+                >
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className={`font-semibold ${otherMonth ? "text-muted" : ""}`}>
+                      {/* Month name on the 1st and on spill-over days, so no date is ambiguous */}
+                      {d.getDate() === 1 || otherMonth ? format(d, "MMM d") : format(d, "d")}
+                    </span>
+                    <span className="flex min-w-0 items-center gap-1">
+                      {label ? <span className="truncate text-[10px] text-teal">{label}</span> : null}
+                      {isToday(d) ? (
+                        <span className="shrink-0 rounded-full bg-teal px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+                          Today
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                  {allDayCount ? (
+                    <div className="mb-1 text-[10px] font-medium text-muted">{allDayCount} all-day</div>
+                  ) : null}
+                  <ul className="space-y-1">
+                    {list.slice(0, 3).map((e) => (
+                      <li
+                        key={e.id}
+                        className="truncate rounded px-1.5 py-0.5 text-[11px] text-white"
+                        style={{ background: colorFor(e.calendarId) }}
+                        title={e.title}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          openDaySheet(key, { edit: e });
+                        }}
+                      >
+                        {e.allDay ? "" : `${format(parseISO(e.start), "h:mma")} `}
+                        {e.title}
+                      </li>
+                    ))}
+                  </ul>
+                  {overflow > 0 ? (
+                    <div className="mt-1 text-[10px] font-medium text-teal">+{overflow} more · open day</div>
+                  ) : list.length === 0 ? (
+                    <div className="mt-1 text-[10px] text-muted">Click to add</div>
+                  ) : (
+                    <div className="mt-1 text-[10px] text-muted">Click for all</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
 

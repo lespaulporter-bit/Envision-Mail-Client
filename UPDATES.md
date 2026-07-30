@@ -1,5 +1,13 @@
 # Envision Mail updates
 
+## 2.6.40
+- **You can always see what month you're on.** Calendar now shows a big **July 2026** heading above the grid, with ← / → on either side and **Today** beside it — the arrows used to move an invisible date.
+- Week, day, and agenda views get the same heading: **Jul 26 – Aug 1, 2026**, **Thursday, July 30, 2026**, or the 14-day agenda range.
+- **Weekday headers** (Sun–Sat) sit above the month grid.
+- Spill-over days from the neighboring month are labeled **Jun 28**, **Aug 1** and sit on a greyer tile, so no date is ambiguous.
+- Today's cell wears a **TODAY** pill, and **Today** highlights whenever you're looking at another month.
+- Week and day column headers include the month (**Thu, Jul 30**) for weeks that straddle two months.
+
 ## 2.6.39
 - **Easy Cleanup**: a new sidebar view that gathers lower-priority mail — Screening, New Senders, and Receipts from people you rarely email. Nothing moves until you select it.
 - Filter, **Select all visible**, then **Move selected to Trash** (reversible — never a permanent delete). **Keep → MoneyBox $** protects a sender forever.
