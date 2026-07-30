@@ -1,6 +1,8 @@
 "use client";
 
 import { threadBelongsToAccount } from "@/lib/account-scope";
+import { ExternalLink } from "@/components/MeetingLink";
+import { detectMeetingProvider, meetingLinkLabel } from "@/lib/meeting-links";
 import { useMailStore } from "@/lib/store";
 import type { Reminder } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -88,16 +90,16 @@ function ReminderCard({
               </p>
             ) : null}
             {reminder.meetingUrl ? (
-              <a
-                href={reminder.meetingUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 text-teal-bright hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Video className="h-3.5 w-3.5" />
-                Join meeting
-              </a>
+              <span onClick={(e) => e.stopPropagation()} role="presentation">
+                <ExternalLink
+                  href={reminder.meetingUrl}
+                  title={reminder.meetingUrl}
+                  className="inline-flex items-center gap-2 text-teal-bright hover:underline"
+                >
+                  <Video className="h-3.5 w-3.5" />
+                  {meetingLinkLabel(detectMeetingProvider(reminder.meetingUrl))}
+                </ExternalLink>
+              </span>
             ) : null}
           </div>
         )}

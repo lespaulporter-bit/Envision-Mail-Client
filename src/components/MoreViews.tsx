@@ -3,6 +3,7 @@
 import { Avatar, Button, EmptyState, Input, SectionHeader, Textarea } from "@/components/ui";
 import { AttachmentList } from "@/components/AttachmentList";
 import { BrandLogo } from "@/components/BrandLogo";
+import { LinkifiedText } from "@/components/MeetingLink";
 import { bodyToHtml } from "@/lib/html-body";
 import { AccountsPanel } from "@/components/AccountsPanel";
 import { SignaturesPanel } from "@/components/SignaturesPanel";
@@ -318,7 +319,9 @@ export function SnippetsView() {
                 Delete
               </Button>
             </div>
-            <p className="whitespace-pre-wrap text-sm text-muted">{s.body}</p>
+            <p className="whitespace-pre-wrap text-sm text-muted">
+              <LinkifiedText text={s.body} />
+            </p>
           </article>
         ))}
       </div>

@@ -33,6 +33,9 @@ import {
   timePeriod,
 } from "@/lib/event-time";
 import { formatCountdown, isFakeMeetingUrl, sanitizeMeetingUrl } from "@/lib/utils";
+import { JoinMeetingLink, LinkifiedText } from "@/components/MeetingLink";
+import { Video } from "lucide-react";
+import { detectMeetingProvider, findMeetingUrl, resolveMeetingLink } from "@/lib/meeting-links";
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am–8pm
 
@@ -546,23 +549,22 @@ export function CalendarView() {
       return;
     }
     const invitees = parseInvitees(inviteesText);
-    const meetingUrl = sanitizeMeetingUrl(teamsUrl);
+    const pastedUrl = sanitizeMeetingUrl(teamsUrl);
     if (teamsUrl.trim() && isFakeMeetingUrl(teamsUrl)) {
       setToast("That looks like an example link — paste a real Join link from Teams (never auto-filled).");
       setTeamsUrl("");
       return;
     }
-    let meetingProvider: "teams" | "zoom" | "meet" | "none" = "none";
-    if (/zoom\.us/i.test(meetingUrl)) meetingProvider = "zoom";
-    else if (/meet\.google/i.test(meetingUrl)) meetingProvider = "meet";
-    else if (/teams\.microsoft|teams\.live/i.test(meetingUrl)) meetingProvider = "teams";
+    // A join link typed into Location or Notes still becomes the event's meeting link.
+    const meetingUrl = pastedUrl || findMeetingUrl(location) || findMeetingUrl(notes);
+    let meetingProvider = detectMeetingProvider(meetingUrl);
 
     if (useTeams) {
       if (!meetingUrl) {
         setToast("Open Teams to create the meeting, then paste your real Join link here.");
         return;
       }
-      if (!/teams\.microsoft|teams\.live/i.test(meetingUrl)) {
+      if (meetingProvider !== "teams") {
         setToast("Paste a real Teams join link from your Microsoft Teams meeting.");
         setTeamsUrl("");
         return;
@@ -720,6 +722,9 @@ export function CalendarView() {
                           style={{ background: colorFor(e.calendarId) }}
                           title={e.title}
                         >
+                          {resolveMeetingLink(e) ? (
+                            <Video className="mr-1 inline-block h-2.5 w-2.5 align-[-1px]" aria-label="Has a meeting link" />
+                          ) : null}
                           {format(parseISO(e.start), "h:mm")} {e.title}
                         </span>
                       </li>
@@ -967,6 +972,9 @@ export function CalendarView() {
                         }}
                       onDoubleClick={(ev) => ev.stopPropagation()}
                       >
+                        {resolveMeetingLink(e) ? (
+                          <Video className="mr-1 inline-block h-3 w-3 align-[-2px]" aria-label="Has a meeting link" />
+                        ) : null}
                         {e.allDay ? "" : `${format(parseISO(e.start), "h:mma")} `}
                         {e.title}
                       </li>
@@ -1038,6 +1046,11 @@ export function CalendarView() {
                             {differenceInMinutes(parseISO(e.end), parseISO(e.start))}m
                           </span>
                         </button>
+                        {resolveMeetingLink(e) ? (
+                          <div className="mt-1 pl-6">
+                            <JoinMeetingLink link={resolveMeetingLink(e)!} compact />
+                          </div>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
@@ -1087,19 +1100,10 @@ export function CalendarView() {
                           {formatCountdown(e.start, nowMs).label}
                         </div>
                       ) : null}
-                      {e.meetingUrl ? (
-                        <a
-                          className="text-sm text-teal underline"
-                          href={e.meetingUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {e.meetingProvider === "teams"
-                            ? "Join Teams meeting"
-                            : e.meetingProvider === "zoom"
-                              ? "Join Zoom"
-                              : "Join meeting"}
-                        </a>
+                      {resolveMeetingLink(e) ? (
+                        <div>
+                          <JoinMeetingLink link={resolveMeetingLink(e)!} />
+                        </div>
                       ) : null}
                       {e.invitees?.length ? (
                         <p className="mt-1 text-xs text-muted">
@@ -1109,7 +1113,11 @@ export function CalendarView() {
                             : ""}
                         </p>
                       ) : null}
-                      {e.notes ? <p className="mt-1 text-xs text-muted">{e.notes}</p> : null}
+                      {e.notes ? (
+                        <p className="mt-1 whitespace-pre-wrap text-xs text-muted">
+                          <LinkifiedText text={e.notes} />
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       <Button size="sm" variant="soft" onClick={() => beginEdit(e)}>
@@ -1612,15 +1620,10 @@ export function CalendarView() {
                                 {formatCountdown(e.start, nowMs).label}
                               </div>
                             ) : null}
-                            {e.meetingUrl ? (
-                              <a
-                                className="mt-1 block text-xs font-medium text-teal underline"
-                                href={e.meetingUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                {e.meetingProvider === "teams" ? "Join Teams meeting" : "Join meeting"}
-                              </a>
+                            {resolveMeetingLink(e) ? (
+                              <div>
+                                <JoinMeetingLink link={resolveMeetingLink(e)!} compact />
+                              </div>
                             ) : null}
                             {e.invitees?.length ? (
                               <p className="mt-1 text-xs text-muted">
@@ -1630,7 +1633,11 @@ export function CalendarView() {
                                   : " · not emailed"}
                               </p>
                             ) : null}
-                            {e.notes ? <p className="mt-1 text-xs text-muted line-clamp-2">{e.notes}</p> : null}
+                            {e.notes ? (
+                              <p className="mt-1 whitespace-pre-wrap text-xs text-muted">
+                                <LinkifiedText text={e.notes} />
+                              </p>
+                            ) : null}
                           </div>
                           <div className="flex flex-wrap gap-1">
                             <Button

@@ -1,5 +1,15 @@
 # Envision Mail updates
 
+## 2.6.46
+- **Teams, Zoom, and Meet links are now clickable everywhere an event shows up** — the day list, the day popup, agenda, Day Cover, and reminder pop-ups all get a **Join Teams meeting** button that opens the meeting in your browser (which hands off to the Teams or Zoom app).
+- **A join link buried in an event's Notes or Location now works.** Mac Calendar events keep the Teams URL in the notes field, so those meetings were unreachable text before; Envision Mail now finds the link, labels it with the right service, and saves it on the event.
+- The label follows the actual link, so a Teams meeting is no longer mislabeled because the Location field says "Zoom".
+- Month and week event chips show a small camera icon when the event has a meeting link.
+- URLs typed into event notes stay readable and clickable, and notes are no longer clipped to two lines in the day popup.
+- **Links inside plain-text emails are clickable now** instead of printing as dead text; existing links in HTML mail are untouched, and all of them open in your browser rather than inside Envision Mail.
+- Snippets show working links too.
+- Pasting a join link into an event's Location or Notes is enough — invites and the attached `.ics` carry the same link the calendar shows.
+
 ## 2.6.45
 - **Double-click an attachment to open it.** Images, PDFs, and text/CSV files open in a preview window inside Envision Mail; anything else opens in the Mac or Windows app you normally use for that file type.
 - **Right-click an attachment to save it straight to your Desktop.** Duplicate names become `invoice (2).pdf` instead of overwriting the file already there.

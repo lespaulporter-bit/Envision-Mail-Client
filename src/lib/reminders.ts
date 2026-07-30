@@ -1,3 +1,4 @@
+import { resolveMeetingLink } from "@/lib/meeting-links";
 import type { CalendarEvent, Reminder, Thread } from "@/lib/types";
 import { uid } from "@/lib/utils";
 
@@ -32,7 +33,6 @@ export function buildCalendarOccurrence(
   minutesBefore: number,
 ): { fireAt: number; key: string; reminder: Omit<Reminder, "id" | "createdAt" | "status"> } | null {
   const start = +new Date(event.start);
-  const end = +new Date(event.end || event.start);
   if (!Number.isFinite(start)) return null;
   const fireAt = start - minutesBefore * 60_000;
   const key = reminderOccurrenceKey("calendar", event.id, `${minutesBefore}:${event.start}`);
@@ -55,7 +55,7 @@ export function buildCalendarOccurrence(
       sourceId: event.id,
       occurrenceKey: key,
       location: event.location,
-      meetingUrl: event.meetingUrl,
+      meetingUrl: resolveMeetingLink(event)?.url,
     },
   };
 }

@@ -30,7 +30,8 @@ import { normalizeSometimeTasks, weekStartKey } from "./sometime-tasks";
 import { mergeRecentRecipients } from "./recipient-suggest";
 import { parseMailtoUrl } from "./mailto";
 import { inferThreadAccountId, threadBelongsToAccount } from "./account-scope";
-import { sanitizeMeetingUrl, uid } from "./utils";
+import { uid } from "./utils";
+import { withMeetingLink } from "./meeting-links";
 
 export type AppView =
   | "lesbox"
@@ -1606,15 +1607,12 @@ export const useMailStore = create<MailStore>()(
           get().calendars.find((c) => c.source !== "mac" && c.visible)?.id ||
           get().calendars[0]?.id ||
           "cal_default";
-        const meetingUrl = sanitizeMeetingUrl(event.meetingUrl || "") || undefined;
-        const created: CalendarEvent = {
+        const created: CalendarEvent = withMeetingLink({
           ...event,
           id: uid("e"),
           calendarId: event.calendarId || fallbackCal,
           source: event.source ?? "local",
-          meetingUrl,
-          meetingProvider: meetingUrl ? event.meetingProvider : "none",
-        };
+        });
         set({
           events: [...get().events, created],
           toast: "Event added",
@@ -1624,16 +1622,7 @@ export const useMailStore = create<MailStore>()(
 
       updateEvent: (id, patch) =>
         set({
-          events: get().events.map((e) => {
-            if (e.id !== id) return e;
-            const next = { ...e, ...patch };
-            if ("meetingUrl" in patch) {
-              const meetingUrl = sanitizeMeetingUrl(patch.meetingUrl || "") || undefined;
-              next.meetingUrl = meetingUrl;
-              if (!meetingUrl) next.meetingProvider = "none";
-            }
-            return next;
-          }),
+          events: get().events.map((e) => (e.id === id ? withMeetingLink({ ...e, ...patch }) : e)),
         }),
 
       deleteEvent: (id) => set({ events: get().events.filter((e) => e.id !== id) }),
@@ -1709,7 +1698,8 @@ export const useMailStore = create<MailStore>()(
             calendars.find((c) => c.source === "mac")?.id ||
             calendars[0]?.id ||
             "cal_default";
-          return {
+          // Mac keeps the Teams/Zoom join URL inside notes or location — promote it.
+          return withMeetingLink({
             id: prev?.id || uid("e"),
             title: me.title || "Untitled",
             start: me.start,
@@ -1721,7 +1711,7 @@ export const useMailStore = create<MailStore>()(
             source: "mac" as const,
             reminderMinutes: prev?.reminderMinutes,
             countdown: prev?.countdown,
-          };
+          });
         });
 
         set({
@@ -2099,15 +2089,8 @@ export const useMailStore = create<MailStore>()(
           sometimeTasks: normalizeSometimeTasks(
             Array.isArray(p.sometimeTasks) ? p.sometimeTasks : current.sometimeTasks || [],
           ),
-          events: (Array.isArray(p.events) ? p.events : current.events || []).map((e) => {
-            const meetingUrl = sanitizeMeetingUrl(e.meetingUrl || "") || undefined;
-            if (meetingUrl === (e.meetingUrl || undefined)) return e;
-            return {
-              ...e,
-              meetingUrl,
-              meetingProvider: meetingUrl ? e.meetingProvider : "none",
-            };
-          }),
+          // Backfills join links for events saved before Envision Mail read notes/location.
+          events: (Array.isArray(p.events) ? p.events : current.events || []).map(withMeetingLink),
           settings,
           inboxAccountId: p.inboxAccountId ?? current.inboxAccountId ?? null,
         };

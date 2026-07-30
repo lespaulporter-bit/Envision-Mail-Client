@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui";
+import { ExternalLink } from "@/components/MeetingLink";
+import { resolveMeetingLink } from "@/lib/meeting-links";
 import { useMailStore } from "@/lib/store";
 import { formatCountdown } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
@@ -42,9 +44,13 @@ export function CoverArt() {
         .slice(0, 5),
     [events, nowMs],
   );
-  const joinable = upcoming.find(
-    (e) => e.meetingUrl && +new Date(e.start) - Date.now() < 15 * 60_000 && +new Date(e.start) > Date.now() - 5 * 60_000,
+  const joinableEvent = upcoming.find(
+    (e) =>
+      resolveMeetingLink(e) &&
+      +new Date(e.start) - nowMs < 15 * 60_000 &&
+      +new Date(e.start) > nowMs - 5 * 60_000,
   );
+  const joinableLink = resolveMeetingLink(joinableEvent);
 
   if (settings.coverArt === "none") return null;
 
@@ -88,15 +94,14 @@ export function CoverArt() {
           </Button>
         </div>
 
-        {joinable?.meetingUrl ? (
-          <a
-            href={joinable.meetingUrl}
-            target="_blank"
-            rel="noreferrer"
+        {joinableEvent && joinableLink ? (
+          <ExternalLink
+            href={joinableLink.url}
+            title={joinableLink.url}
             className="mb-4 inline-flex items-center rounded-full bg-salmon px-4 py-2 text-sm font-semibold shadow"
           >
-            Join {joinable.title} now
-          </a>
+            Join {joinableEvent.title} now
+          </ExternalLink>
         ) : null}
 
         {settings.coverArt === "calendar" ? (
