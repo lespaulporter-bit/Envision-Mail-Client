@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.43
+- The public MoneyBox $ preview now uses dealership customer messages: **“Can we meet at 1pm today?”**, **“How much for a down payment on Stock #4986?”**, and **“I’ll be by to bring payment at 5pm today.”**
+- Longer customer subjects wrap cleanly while timestamps stay aligned.
+
 ## 2.6.42
 - **Teams meetings from the day popup.** Clicking a day and adding an event now offers **Microsoft Teams meeting** — Teams opens on the date and time you picked, and you paste the real Join link back. (Desktop only; we never invent a join URL.)
 - **Recipients in the day popup.** Add recipient emails right where you create the event instead of hunting for the full form.

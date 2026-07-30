@@ -94,16 +94,16 @@ export default function HomePage() {
                 <span className="rounded-full bg-[#e6f7f3] px-2 py-1 text-xs font-semibold text-teal">Live IMAP</span>
               </div>
               {[
-                ["Maya Chen", "Design review Thursday?", "2:14 PM"],
-                ["Sam Rivera", "Contract countersigned", "11:02 AM"],
-                ["Priya Nair", "Pricing page copy — blocking deploy", "Yesterday"],
+                ["Maya Chen", "Can we meet at 1pm today?", "2:14 PM"],
+                ["Sam Rivera", "How much for a down payment on Stock #4986?", "11:02 AM"],
+                ["Priya Nair", "I'll be by to bring payment at 5pm today.", "Yesterday"],
               ].map(([name, subject, time]) => (
                 <div key={subject} className="border-t border-line py-3">
                   <div className="flex justify-between gap-3 text-sm">
                     <strong>{name}</strong>
-                    <span className="text-muted">{time}</span>
+                    <span className="shrink-0 text-muted">{time}</span>
                   </div>
-                  <div className="text-sm text-muted">{subject}</div>
+                  <div className="break-words text-sm leading-snug text-muted">{subject}</div>
                 </div>
               ))}
             </div>
