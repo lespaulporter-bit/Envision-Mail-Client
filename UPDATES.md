@@ -1,5 +1,12 @@
 # Envision Mail updates
 
+## 2.6.42
+- **Teams meetings from the day popup.** Clicking a day and adding an event now offers **Microsoft Teams meeting** — Teams opens on the date and time you picked, and you paste the real Join link back. (Desktop only; we never invent a join URL.)
+- **Recipients in the day popup.** Add recipient emails right where you create the event instead of hunting for the full form.
+- **Email notification when I save** — checked by default. Uncheck to add the event quietly; recipients get the invite and `.ics` automatically when it's checked.
+- **Email recipients** button and a Join link now show on events inside the day popup, with "emailed / not emailed" status.
+- Fixes: recipient addresses are validated and de-duplicated; RSVP replies are no longer reset to pending on every edit; a reminder set to **None** stays None; editing time or recipients clears a stale "invites sent" stamp; each recipient's `.ics` no longer lists everyone else's address; all-day invites use real all-day dates; invite emails escape HTML; editing a synced Mac event no longer turns it into a duplicate local copy.
+
 ## 2.6.41
 - **New events follow your clock.** Opening Add event in the morning defaults Start/End to **AM**; after noon defaults to **PM** — no more jumping from 11 AM into 12 PM.
 - Explicit **AM / PM** toggles under Start and End so you can flip the period without fighting the time spinner.

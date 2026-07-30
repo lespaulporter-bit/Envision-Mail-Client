@@ -158,7 +158,7 @@ async function openTeamsNewMeeting({ title, startIso, endIso } = {}) {
     const result = await tryOpen();
     return {
       ok: true,
-      installed: detection.installed || true,
+      installed: detection.installed || result.method !== "web-fallback",
       opened: result.opened,
       method: result.method,
       message:
@@ -206,6 +206,18 @@ function toIcsUtc(iso) {
   );
 }
 
+function toIcsLocalDate(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+}
+
+function nextLocalDate(iso) {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + 1);
+  return toIcsLocalDate(d.toISOString());
+}
+
 function buildInviteIcs({
   uid,
   title,
@@ -213,6 +225,7 @@ function buildInviteIcs({
   location,
   start,
   end,
+  allDay = false,
   organizerEmail,
   organizerName,
   invitees = [],
@@ -237,8 +250,8 @@ function buildInviteIcs({
     "BEGIN:VEVENT",
     `UID:${uid || randomUUID()}@envisionmail.local`,
     `DTSTAMP:${stamp}`,
-    `DTSTART:${toIcsUtc(start)}`,
-    `DTEND:${toIcsUtc(end)}`,
+    allDay ? `DTSTART;VALUE=DATE:${toIcsLocalDate(start)}` : `DTSTART:${toIcsUtc(start)}`,
+    allDay ? `DTEND;VALUE=DATE:${nextLocalDate(start)}` : `DTEND:${toIcsUtc(end)}`,
     `SUMMARY:${icsEscape(title)}`,
     `DESCRIPTION:${icsEscape(desc)}`,
     location ? `LOCATION:${icsEscape(location)}` : null,

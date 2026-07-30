@@ -245,7 +245,7 @@ interface Actions {
   ) => { imported: number; screened: number };
   markMessageUnsubscribed: (messageId: string) => void;
 
-  addEvent: (event: Omit<CalendarEvent, "id">) => void;
+  addEvent: (event: Omit<CalendarEvent, "id">) => CalendarEvent;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
   deleteEvent: (id: string) => void;
   toggleCalendarVisible: (calendarId: string) => void;
@@ -1607,20 +1607,19 @@ export const useMailStore = create<MailStore>()(
           get().calendars[0]?.id ||
           "cal_default";
         const meetingUrl = sanitizeMeetingUrl(event.meetingUrl || "") || undefined;
+        const created: CalendarEvent = {
+          ...event,
+          id: uid("e"),
+          calendarId: event.calendarId || fallbackCal,
+          source: event.source ?? "local",
+          meetingUrl,
+          meetingProvider: meetingUrl ? event.meetingProvider : "none",
+        };
         set({
-          events: [
-            ...get().events,
-            {
-              ...event,
-              id: uid("e"),
-              calendarId: event.calendarId || fallbackCal,
-              source: event.source ?? "local",
-              meetingUrl,
-              meetingProvider: meetingUrl ? event.meetingProvider : "none",
-            },
-          ],
+          events: [...get().events, created],
           toast: "Event added",
         });
+        return created;
       },
 
       updateEvent: (id, patch) =>

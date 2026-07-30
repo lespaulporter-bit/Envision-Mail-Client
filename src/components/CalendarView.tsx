@@ -122,6 +122,8 @@ export function CalendarView() {
   const [openingTeams, setOpeningTeams] = useState(false);
   const [accountId, setAccountId] = useState("");
   const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
+  const [notifyRecipients, setNotifyRecipients] = useState(true);
+  const [savingEvent, setSavingEvent] = useState(false);
   const [syncingMac, setSyncingMac] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
   const [taskDraft, setTaskDraft] = useState("");
@@ -258,12 +260,20 @@ export function CalendarView() {
       }));
   }, [filteredEvents, nowMs]);
 
-  const parseInvitees = (text: string): CalendarInvitee[] =>
+  const parseInvitees = (text: string): CalendarInvitee[] => {
+    const existing = editingId ? events.find((event) => event.id === editingId)?.invitees || [] : [];
+    const existingByEmail = new Map(existing.map((invitee) => [invitee.email.toLowerCase(), invitee]));
+    const unique = new Map<string, string>();
     text
       .split(/[,;\n]+/)
       .map((s) => s.trim())
       .filter(Boolean)
-      .map((email) => ({ email, status: "pending" as const }));
+      .forEach((email) => unique.set(email.toLowerCase(), email));
+    return [...unique.entries()].map(([key, email]) => existingByEmail.get(key) || {
+      email,
+      status: "pending" as const,
+    });
+  };
 
   const openDaySheet = (ymd: string, opts?: { compose?: boolean; edit?: CalendarEvent }) => {
     setCalendarDate(ymd);
@@ -271,6 +281,8 @@ export function CalendarView() {
     setDaySheetDate(ymd);
     if (opts?.edit) {
       beginEdit(opts.edit);
+      // The day sheet owns this edit; do not leave the hidden page composer open.
+      setEventFormOpen(false);
       setDaySheetCompose(true);
       return;
     }
@@ -288,6 +300,7 @@ export function CalendarView() {
       setSelectedCalId(defaultCalId);
       setReminderMinutesBefore(settings.defaultEventReminderMinutes ?? 15);
       setUseTeams(false);
+      setNotifyRecipients(true);
       setDaySheetCompose(true);
       return;
     }
@@ -295,6 +308,9 @@ export function CalendarView() {
   };
 
   const closeDaySheet = () => {
+    // Leaving mid-compose must not strand the page composer in edit mode.
+    setEditingId(null);
+    setEventFormOpen(false);
     setDaySheetDate(null);
     setDaySheetCompose(false);
   };
@@ -326,7 +342,10 @@ export function CalendarView() {
     );
     setSelectedCalId(e.calendarId || defaultCalId);
     const mins = e.reminderMinutes?.[0];
-    setReminderMinutesBefore(typeof mins === "number" ? mins : 15);
+    setReminderMinutesBefore(
+      typeof mins === "number" ? mins : e.reminderMinutes?.length === 0 ? -1 : 15,
+    );
+    setNotifyRecipients(true);
   };
 
   const resetForm = () => {
@@ -345,10 +364,107 @@ export function CalendarView() {
     setSelectedCalId(defaultCalId);
     setReminderMinutesBefore(settings.defaultEventReminderMinutes ?? 15);
     setUseTeams(false);
+    setNotifyRecipients(true);
     setDaySheetCompose(false);
   };
 
+  const startNewEvent = (ymd = calendarDate, suggestedStart?: string) => {
+    setEditingId(null);
+    setTitle("");
+    setInviteesText("");
+    setTeamsUrl("");
+    setLocation("");
+    setNotes("");
+    setAllDay(false);
+    const start = suggestedStart || defaultStartTimeHhmm();
+    setStartTime(start);
+    setEndTime(addMinutesHhmm(start, eventDurationMinutes));
+    setEventDate(ymd);
+    setSelectedCalId(defaultCalId);
+    setReminderMinutesBefore(settings.defaultEventReminderMinutes ?? 15);
+    setUseTeams(false);
+    setNotifyRecipients(true);
+    setDaySheetCompose(false);
+    setEventFormOpen(true);
+  };
+
+  const openTeamsForDraft = async () => {
+    const api = desktopApi();
+    if (!api?.openTeamsMeeting) {
+      setToast("Open Envision Mail desktop to use Teams on this computer.");
+      return;
+    }
+    if (!eventDate || (!allDay && (!startTime || !endTime))) {
+      setToast("Choose the event date and time before opening Teams.");
+      return;
+    }
+    let startIso: string;
+    let endIso: string;
+    if (allDay) {
+      startIso = startOfDay(parseISO(eventDate)).toISOString();
+      endIso = endOfDay(parseISO(eventDate)).toISOString();
+    } else {
+      const start = parseISO(`${eventDate}T${startTime}:00`);
+      const end = parseISO(`${eventDate}T${endTime}:00`);
+      if (Number.isNaN(+start) || Number.isNaN(+end) || end <= start) {
+        setToast("Choose an end time after the start time before opening Teams.");
+        return;
+      }
+      startIso = start.toISOString();
+      endIso = end.toISOString();
+    }
+
+    setOpeningTeams(true);
+    try {
+      const res = await api.openTeamsMeeting({
+        title: title.trim() || "Meeting",
+        startIso,
+        endIso,
+      });
+      if (!res.ok) {
+        setToast(res.error || "Could not open Teams");
+        if (res.installed === false) setTeamsInstalled(false);
+        return;
+      }
+      if (res.installed) setTeamsInstalled(true);
+      // Teams owns meeting creation; never invent or auto-fill a Join URL.
+      setTeamsUrl("");
+      setToast(res.message || "Create the meeting in Teams, then paste the Join link below.");
+    } finally {
+      setOpeningTeams(false);
+    }
+  };
+
+  const emailEventInvites = async (event: CalendarEvent) => {
+    if (!event.invitees?.length) {
+      setToast("Add at least one recipient first");
+      return;
+    }
+    const api = desktopApi();
+    if (!api?.sendCalendarInvites || !accountId) {
+      setToast("Connect an email account in Settings to notify recipients.");
+      return;
+    }
+    setSendingInviteId(event.id);
+    try {
+      const result = await api.sendCalendarInvites({ accountId, event });
+      if (!result?.ok) {
+        setToast(result?.error || "Invite send failed");
+        return;
+      }
+      updateEvent(event.id, { invitesSentAt: new Date().toISOString() });
+      setToast(
+        `Notification emailed to ${event.invitees.length} recipient${
+          event.invitees.length === 1 ? "" : "s"
+        }`,
+      );
+    } finally {
+      setSendingInviteId(null);
+    }
+  };
+
   const saveEvent = async () => {
+    if (savingEvent) return;
     if (!title.trim()) {
       setToast("Add an event title");
       return;
@@ -377,6 +493,17 @@ export function CalendarView() {
         setToast("End time must be after start time");
         return;
       }
+    }
+    const rawInvitees = inviteesText
+      .split(/[,;\n]+/)
+      .map((email) => email.trim())
+      .filter(Boolean);
+    const invalidInvitee = rawInvitees.find(
+      (email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+    );
+    if (invalidInvitee) {
+      setToast(`Check this recipient email: ${invalidInvitee}`);
+      return;
     }
     const invitees = parseInvitees(inviteesText);
     const meetingUrl = sanitizeMeetingUrl(teamsUrl);
@@ -416,16 +543,69 @@ export function CalendarView() {
       meetingProvider,
       source: "local" as const,
     };
-    if (editingId) {
-      updateEvent(editingId, payload);
-      setToast("Event updated");
-    } else {
-      addEvent(payload);
-      setToast("Event added — use Email invites to notify people");
+    setSavingEvent(true);
+    try {
+      let savedEvent: CalendarEvent;
+      if (editingId) {
+        const existing = events.find((event) => event.id === editingId);
+        if (!existing) {
+          setToast("Event no longer exists");
+          return;
+        }
+        // Anything a recipient would care about invalidates an earlier "invites sent" stamp.
+        const inviteDetailsChanged =
+          existing.title !== payload.title ||
+          existing.start !== payload.start ||
+          existing.end !== payload.end ||
+          Boolean(existing.allDay) !== payload.allDay ||
+          (existing.location || "") !== (payload.location || "") ||
+          (existing.meetingUrl || "") !== (payload.meetingUrl || "") ||
+          (existing.invitees || []).map((i) => i.email).join(",") !==
+            invitees.map((i) => i.email).join(",");
+        const patch = {
+          ...payload,
+          // Never convert an imported Mac event into a local copy — that duplicates it on next sync.
+          source: existing.source ?? "local",
+          ...(inviteDetailsChanged ? { invitesSentAt: null } : {}),
+        };
+        savedEvent = { ...existing, ...patch, id: editingId };
+        updateEvent(editingId, patch);
+      } else {
+        savedEvent = addEvent(payload);
+      }
+
+      if (notifyRecipients && invitees.length > 0) {
+        const api = desktopApi();
+        if (!api?.sendCalendarInvites || !accountId) {
+          setToast("Event saved — connect an email account in Settings to notify recipients.");
+        } else {
+          setSendingInviteId(savedEvent.id);
+          const result = await api.sendCalendarInvites({ accountId, event: savedEvent });
+          if (!result?.ok) {
+            setToast(result?.error || "Event saved, but recipient email failed");
+          } else {
+            const sentAt = new Date().toISOString();
+            updateEvent(savedEvent.id, { invitesSentAt: sentAt });
+            setToast(
+              `Event saved · notification emailed to ${invitees.length} recipient${
+                invitees.length === 1 ? "" : "s"
+              }`,
+            );
+          }
+        }
+      } else if (invitees.length > 0) {
+        setToast("Event saved without emailing recipients");
+      } else {
+        setToast(editingId ? "Event updated" : "Event added");
+      }
+
+      resetForm();
+      // Stay on the day sheet list after save so the new/updated event is visible
+      if (daySheetDate) setDaySheetCompose(false);
+    } finally {
+      setSavingEvent(false);
+      setSendingInviteId(null);
     }
-    resetForm();
-    // Stay on the day sheet list after save so the new/updated event is visible
-    if (daySheetDate) setDaySheetCompose(false);
   };
 
   const shiftDate = (dir: -1 | 1) => {
@@ -475,14 +655,10 @@ export function CalendarView() {
                   type="button"
                   className="min-h-14 border-b border-l border-line p-1 text-left hover:bg-soft/50"
                   onClick={() => {
-                    setCalendarDate(format(d, "yyyy-MM-dd"));
-                    setEventDate(format(d, "yyyy-MM-dd"));
                     const start = `${String(hour).padStart(2, "0")}:00`;
-                    setStartTime(start);
-                    setEndTime(addMinutesHhmm(start, eventDurationMinutes));
-                    setEditingId(null);
-                    setEventFormOpen(true);
-                    setReminderMinutesBefore(settings.defaultEventReminderMinutes ?? 15);
+                    const ymd = format(d, "yyyy-MM-dd");
+                    setCalendarDate(ymd);
+                    startNewEvent(ymd, start);
                     setToast(`New event at ${format(new Date(2000, 0, 1, hour), "h:mm a")}`);
                   }}
                 >
@@ -905,21 +1081,7 @@ export function CalendarView() {
                           size="sm"
                           variant="primary"
                           disabled={sendingInviteId === e.id}
-                          onClick={async () => {
-                            setSendingInviteId(e.id);
-                            try {
-                              const api = desktopApi();
-                              const result = await api?.sendCalendarInvites({ accountId, event: e });
-                              if (!result?.ok) {
-                                setToast(result?.error || "Invite send failed");
-                                return;
-                              }
-                              updateEvent(e.id, { invitesSentAt: new Date().toISOString() });
-                              setToast(`Invites emailed to ${e.invitees?.length} people`);
-                            } finally {
-                              setSendingInviteId(null);
-                            }
-                          }}
+                          onClick={() => void emailEventInvites(e)}
                         >
                           {sendingInviteId === e.id ? "Sending…" : "Email invites"}
                         </Button>
@@ -942,7 +1104,7 @@ export function CalendarView() {
           {!eventFormOpen && !editingId ? (
             <button
               type="button"
-              onClick={() => setEventFormOpen(true)}
+              onClick={() => startNewEvent()}
               className="flex w-full items-center justify-between rounded-xl border border-teal/25 bg-[linear-gradient(145deg,#ecfdf8_0%,#f0f9ff_55%,#fff7ed_100%)] px-3 py-3 text-left transition hover:border-teal/40"
             >
               <span>
@@ -1093,6 +1255,20 @@ export function CalendarView() {
               value={inviteesText}
               onChange={(e) => setInviteesText(e.target.value)}
             />
+            <label className="flex items-start gap-2 rounded-lg border border-teal/20 bg-[#f3fbf8] px-3 py-2 text-sm">
+              <input
+                className="mt-0.5"
+                type="checkbox"
+                checked={notifyRecipients}
+                onChange={(e) => setNotifyRecipients(e.target.checked)}
+              />
+              <span>
+                <span className="block font-medium text-ink">Email notification when I save</span>
+                <span className="block text-xs text-muted">
+                  Checked by default. Uncheck to save without emailing recipients.
+                </span>
+              </span>
+            </label>
             {/* Desktop: Teams is always available when the app can open it. Never auto-fill join URLs. */}
             {isDesktop() ? (
               <div className="space-y-2 rounded-lg border border-line/80 bg-white/60 p-2.5">
@@ -1123,46 +1299,7 @@ export function CalendarView() {
                         size="sm"
                         variant="soft"
                         disabled={openingTeams}
-                        onClick={() => {
-                          void (async () => {
-                            const api = desktopApi();
-                            if (!api?.openTeamsMeeting) {
-                              setToast("Open Envision Mail desktop to use Teams on this computer.");
-                              return;
-                            }
-                            setOpeningTeams(true);
-                            try {
-                              let startIso: string;
-                              let endIso: string;
-                              if (allDay) {
-                                startIso = startOfDay(parseISO(eventDate)).toISOString();
-                                endIso = endOfDay(parseISO(eventDate)).toISOString();
-                              } else {
-                                startIso = parseISO(`${eventDate}T${startTime}:00`).toISOString();
-                                endIso = parseISO(`${eventDate}T${endTime}:00`).toISOString();
-                              }
-                              const res = await api.openTeamsMeeting({
-                                title: title.trim() || "Meeting",
-                                startIso,
-                                endIso,
-                              });
-                              if (!res.ok) {
-                                setToast(res.error || "Could not open Teams");
-                                if (res.installed === false) setTeamsInstalled(false);
-                                return;
-                              }
-                              if (res.installed) setTeamsInstalled(true);
-                              // Never invent a join URL — user must paste the real one from Teams
-                              setTeamsUrl("");
-                              setToast(
-                                res.message ||
-                                  "Create the meeting in Teams, then paste the Join link below.",
-                              );
-                            } finally {
-                              setOpeningTeams(false);
-                            }
-                          })();
-                        }}
+                        onClick={() => void openTeamsForDraft()}
                       >
                         {openingTeams ? "Opening Teams…" : "Open Teams to create meeting"}
                       </Button>
@@ -1235,7 +1372,7 @@ export function CalendarView() {
             ) : null}
             {isDesktop() && accountId ? (
               <p className="text-xs text-muted">
-                Invites send from your connected SMTP account after the event is saved.
+                Checked notifications send from your connected email account when the event is saved.
               </p>
             ) : (
               <p className="text-xs text-amber-800">
@@ -1243,7 +1380,15 @@ export function CalendarView() {
               </p>
             )}
             <div className="flex flex-wrap gap-2">
-              <Button type="submit">{editingId ? "Save changes" : "Add event"}</Button>
+              <Button type="submit" disabled={savingEvent}>
+                {savingEvent
+                  ? notifyRecipients && parseInvitees(inviteesText).length
+                    ? "Saving & emailing…"
+                    : "Saving…"
+                  : editingId
+                    ? "Save changes"
+                    : "Add event"}
+              </Button>
               {editingId ? (
                 <Button type="button" variant="ghost" onClick={resetForm}>
                   Cancel edit
@@ -1422,6 +1567,24 @@ export function CalendarView() {
                                 {formatCountdown(e.start, nowMs).label}
                               </div>
                             ) : null}
+                            {e.meetingUrl ? (
+                              <a
+                                className="mt-1 block text-xs font-medium text-teal underline"
+                                href={e.meetingUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {e.meetingProvider === "teams" ? "Join Teams meeting" : "Join meeting"}
+                              </a>
+                            ) : null}
+                            {e.invitees?.length ? (
+                              <p className="mt-1 text-xs text-muted">
+                                Recipients: {e.invitees.map((invitee) => invitee.email).join(", ")}
+                                {e.invitesSentAt
+                                  ? ` · emailed ${format(parseISO(e.invitesSentAt), "MMM d h:mm a")}`
+                                  : " · not emailed"}
+                              </p>
+                            ) : null}
                             {e.notes ? <p className="mt-1 text-xs text-muted line-clamp-2">{e.notes}</p> : null}
                           </div>
                           <div className="flex flex-wrap gap-1">
@@ -1430,6 +1593,7 @@ export function CalendarView() {
                               variant="soft"
                               onClick={() => {
                                 beginEdit(e);
+                                setEventFormOpen(false);
                                 setDaySheetCompose(true);
                               }}
                             >
@@ -1442,6 +1606,16 @@ export function CalendarView() {
                             >
                               {e.countdown ? "Countdown ✓" : "Countdown"}
                             </Button>
+                            {isDesktop() && accountId && (e.invitees?.length || 0) > 0 ? (
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                disabled={sendingInviteId === e.id}
+                                onClick={() => void emailEventInvites(e)}
+                              >
+                                {sendingInviteId === e.id ? "Emailing…" : "Email recipients"}
+                              </Button>
+                            ) : null}
                             {e.source !== "mac" ? (
                               <Button
                                 size="sm"
@@ -1550,8 +1724,105 @@ export function CalendarView() {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                   />
+                  <Textarea
+                    rows={2}
+                    placeholder="Recipient emails (comma or newline separated)"
+                    value={inviteesText}
+                    onChange={(e) => setInviteesText(e.target.value)}
+                  />
+                  <label className="flex items-start gap-2 rounded-lg border border-teal/20 bg-[#f3fbf8] px-3 py-2 text-sm">
+                    <input
+                      className="mt-0.5"
+                      type="checkbox"
+                      checked={notifyRecipients}
+                      onChange={(e) => setNotifyRecipients(e.target.checked)}
+                    />
+                    <span>
+                      <span className="block font-medium text-ink">Email notification when I save</span>
+                      <span className="block text-xs text-muted">
+                        Checked by default. Uncheck to add the event without emailing recipients.
+                      </span>
+                    </span>
+                  </label>
+                  {isDesktop() ? (
+                    <div className="space-y-2 rounded-lg border border-line bg-soft/30 p-3">
+                      <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                        <input
+                          type="checkbox"
+                          checked={useTeams}
+                          onChange={(e) => {
+                            setUseTeams(e.target.checked);
+                            setTeamsUrl("");
+                          }}
+                        />
+                        Microsoft Teams meeting
+                      </label>
+                      {teamsInstalled === false ? (
+                        <p className="text-xs text-amber-800">
+                          Teams wasn&apos;t found automatically. You can still try Open Teams if it is
+                          installed and signed in.
+                        </p>
+                      ) : null}
+                      {useTeams ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="soft"
+                            disabled={openingTeams}
+                            onClick={() => void openTeamsForDraft()}
+                          >
+                            {openingTeams ? "Opening Teams…" : "Open Teams for this date & time"}
+                          </Button>
+                          <Input
+                            name="em-day-sheet-teams-join-url"
+                            type="text"
+                            inputMode="url"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                            data-1p-ignore="true"
+                            data-lpignore="true"
+                            data-form-type="other"
+                            placeholder="Paste the real Teams Join link"
+                            value={teamsUrl}
+                            onChange={(e) => setTeamsUrl(e.target.value)}
+                            onFocus={() => {
+                              if (isFakeMeetingUrl(teamsUrl) || /meet\.google/i.test(teamsUrl)) {
+                                setTeamsUrl("");
+                              }
+                            }}
+                            onBlur={() => {
+                              const value = teamsUrl.trim();
+                              if (!value) return;
+                              if (
+                                isFakeMeetingUrl(value) ||
+                                !/teams\.microsoft|teams\.live/i.test(value)
+                              ) {
+                                setTeamsUrl("");
+                                setToast("Paste a real Teams Join link from your meeting.");
+                              }
+                            }}
+                          />
+                          <p className="text-[11px] text-muted">
+                            Teams opens with this event&apos;s title, date, and time. Create it there,
+                            then copy its Join link back here.
+                          </p>
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Button type="submit">{editingId ? "Save changes" : "Add event"}</Button>
+                    <Button type="submit" disabled={savingEvent}>
+                      {savingEvent
+                        ? notifyRecipients && parseInvitees(inviteesText).length
+                          ? "Saving & emailing…"
+                          : "Saving…"
+                        : editingId
+                          ? "Save changes"
+                          : "Add event"}
+                    </Button>
                     <Button
                       type="button"
                       variant="ghost"

@@ -211,33 +211,52 @@ async function sendPlainMail(account, { to, subject, text }) {
   return { ok: true, messageId: info.messageId };
 }
 
+function escapeHtml(value = "") {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function sendCalendarInvites(account, event) {
   const invitees = event.invitees || [];
   if (!invitees.length) return { ok: false, error: "Add at least one invitee email." };
 
-  const ics = buildInviteIcs({
-    uid: event.id,
-    title: event.title,
-    description: event.notes || "",
-    location: event.location || event.meetingUrl || "",
-    start: event.start,
-    end: event.end,
-    organizerEmail: account.email,
-    organizerName: account.name,
-    invitees,
-    meetingUrl: event.meetingUrl,
-  });
-
   const when = new Date(event.start).toLocaleString();
   const results = [];
   for (const person of invitees) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(person.email || ""))) {
+      results.push({ email: person.email, ok: false, error: "Invalid recipient email" });
+      continue;
+    }
+    // One attendee per attachment: recipients should not receive everyone else's address.
+    const ics = buildInviteIcs({
+      uid: event.id,
+      title: event.title,
+      description: event.notes || "",
+      location: event.location || event.meetingUrl || "",
+      start: event.start,
+      end: event.end,
+      allDay: Boolean(event.allDay),
+      organizerEmail: account.email,
+      organizerName: account.name,
+      invitees: [person],
+      meetingUrl: event.meetingUrl,
+    });
+    const safeTitle = escapeHtml(event.title);
+    const safeWhen = escapeHtml(when);
+    const safeLocation = escapeHtml(event.location || "");
+    const safeMeetingUrl = escapeHtml(event.meetingUrl || "");
+    const safeNotes = escapeHtml(event.notes || "").replace(/\n/g, "<br>");
     const html = `
       <div style="font-family:system-ui,sans-serif;line-height:1.5">
-        <h2 style="margin:0 0 8px">${event.title}</h2>
-        <p><strong>When:</strong> ${when}</p>
-        ${event.location ? `<p><strong>Where:</strong> ${event.location}</p>` : ""}
-        ${event.meetingUrl ? `<p><strong>Join:</strong> <a href="${event.meetingUrl}">${event.meetingUrl}</a></p>` : ""}
-        ${event.notes ? `<p>${event.notes}</p>` : ""}
+        <h2 style="margin:0 0 8px">${safeTitle}</h2>
+        <p><strong>When:</strong> ${safeWhen}</p>
+        ${event.location ? `<p><strong>Where:</strong> ${safeLocation}</p>` : ""}
+        ${event.meetingUrl ? `<p><strong>Join:</strong> <a href="${safeMeetingUrl}">${safeMeetingUrl}</a></p>` : ""}
+        ${event.notes ? `<p>${safeNotes}</p>` : ""}
         <p style="color:#666;font-size:13px">A calendar invite (.ics) is attached — add it to Outlook, Apple Calendar, or Google Calendar.</p>
       </div>`;
     try {
