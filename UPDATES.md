@@ -1,5 +1,13 @@
 # Envision Mail updates
 
+## 2.6.45
+- **Double-click an attachment to open it.** Images, PDFs, and text/CSV files open in a preview window inside Envision Mail; anything else opens in the Mac or Windows app you normally use for that file type.
+- **Right-click an attachment to save it straight to your Desktop.** Duplicate names become `invoice (2).pdf` instead of overwriting the file already there.
+- The preview window also has **Open with default app**, **Save to Desktop**, and **Save as…**; **Open** and **Save** buttons sit on every attachment row for anyone who prefers clicking, and Enter opens the focused attachment for keyboard users.
+- Attachments in the **Attachments** view behave the same way, and still link back to their conversation.
+- Mail lists now show a **paperclip** on conversations that carry files, and a collapsed message says how many attachments it's hiding.
+- Attachment bytes are pulled from your mail server on demand — a filename check keeps a stale message ID from ever handing back the wrong file, and search results stored under All Mail resolve correctly.
+
 ## 2.6.44
 - **Double-click any calendar date** to open a stable day popup showing every event already scheduled there, with **New event** ready below.
 - Single-click still opens the same popup — nothing was taken away.

@@ -12,6 +12,7 @@ const {
   deleteMessages,
   emptyFolder,
 } = require("./imap.cjs");
+const { getAttachmentData, saveAttachment, openAttachment } = require("./attachments.cjs");
 const { testSmtp, sendMail, sendPlainMail, sendCalendarInvites } = require("./smtp.cjs");
 const { performUnsubscribe } = require("./unsubscribe.cjs");
 const appState = require("./app-state.cjs");
@@ -366,6 +367,30 @@ function registerMailIpc() {
     if (!account) return { ok: false, error: "Account not found" };
     try {
       return await sendCalendarInvites(account, payload.event);
+    } catch (err) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("mail:getAttachment", async (_e, payload) => {
+    try {
+      return await getAttachmentData(payload || {});
+    } catch (err) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("mail:saveAttachment", async (event, payload) => {
+    try {
+      return await saveAttachment(payload || {}, { win: event.sender.getOwnerBrowserWindow() });
+    } catch (err) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("mail:openAttachment", async (_e, payload) => {
+    try {
+      return await openAttachment(payload || {});
     } catch (err) {
       return { ok: false, error: err.message || String(err) };
     }

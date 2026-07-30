@@ -7,7 +7,7 @@ import { useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
 import type { Thread } from "@/lib/types";
 import { cn, formatThreadTime, previewText } from "@/lib/utils";
-import { Bell, Bookmark, CheckSquare, Clock3, Layers, Square, Trash2 } from "lucide-react";
+import { Bell, Bookmark, CheckSquare, Clock3, Layers, Paperclip, Square, Trash2 } from "lucide-react";
 import { moveThreadToTrashSmart, permanentlyDeleteThread } from "@/lib/mail-delete";
 
 export function ThreadRow({
@@ -47,6 +47,10 @@ export function ThreadRow({
     ? outgoing.reduce((n, m) => n + (m.readReceipts?.length || 0), 0)
     : 0;
   const wasRead = readCount > 0;
+  const attachmentCount = thread.messageIds.reduce(
+    (n, id) => n + (messages[id]?.attachments.length || 0),
+    0,
+  );
 
   return (
     <article
@@ -101,6 +105,15 @@ export function ThreadRow({
                 {thread.replyLater ? <Clock3 className="h-3.5 w-3.5 text-amber" /> : null}
                 {thread.setAside ? <Bookmark className="h-3.5 w-3.5 text-em-blue" /> : null}
                 {thread.bundled ? <Layers className="h-3.5 w-3.5 text-muted" /> : null}
+                {attachmentCount > 0 ? (
+                  <span
+                    className="inline-flex items-center gap-0.5 text-muted"
+                    title={`${attachmentCount} attachment${attachmentCount > 1 ? "s" : ""}`}
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                    {attachmentCount > 1 ? <span className="text-[11px]">{attachmentCount}</span> : null}
+                  </span>
+                ) : null}
                 {!thread.seen ? <Badge tone="blurple">New</Badge> : null}
                 {(thread.tags || []).slice(0, 4).map((tag) => (
                   <Badge key={tag} tone={tag === "muted" ? "salmon" : tag === "snoozed" ? "mint" : "soft"}>

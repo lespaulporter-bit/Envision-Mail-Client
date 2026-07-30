@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar, Badge, Button, Input, Textarea } from "@/components/ui";
+import { AttachmentList } from "@/components/AttachmentList";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { MailHtml } from "@/components/MailHtml";
 import { PriorEmailsPanel } from "@/components/PriorEmailsPanel";
@@ -9,7 +10,7 @@ import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { threadBelongsToAccount } from "@/lib/account-scope";
 import { resolveThreadBackView, useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
-import { cn, formatBytes, formatMailDateTime, previewText, relativeTime } from "@/lib/utils";
+import { cn, formatMailDateTime, previewText, relativeTime } from "@/lib/utils";
 import { desktopApi } from "@/lib/desktop";
 import { brandForEmail, loadAccountBrands } from "@/lib/account-brands";
 import {
@@ -525,24 +526,16 @@ export function ThreadView() {
             {!isCollapsed(m.id) ? (
               <>
                 <MailHtml className="text-[15px]" html={m.bodyHtml} />
-                {m.attachments.length > 0 && (
-                  <ul className="mt-4 space-y-2">
-                    {m.attachments.map((a) => (
-                      <li key={a.id} className="flex items-center justify-between rounded-lg bg-soft px-3 py-2 text-sm">
-                        <span>
-                          📎 {a.name} <span className="text-muted">({formatBytes(a.size)})</span>
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => clipText(thread.id, subject, a.name)}
-                        >
-                          Clip name
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <AttachmentList
+                  className="mt-4"
+                  attachments={m.attachments}
+                  accountId={thread.accountId || accountId || inboxAccountId}
+                  renderExtraActions={(a) => (
+                    <Button size="sm" variant="ghost" onClick={() => clipText(thread.id, subject, a.name)}>
+                      Clip name
+                    </Button>
+                  )}
+                />
                 {m.isOutgoing && m.requestReadReceipt ? (
                   <div className="mt-3 rounded-lg bg-[#f7f4ff] px-3 py-2 text-xs text-blurple">
                     {m.readReceipts?.length
@@ -578,6 +571,11 @@ export function ThreadView() {
                 <p className="line-clamp-3 whitespace-pre-wrap">
                   {previewText(m.bodyHtml || m.bodyText || "", 220)}
                 </p>
+                {m.attachments.length > 0 ? (
+                  <span className="mt-1 block text-xs text-muted">
+                    📎 {m.attachments.length} attachment{m.attachments.length > 1 ? "s" : ""}
+                  </span>
+                ) : null}
                 <span className="mt-1 inline-block text-xs font-medium text-teal">Expand</span>
               </button>
             )}

@@ -473,6 +473,81 @@ async function fetchOlderMail(account, { folder = "inbox", skipNewest = 50, limi
   }
 }
 
+/** Sync names unnamed parts attachment-1, attachment-2… — those can't be matched by filename. */
+const GENERATED_ATTACHMENT_NAME = /^attachment-\d+$/i;
+
+async function readAttachmentFromMailbox(client, mailboxPath, { uid, index, name }) {
+  const lock = await client.getMailboxLock(mailboxPath);
+  try {
+    let msg = null;
+    try {
+      msg = await client.fetchOne(String(uid), { source: true, uid: true }, { uid: true });
+    } catch {
+      return null;
+    }
+    if (!msg || !msg.source) return null;
+
+    const parsed = await simpleParser(msg.source);
+    const list = parsed.attachments || [];
+    const byIndex = index >= 0 && index < list.length ? list[index] : null;
+    const matchByName = name && !GENERATED_ATTACHMENT_NAME.test(name) && list.some((a) => a.filename);
+    // UIDs are mailbox-scoped, so a filename check is what keeps a stale or
+    // cross-mailbox UID from handing back somebody else's file.
+    const picked = matchByName
+      ? byIndex && (byIndex.filename || "") === name
+        ? byIndex
+        : list.find((a) => (a.filename || "") === name) || null
+      : byIndex;
+    if (!picked || !picked.content) return null;
+
+    const buf = Buffer.isBuffer(picked.content) ? picked.content : Buffer.from(picked.content);
+    return {
+      ok: true,
+      name: picked.filename || name || `attachment-${index + 1}`,
+      mimeType: picked.contentType || "application/octet-stream",
+      size: buf.length,
+      base64: buf.toString("base64"),
+    };
+  } finally {
+    lock.release();
+  }
+}
+
+/**
+ * Download one attachment's bytes. Sync keeps only attachment metadata, so the
+ * message is re-fetched from the server and re-parsed on demand.
+ */
+async function fetchAttachment(account, { folder = "inbox", uid, index = 0, name = "" } = {}) {
+  const messageUid = Number(uid);
+  if (!Number.isFinite(messageUid) || messageUid <= 0) {
+    return { ok: false, error: "This attachment is not linked to a message on the server." };
+  }
+  const wanted = Number.isInteger(Number(index)) ? Number(index) : 0;
+  try {
+    return await withClient(account, async (client) => {
+      const paths = [(await resolveFolderPath(client, folder)) || "INBOX"];
+      // Search results carry All Mail UIDs under an inbox label — look there too.
+      const allMail = await findAllMailMailboxPath(client);
+      if (allMail && !paths.includes(allMail)) paths.push(allMail);
+
+      for (const mailboxPath of paths) {
+        const found = await readAttachmentFromMailbox(client, mailboxPath, {
+          uid: messageUid,
+          index: wanted,
+          name,
+        });
+        if (found) return found;
+      }
+      return {
+        ok: false,
+        error: "That file is no longer on the server — sync this account and try again.",
+      };
+    });
+  } catch (err) {
+    return { ok: false, error: formatImapError(err) };
+  }
+}
+
 function findSpecialMailbox(boxes, specialUse, nameHints, fuzzyRe) {
   const special = boxes.find(
     (b) => b.specialUse === specialUse || (b.specialUseFlags || []).includes(specialUse),
@@ -710,5 +785,6 @@ module.exports = {
   moveMessages,
   deleteMessages,
   emptyFolder,
+  fetchAttachment,
   formatImapError,
 };

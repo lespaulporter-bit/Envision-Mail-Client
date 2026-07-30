@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar, Button, EmptyState, Input, SectionHeader, Textarea } from "@/components/ui";
+import { AttachmentList } from "@/components/AttachmentList";
 import { BrandLogo } from "@/components/BrandLogo";
 import { bodyToHtml } from "@/lib/html-body";
 import { AccountsPanel } from "@/components/AccountsPanel";
@@ -14,7 +15,7 @@ import { selectAccountThreads, selectDockThreads, useMailStore } from "@/lib/sto
 import { clipBelongsToAccount } from "@/lib/account-scope";
 import { blockAllFromSenderSmart } from "@/lib/mail-delete";
 import { CALENDAR_TIMEZONE_OPTIONS, localTimezoneId } from "@/lib/timezones";
-import { formatBytes, formatThreadTime } from "@/lib/utils";
+import { formatThreadTime } from "@/lib/utils";
 import { boxLabel } from "@/lib/types";
 import { useMemo, useState, useEffect } from "react";
 
@@ -224,20 +225,17 @@ export function AttachmentsView() {
       {attachments.length === 0 ? (
         <EmptyState title="No attachments" body="Files from email appear here automatically." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line bg-white">
-          {attachments.map((a) => (
-            <div key={a.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-              <div>
-                <div className="font-medium">{a.name}</div>
-                <div className="text-xs text-muted">
-                  {formatBytes(a.size)} · {formatThreadTime(a.receivedAt)}
-                </div>
-              </div>
+        <div className="rounded-2xl border border-line bg-white p-3">
+          <AttachmentList
+            attachments={attachments}
+            accountIdFor={(a) => threads.find((t) => t.id === a.threadId)?.accountId ?? inboxAccountId}
+            renderMeta={(a) => `Received ${formatThreadTime(a.receivedAt)}`}
+            renderExtraActions={(a) => (
               <Button size="sm" variant="soft" onClick={() => openThread(a.threadId)}>
                 Open thread
               </Button>
-            </div>
-          ))}
+            )}
+          />
         </div>
       )}
     </div>

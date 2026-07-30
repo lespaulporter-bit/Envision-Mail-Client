@@ -170,6 +170,38 @@ export interface LesMailDesktopApi {
     accountId: string;
     folder: "spam" | "trash";
   }) => Promise<{ ok: boolean; error?: string; deleted?: number }>;
+  /** Attachment bytes (base64) for in-app preview — refused above ~25 MB. */
+  getAttachment: (payload: { accountId?: string | null; attachmentId: string; name?: string }) => Promise<{
+    ok: boolean;
+    error?: string;
+    tooLarge?: boolean;
+    name?: string;
+    mimeType?: string;
+    size?: number;
+    base64?: string;
+  }>;
+  /** Write an attachment to the Desktop, or to a chosen path when saveAs is set. */
+  saveAttachment: (payload: {
+    accountId?: string | null;
+    attachmentId: string;
+    name?: string;
+    saveAs?: boolean;
+  }) => Promise<{
+    ok: boolean;
+    error?: string;
+    cancelled?: boolean;
+    path?: string;
+    name?: string;
+    folder?: string;
+    size?: number;
+  }>;
+  /** Open an attachment with the OS default app. */
+  openAttachment: (payload: { accountId?: string | null; attachmentId: string; name?: string }) => Promise<{
+    ok: boolean;
+    error?: string;
+    path?: string;
+    name?: string;
+  }>;
   sendCalendarInvites: (payload: {
     accountId: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
