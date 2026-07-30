@@ -23,7 +23,7 @@ import {
   startOfWeek,
   differenceInMinutes,
 } from "date-fns";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_EVENT_DURATION_MINUTES,
   addMinutesHhmm,
@@ -136,6 +136,7 @@ export function CalendarView() {
   /** yyyy-MM-dd when the day events popup is open */
   const [daySheetDate, setDaySheetDate] = useState<string | null>(null);
   const [daySheetCompose, setDaySheetCompose] = useState(false);
+  const dayClickTimerRef = useRef<number | null>(null);
   /** Live clock for countdown chips */
   const [nowMs, setNowMs] = useState(() => Date.now());
   /** Minutes before start — 0 = at start time; -1 = none */
@@ -246,6 +247,16 @@ export function CalendarView() {
   const dayEvents = (d: Date) =>
     filteredEvents.filter((e) => isSameDay(parseISO(e.start), d));
 
+  // The popup is a complete day view: search text and hidden-calendar filters
+  // must not conceal an appointment that is already scheduled.
+  const daySheetEvents = useMemo(() => {
+    if (!daySheetDate) return [];
+    const sheetDate = parseISO(daySheetDate);
+    return events
+      .filter((event) => isSameDay(parseISO(event.start), sheetDate))
+      .sort((a, b) => +new Date(a.start) - +new Date(b.start));
+  }, [daySheetDate, events]);
+
   const colorFor = (calendarId: string) =>
     calendars.find((c) => c.id === calendarId)?.color || "#0d9488";
 
@@ -307,6 +318,28 @@ export function CalendarView() {
     setDaySheetCompose(false);
   };
 
+  const cancelPendingDayClick = () => {
+    if (dayClickTimerRef.current !== null) {
+      window.clearTimeout(dayClickTimerRef.current);
+      dayClickTimerRef.current = null;
+    }
+  };
+
+  const openDaySheetOnSingleClick = (ymd: string) => {
+    cancelPendingDayClick();
+    // Wait just long enough to distinguish a single click from a double-click.
+    // This preserves the existing single-click popup and makes double-click reliable.
+    dayClickTimerRef.current = window.setTimeout(() => {
+      dayClickTimerRef.current = null;
+      openDaySheet(ymd);
+    }, 220);
+  };
+
+  const openDaySheetOnDoubleClick = (ymd: string) => {
+    cancelPendingDayClick();
+    openDaySheet(ymd);
+  };
+
   const closeDaySheet = () => {
     // Leaving mid-compose must not strand the page composer in edit mode.
     setEditingId(null);
@@ -323,6 +356,13 @@ export function CalendarView() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [daySheetDate]);
+
+  useEffect(
+    () => () => {
+      cancelPendingDayClick();
+    },
+    [],
+  );
 
   const beginEdit = (e: CalendarEvent) => {
     setEventFormOpen(true);
@@ -626,7 +666,8 @@ export function CalendarView() {
           <button
             key={format(d, "yyyy-MM-dd")}
             type="button"
-            onClick={() => openDaySheet(format(d, "yyyy-MM-dd"))}
+            onClick={() => openDaySheetOnSingleClick(format(d, "yyyy-MM-dd"))}
+            onDoubleClick={() => openDaySheetOnDoubleClick(format(d, "yyyy-MM-dd"))}
             className={`border-b border-l border-line p-2 text-left text-xs font-semibold ${
               isSameDay(d, date) || daySheetDate === format(d, "yyyy-MM-dd")
                 ? "bg-[#ecfdf8] text-teal"
@@ -884,7 +925,8 @@ export function CalendarView() {
                 <button
                   key={key}
                   type="button"
-                  onClick={() => openDaySheet(key)}
+                onClick={() => openDaySheetOnSingleClick(key)}
+                onDoubleClick={() => openDaySheetOnDoubleClick(key)}
                   className={`min-h-28 rounded-2xl border p-2 text-left transition ${
                     selected || daySheetDate === key
                       ? "border-teal bg-[#ecfdf8]"
@@ -892,7 +934,7 @@ export function CalendarView() {
                         ? "border-line/70 bg-soft/50 hover:bg-soft"
                         : "border-line bg-white/85 hover:bg-soft/60"
                   } ${isToday(d) ? "ring-1 ring-teal/40" : ""}`}
-                  title={format(d, "EEEE, MMMM d, yyyy")}
+                title={`${format(d, "EEEE, MMMM d, yyyy")} · click or double-click to open day`}
                 >
                   <div className="mb-1 flex items-center justify-between text-xs">
                     <span className={`font-semibold ${otherMonth ? "text-muted" : ""}`}>
@@ -920,8 +962,10 @@ export function CalendarView() {
                         title={e.title}
                         onClick={(ev) => {
                           ev.stopPropagation();
+                        cancelPendingDayClick();
                           openDaySheet(key, { edit: e });
                         }}
+                      onDoubleClick={(ev) => ev.stopPropagation()}
                       >
                         {e.allDay ? "" : `${format(parseISO(e.start), "h:mma")} `}
                         {e.title}
@@ -956,8 +1000,9 @@ export function CalendarView() {
                 <button
                   type="button"
                   className="mb-2 text-left font-display text-lg hover:text-teal"
-                  onClick={() => openDaySheet(format(d, "yyyy-MM-dd"))}
-                  title="Open day — all events, add, or edit"
+                  onClick={() => openDaySheetOnSingleClick(format(d, "yyyy-MM-dd"))}
+                  onDoubleClick={() => openDaySheetOnDoubleClick(format(d, "yyyy-MM-dd"))}
+                  title="Click or double-click — all events, add, or edit"
                 >
                   {format(d, "EEEE, MMM d")}
                   {isToday(d) ? <span className="ml-2 text-sm font-sans text-teal">Today</span> : null}
@@ -1523,8 +1568,8 @@ export function CalendarView() {
                   {format(parseISO(daySheetDate), "EEEE, MMMM d")}
                 </h2>
                 <p className="mt-0.5 text-xs text-muted">
-                  {dayEvents(parseISO(daySheetDate)).length} event
-                  {dayEvents(parseISO(daySheetDate)).length === 1 ? "" : "s"} · add or edit below
+                  {daySheetEvents.length} event
+                  {daySheetEvents.length === 1 ? "" : "s"} · add or edit below
                 </p>
               </div>
               <Button type="button" size="sm" variant="ghost" onClick={closeDaySheet}>
@@ -1536,7 +1581,7 @@ export function CalendarView() {
               {!daySheetCompose ? (
                 <>
                   <ul className="space-y-2">
-                    {dayEvents(parseISO(daySheetDate)).map((e) => (
+                    {daySheetEvents.map((e) => (
                       <li key={e.id} className="rounded-xl border border-line p-3">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
@@ -1632,7 +1677,7 @@ export function CalendarView() {
                         </div>
                       </li>
                     ))}
-                    {dayEvents(parseISO(daySheetDate)).length === 0 ? (
+                    {daySheetEvents.length === 0 ? (
                       <li className="rounded-xl border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
                         Nothing scheduled — create an event for this day.
                       </li>

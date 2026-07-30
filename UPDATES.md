@@ -1,5 +1,12 @@
 # Envision Mail updates
 
+## 2.6.44
+- **Double-click any calendar date** to open a stable day popup showing every event already scheduled there, with **New event** ready below.
+- Single-click still opens the same popup — nothing was taken away.
+- Fixed double-clicking briefly opening and then closing the popup when the second click landed on the new overlay.
+- The day popup now ignores search and hidden-calendar filters so an existing appointment can never disappear from the day’s schedule.
+- Double-click works in month, week, day, and agenda date headers; event chips still open Edit without triggering the parent day action.
+
 ## 2.6.43
 - The public MoneyBox $ preview now uses dealership customer messages: **“Can we meet at 1pm today?”**, **“How much for a down payment on Stock #4986?”**, and **“I’ll be by to bring payment at 5pm today.”**
 - Longer customer subjects wrap cleanly while timestamps stay aligned.
