@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.41
+- **New events follow your clock.** Opening Add event in the morning defaults Start/End to **AM**; after noon defaults to **PM** — no more jumping from 11 AM into 12 PM.
+- Explicit **AM / PM** toggles under Start and End so you can flip the period without fighting the time spinner.
+- Defaults round to the next 5-minute mark, but never cross noon or midnight silently.
+
 ## 2.6.40
 - **You can always see what month you're on.** Calendar now shows a big **July 2026** heading above the grid, with ← / → on either side and **Today** beside it — the arrows used to move an invisible date.
 - Week, day, and agenda views get the same heading: **Jul 26 – Aug 1, 2026**, **Thursday, July 30, 2026**, or the 14-day agenda range.

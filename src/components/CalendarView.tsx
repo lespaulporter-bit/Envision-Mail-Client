@@ -29,10 +29,40 @@ import {
   addMinutesHhmm,
   defaultStartTimeHhmm,
   endAfterStartChange,
+  setTimePeriod,
+  timePeriod,
 } from "@/lib/event-time";
 import { formatCountdown, isFakeMeetingUrl, sanitizeMeetingUrl } from "@/lib/utils";
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am–8pm
+
+function TimePeriodToggle({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const selected = timePeriod(value);
+  return (
+    <span className="mt-1 flex w-fit overflow-hidden rounded-md border border-line bg-white">
+      {(["AM", "PM"] as const).map((period) => (
+        <button
+          key={period}
+          type="button"
+          className={`px-2 py-1 text-[10px] font-bold transition ${
+            selected === period ? "bg-teal text-white" : "text-muted hover:bg-soft"
+          }`}
+          onClick={() => onChange(setTimePeriod(value, period))}
+          aria-pressed={selected === period}
+          title={`Set time to ${period}`}
+        >
+          {period}
+        </button>
+      ))}
+    </span>
+  );
+}
 
 function formatInTz(iso: string, timeZone: string) {
   try {
@@ -1017,6 +1047,15 @@ export function CalendarView() {
                         }}
                         required
                       />
+                      <TimePeriodToggle
+                        value={startTime}
+                        onChange={(next) => {
+                          setEndTime(
+                            endAfterStartChange(startTime, endTime, next, eventDurationMinutes),
+                          );
+                          setStartTime(next);
+                        }}
+                      />
                     </label>
                   </div>
                   <div>
@@ -1031,6 +1070,7 @@ export function CalendarView() {
                         onChange={(e) => setEndTime(e.target.value)}
                         required
                       />
+                      <TimePeriodToggle value={endTime} onChange={setEndTime} />
                     </label>
                   </div>
                 </>
@@ -1475,6 +1515,15 @@ export function CalendarView() {
                           }}
                           required
                         />
+                        <TimePeriodToggle
+                          value={startTime}
+                          onChange={(next) => {
+                            setEndTime(
+                              endAfterStartChange(startTime, endTime, next, eventDurationMinutes),
+                            );
+                            setStartTime(next);
+                          }}
+                        />
                       </label>
                       <label className="block text-xs font-medium text-muted">
                         End
@@ -1486,6 +1535,7 @@ export function CalendarView() {
                           onChange={(e) => setEndTime(e.target.value)}
                           required
                         />
+                        <TimePeriodToggle value={endTime} onChange={setEndTime} />
                       </label>
                     </div>
                   ) : null}
