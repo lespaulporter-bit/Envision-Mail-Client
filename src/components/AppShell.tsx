@@ -3,6 +3,7 @@
 import { CalendarView } from "@/components/CalendarView";
 import {
   DockListView,
+  EasyCleanupView,
   FeedView,
   FocusReplyView,
   MoneyBoxView,
@@ -33,6 +34,8 @@ import { desktopApi, isDesktop } from "@/lib/desktop";
 import {
   selectBoxThreads,
   selectDockThreads,
+  resolveThreadBackView,
+  selectCleanupThreads,
   selectNewSenderThreads,
   selectScreeningThreads,
   useMailStore,
@@ -50,6 +53,7 @@ import {
   FileStack,
   Inbox,
   Layers3,
+  ListChecks,
   Newspaper,
   Paperclip,
   PenSquare,
@@ -77,6 +81,7 @@ const nav: {
   { id: "feed", label: "Screening", icon: ShieldCheck, countKey: "feed", pastel: "bg-[#d8f5e8]", pastelActive: "bg-[#b8ebd4]" },
   { id: "paper_trail", label: "Receipts", icon: Receipt, countKey: "paper_trail", pastel: "bg-[#ffe4d6]", pastelActive: "bg-[#ffd0b8]" },
   { id: "screener", label: "New Senders", icon: Newspaper, countKey: "screener", pastel: "bg-[#fff0c8]", pastelActive: "bg-[#ffe29a]" },
+  { id: "cleanup", label: "Easy Cleanup", icon: ListChecks, countKey: "cleanup", pastel: "bg-[#e6f7f3]", pastelActive: "bg-[#c8eee5]" },
   { id: "sent", label: "Sent", icon: Send, pastel: "bg-[#e0eefc]", pastelActive: "bg-[#c8dff8]" },
   { id: "spam", label: "Spam", icon: ShieldAlert, countKey: "spam", pastel: "bg-[#ffe8e4]", pastelActive: "bg-[#ffd4cc]" },
   { id: "trash", label: "Trash", icon: Trash2, countKey: "trash", pastel: "bg-[#ececec]", pastelActive: "bg-[#dddddd]" },
@@ -105,6 +110,8 @@ export function AppShell() {
   const hydrated = useHydrated();
   const view = useMailStore((s) => s.view);
   const setView = useMailStore((s) => s.setView);
+  const selectedThreadId = useMailStore((s) => s.selectedThreadId);
+  const threadReturnView = useMailStore((s) => s.threadReturnView);
   const startCompose = useMailStore((s) => s.startCompose);
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
@@ -118,7 +125,7 @@ export function AppShell() {
   const rolloverSometimeTasks = useMailStore((s) => s.rolloverSometimeTasks);
   const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
-  const [appVersion, setAppVersion] = useState("2.6.38");
+  const [appVersion, setAppVersion] = useState("2.6.39");
 
   const activeAccount = accounts.find((a) => a.id === inboxAccountId) || null;
   const scoped = inboxAccountId;
@@ -245,9 +252,19 @@ export function AppShell() {
         accountId: scoped,
         messages,
       }).length,
+      cleanup: selectCleanupThreads(threads, contacts, messages, { accountId: scoped }).length,
     }),
     [threads, messages, contacts, scoped],
   );
+
+  // Reading a thread keeps its origin list lit in the sidebar.
+  const activeListView =
+    view === "thread"
+      ? resolveThreadBackView(
+          threads.find((t) => t.id === selectedThreadId)?.box,
+          threadReturnView,
+        )
+      : view;
 
   if (!hydrated) {
     return (
@@ -339,8 +356,7 @@ export function AppShell() {
           {nav.map((item) => {
             const Icon = item.icon;
             const count = item.countKey ? counts[item.countKey as keyof typeof counts] : 0;
-            const isMoneyBox = item.id === "lesbox";
-            const active = isMoneyBox ? view === "lesbox" || view === "thread" : view === item.id;
+            const active = activeListView === item.id;
             return (
               <button
                 key={item.id}
@@ -358,7 +374,7 @@ export function AppShell() {
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0 opacity-80" />
-                <span className={cn("flex-1 truncate", isMoneyBox && "font-bold text-teal")}>
+                <span className={cn("flex-1 truncate", item.id === "lesbox" && "font-bold text-teal")}>
                   {item.label}
                 </span>
                 {count > 0 ? (
@@ -381,6 +397,7 @@ export function AppShell() {
 
       <main className="min-w-0 flex-1 overflow-y-auto pb-28">
         {view === "lesbox" && <MoneyBoxView />}
+        {view === "cleanup" && <EasyCleanupView />}
         {view === "feed" && <FeedView />}
         {view === "paper_trail" && <PaperTrailView />}
         {view === "screener" && <ScreenerView />}

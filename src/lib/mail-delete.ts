@@ -89,6 +89,32 @@ export async function moveThreadToTrashSmart(threadId: string) {
   return { ok: true, permanent: false as const };
 }
 
+/** Bulk reversible Trash for Easy Cleanup and similar review queues. Never permanent. */
+export async function moveThreadsToTrashSmart(threadIds: string[]) {
+  const ids = [...new Set((threadIds || []).filter(Boolean))];
+  if (!ids.length) return { ok: true as const, moved: 0, warnings: [] as string[] };
+
+  const warnings: string[] = [];
+  const toMoveLocal: string[] = [];
+  for (const id of ids) {
+    const { thread, byAccount } = collectImapRefs(id);
+    if (!thread || thread.box === "trash") continue;
+    // Keep IMAP + local in sync one conversation at a time.
+    const server = await syncMoveToServer(byAccount, "trash");
+    if (server.warnings.length) warnings.push(...server.warnings);
+    toMoveLocal.push(id);
+  }
+
+  if (toMoveLocal.length) {
+    useMailStore.getState().deleteThreadsToTrash(toMoveLocal);
+  }
+  return {
+    ok: warnings.length === 0,
+    moved: toMoveLocal.length,
+    warnings,
+  };
+}
+
 /** Delete → Trash (local + IMAP when possible). From Trash → permanent. From Spam → Trash (not permanent). */
 export async function deleteThreadSmart(threadId: string) {
   const { thread, byAccount } = collectImapRefs(threadId);

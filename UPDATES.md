@@ -1,5 +1,12 @@
 # Envision Mail updates
 
+## 2.6.39
+- **Easy Cleanup**: a new sidebar view that gathers lower-priority mail — Screening, New Senders, and Receipts from people you rarely email. Nothing moves until you select it.
+- Filter, **Select all visible**, then **Move selected to Trash** (reversible — never a permanent delete). **Keep → MoneyBox $** protects a sender forever.
+- MoneyBox $ and Reply Queue mail, On Hold, Snooze, Sent, Spam, Trash, and anyone you've emailed twice are excluded automatically.
+- **Collapse / Expand** on every message header in an open email. Long threads open with just the newest message expanded; collapsed messages show a preview you can click to reopen.
+- **Back** from an open email returns to the list you came from (including Easy Cleanup), and the sidebar keeps that list highlighted while you read.
+
 ## 2.6.38
 - **Screening & New Senders**: **Reply Queue**, **Open**, and **Trash** — reply or delete without Allowing the sender into MoneyBox $.
 - **Outlook-style multi-recipients**: paste comma-, semicolon-, or newline-separated addresses into To / Cc / Bcc — they all send.

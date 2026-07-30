@@ -7,9 +7,9 @@ import { PriorEmailsPanel } from "@/components/PriorEmailsPanel";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { threadBelongsToAccount } from "@/lib/account-scope";
-import { useMailStore } from "@/lib/store";
+import { resolveThreadBackView, useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
-import { cn, formatBytes, formatMailDateTime, relativeTime } from "@/lib/utils";
+import { cn, formatBytes, formatMailDateTime, previewText, relativeTime } from "@/lib/utils";
 import { desktopApi } from "@/lib/desktop";
 import { brandForEmail, loadAccountBrands } from "@/lib/account-brands";
 import {
@@ -63,9 +63,12 @@ export function ThreadView() {
   const [signatureId, setSignatureId] = useState("");
   const [requestReceipt, setRequestReceipt] = useState(true);
   const [brandsTick, setBrandsTick] = useState(0);
+  // Keyed "<threadId>:<messageId>" so switching threads restores default collapsing.
+  const [collapseOverrides, setCollapseOverrides] = useState<Record<string, boolean>>({});
   const signatures = useMailStore((s) => s.signatures || []);
   const settings = useMailStore((s) => s.settings);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const threadReturnView = useMailStore((s) => s.threadReturnView);
   const thread = threads.find((t) => t.id === threadId);
 
   useEffect(() => {
@@ -95,6 +98,16 @@ export function ThreadView() {
     [threadId, getThreadMessages, threads, storeMessages],
   );
 
+  // Long threads open with only the newest message expanded, until the reader says otherwise.
+  const defaultCollapsedIds = useMemo(
+    () => (messages.length > 1 ? new Set(messages.slice(0, -1).map((m) => m.id)) : new Set<string>()),
+    [messages],
+  );
+  const isCollapsed = (messageId: string) =>
+    collapseOverrides[`${threadId}:${messageId}`] ?? defaultCollapsedIds.has(messageId);
+  const setCollapsed = (messageId: string, collapsed: boolean) =>
+    setCollapseOverrides((current) => ({ ...current, [`${threadId}:${messageId}`]: collapsed }));
+
   if (!thread) {
     return (
       <div className="p-8 text-muted">
@@ -120,7 +133,11 @@ export function ThreadView() {
   return (
     <div className="mx-auto max-w-3xl animate-fade-in px-4 py-6 md:px-8">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => setView(thread.box === "feed" || thread.box === "screener" ? "feed" : thread.box === "paper_trail" ? "paper_trail" : "lesbox")}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setView(resolveThreadBackView(thread.box, threadReturnView))}
+        >
           ← Back
         </Button>
         <Badge tone="blurple">{boxLabel(thread.box)}</Badge>
@@ -488,54 +505,82 @@ export function ThreadView() {
                   </div>
                 ) : null}
               </div>
-              {m.trackersBlocked.length > 0 ? (
-                <Badge tone="salmon">{m.trackersBlocked.length} tracker{m.trackersBlocked.length > 1 ? "s" : ""} blocked</Badge>
-              ) : null}
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                {m.trackersBlocked.length > 0 ? (
+                  <Badge tone="salmon">
+                    {m.trackersBlocked.length} tracker{m.trackersBlocked.length > 1 ? "s" : ""} blocked
+                  </Badge>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setCollapsed(m.id, !isCollapsed(m.id))}
+                  aria-expanded={!isCollapsed(m.id)}
+                >
+                  {isCollapsed(m.id) ? "Expand" : "Collapse"}
+                </Button>
+              </div>
             </div>
-            <MailHtml className="text-[15px]" html={m.bodyHtml} />
-            {m.attachments.length > 0 && (
-              <ul className="mt-4 space-y-2">
-                {m.attachments.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between rounded-lg bg-soft px-3 py-2 text-sm">
-                    <span>
-                      📎 {a.name} <span className="text-muted">({formatBytes(a.size)})</span>
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => clipText(thread.id, subject, a.name)}
-                    >
-                      Clip name
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {m.isOutgoing && m.requestReadReceipt ? (
-              <div className="mt-3 rounded-lg bg-[#f7f4ff] px-3 py-2 text-xs text-blurple">
-                {m.readReceipts?.length
-                  ? `Read by ${m.readReceipts.map((r) => r.readerName || r.readerEmail).join(", ")}`
-                  : "Read receipt requested — waiting…"}
-              </div>
-            ) : null}
-            {m.isOutgoing && (m.readReceipts?.length || 0) > 0 && !m.requestReadReceipt ? (
-              <div className="mt-3 rounded-lg bg-mint/10 px-3 py-2 text-xs text-mint">
-                Read by {m.readReceipts!.map((r) => r.readerName || r.readerEmail).join(", ")}
-              </div>
-            ) : null}
-            <div className="mt-3">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  const sel = window.getSelection()?.toString().trim();
-                  if (sel) clipText(thread.id, subject, sel);
-                  else clipText(thread.id, subject, m.bodyText.slice(0, 80));
-                }}
+            {!isCollapsed(m.id) ? (
+              <>
+                <MailHtml className="text-[15px]" html={m.bodyHtml} />
+                {m.attachments.length > 0 && (
+                  <ul className="mt-4 space-y-2">
+                    {m.attachments.map((a) => (
+                      <li key={a.id} className="flex items-center justify-between rounded-lg bg-soft px-3 py-2 text-sm">
+                        <span>
+                          📎 {a.name} <span className="text-muted">({formatBytes(a.size)})</span>
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => clipText(thread.id, subject, a.name)}
+                        >
+                          Clip name
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {m.isOutgoing && m.requestReadReceipt ? (
+                  <div className="mt-3 rounded-lg bg-[#f7f4ff] px-3 py-2 text-xs text-blurple">
+                    {m.readReceipts?.length
+                      ? `Read by ${m.readReceipts.map((r) => r.readerName || r.readerEmail).join(", ")}`
+                      : "Read receipt requested — waiting…"}
+                  </div>
+                ) : null}
+                {m.isOutgoing && (m.readReceipts?.length || 0) > 0 && !m.requestReadReceipt ? (
+                  <div className="mt-3 rounded-lg bg-mint/10 px-3 py-2 text-xs text-mint">
+                    Read by {m.readReceipts!.map((r) => r.readerName || r.readerEmail).join(", ")}
+                  </div>
+                ) : null}
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      const sel = window.getSelection()?.toString().trim();
+                      if (sel) clipText(thread.id, subject, sel);
+                      else clipText(thread.id, subject, m.bodyText.slice(0, 80));
+                    }}
+                  >
+                    Clip selection / snippet
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="w-full rounded-xl bg-soft px-3 py-2 text-left text-sm text-ink"
+                onClick={() => setCollapsed(m.id, false)}
               >
-                Clip selection / snippet
-              </Button>
-            </div>
+                <p className="line-clamp-3 whitespace-pre-wrap">
+                  {previewText(m.bodyHtml || m.bodyText || "", 220)}
+                </p>
+                <span className="mt-1 inline-block text-xs font-medium text-teal">Expand</span>
+              </button>
+            )}
           </article>
         ))}
       </div>

@@ -7,9 +7,16 @@ import { MailHtml } from "@/components/MailHtml";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
-import { selectBoxThreads, selectDockThreads, selectNewSenderThreads, selectScreeningThreads, useMailStore } from "@/lib/store";
-import type { Message, Thread } from "@/lib/types";
-import { previewText } from "@/lib/utils";
+import {
+  selectBoxThreads,
+  selectCleanupThreads,
+  selectDockThreads,
+  selectNewSenderThreads,
+  selectScreeningThreads,
+  useMailStore,
+} from "@/lib/store";
+import { boxLabel, type Message, type Thread } from "@/lib/types";
+import { formatThreadTime, previewText } from "@/lib/utils";
 import { useMemo, useState } from "react";
 
 export function MoneyBoxView() {
@@ -71,6 +78,9 @@ export function MoneyBoxView() {
         }
         actions={
           <>
+            <Button size="sm" variant="soft" onClick={() => setView("cleanup")}>
+              Easy Cleanup
+            </Button>
             <Button size="sm" variant={powerThrough ? "primary" : "soft"} onClick={togglePowerThrough}>
               Clear New
             </Button>
@@ -258,6 +268,186 @@ export function MoneyBoxView() {
           </p>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+export function EasyCleanupView() {
+  const threads = useMailStore((s) => s.threads);
+  const messages = useMailStore((s) => s.messages);
+  const contacts = useMailStore((s) => s.contacts);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const setView = useMailStore((s) => s.setView);
+  const setToast = useMailStore((s) => s.setToast);
+  const openThread = useMailStore((s) => s.openThread);
+  const screenContact = useMailStore((s) => s.screenContact);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [busy, setBusy] = useState(false);
+
+  const candidates = useMemo(
+    () => selectCleanupThreads(threads, contacts, messages, { accountId: inboxAccountId }),
+    [threads, contacts, messages, inboxAccountId],
+  );
+  const visible = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return candidates;
+    return candidates.filter((thread) =>
+      [thread.contactName, thread.contactEmail, thread.customSubject || thread.subject]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized),
+    );
+  }, [candidates, query]);
+  const selectedCandidates = candidates.filter((thread) => selected.has(thread.id));
+  const allVisibleSelected = visible.length > 0 && visible.every((thread) => selected.has(thread.id));
+
+  const toggleSelected = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllVisible = () => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) visible.forEach((thread) => next.delete(thread.id));
+      else visible.forEach((thread) => next.add(thread.id));
+      return next;
+    });
+  };
+
+  const trashSelected = () => {
+    if (!selectedCandidates.length || busy) return;
+    const confirmed = window.confirm(
+      `Move ${selectedCandidates.length} selected conversation${
+        selectedCandidates.length === 1 ? "" : "s"
+      } to Trash? You can restore them from Trash.`,
+    );
+    if (!confirmed) return;
+    void (async () => {
+      setBusy(true);
+      try {
+        const { moveThreadsToTrashSmart } = await import("@/lib/mail-delete");
+        const result = await moveThreadsToTrashSmart(selectedCandidates.map((thread) => thread.id));
+        setSelected(new Set());
+        setToast(
+          result.warnings.length
+            ? `Moved ${result.moved} to Trash — server: ${result.warnings[0]}`
+            : `Moved ${result.moved} conversation${result.moved === 1 ? "" : "s"} to Trash`,
+        );
+      } finally {
+        setBusy(false);
+      }
+    })();
+  };
+
+  return (
+    <div className="px-4 py-6 md:px-8">
+      <SectionHeader
+        title="Easy Cleanup"
+        subtitle="A review queue for mail outside MoneyBox from people you rarely email. Nothing moves until you select it."
+        actions={
+          <Button size="sm" variant="ghost" onClick={() => setView("lesbox")}>
+            Back to MoneyBox $
+          </Button>
+        }
+      />
+
+      <div className="mb-4 rounded-2xl border border-teal/25 bg-[#f3fbf8] p-4">
+        <p className="text-sm text-ink">
+          Protected automatically: MoneyBox mail, Reply Queue, On Hold, Sent, Spam, Trash, and people you&apos;ve
+          emailed at least twice.
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            className="min-w-0 flex-1 rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-teal"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter visible cleanup mail by sender or subject…"
+          />
+          <Button size="sm" variant="soft" disabled={!visible.length} onClick={toggleAllVisible}>
+            {allVisibleSelected ? "Clear visible" : `Select all visible (${visible.length})`}
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={!selectedCandidates.length || busy}
+            onClick={trashSelected}
+          >
+            {busy ? "Moving…" : `Move selected to Trash (${selectedCandidates.length})`}
+          </Button>
+        </div>
+      </div>
+
+      {visible.length === 0 ? (
+        <EmptyState
+          title={candidates.length ? "No cleanup mail matches" : "Easy Cleanup is clear"}
+          body={
+            candidates.length
+              ? "Clear the filter to see the full review queue."
+              : "There is no lower-priority mail waiting for review."
+          }
+        />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-line bg-white">
+          {visible.map((thread) => {
+            const lastId = thread.messageIds[thread.messageIds.length - 1];
+            const last = lastId ? messages[lastId] : undefined;
+            return (
+              <article
+                key={thread.id}
+                className="flex items-start gap-3 border-b border-line px-4 py-3 last:border-b-0"
+              >
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 accent-teal"
+                  checked={selected.has(thread.id)}
+                  onChange={() => toggleSelected(thread.id)}
+                  aria-label={`Select ${thread.contactName || thread.contactEmail}`}
+                />
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openThread(thread.id)}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-semibold text-ink">{thread.contactName || thread.contactEmail}</span>
+                    <span className="text-xs text-muted">{formatThreadTime(thread.updatedAt)}</span>
+                  </div>
+                  <div className="truncate text-sm font-medium text-ink">
+                    {thread.customSubject || thread.subject}
+                  </div>
+                  <div className="mt-0.5 line-clamp-2 text-xs text-muted">
+                    {last ? previewText(last.bodyHtml || last.bodyText || "", 180) : thread.contactEmail}
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted">
+                    {boxLabel(thread.box)} · not in MoneyBox · low reply history
+                  </div>
+                </button>
+                <div className="flex shrink-0 flex-col gap-1">
+                  <Button
+                    size="sm"
+                    variant="soft"
+                    onClick={() => {
+                      screenContact(thread.contactEmail, "allow", "lesbox");
+                      setSelected((current) => {
+                        const next = new Set(current);
+                        next.delete(thread.id);
+                        return next;
+                      });
+                    }}
+                  >
+                    Keep → MoneyBox $
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => openThread(thread.id)}>
+                    Review
+                  </Button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

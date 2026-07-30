@@ -34,6 +34,7 @@ import { sanitizeMeetingUrl, uid } from "./utils";
 
 export type AppView =
   | "lesbox"
+  | "cleanup"
   | "feed"
   | "paper_trail"
   | "screener"
@@ -55,9 +56,37 @@ export type AppView =
   | "set_aside"
   | "reply_later";
 
+/**
+ * Where an open thread should return to — the list it was opened from when we
+ * know it, otherwise the list that owns the thread's box.
+ */
+export function resolveThreadBackView(
+  box: Box | null | undefined,
+  returnView?: AppView | null,
+): AppView {
+  if (returnView && returnView !== "thread") return returnView;
+  switch (box) {
+    case "feed":
+    case "screener":
+      return "feed";
+    case "paper_trail":
+      return "paper_trail";
+    case "spam":
+      return "spam";
+    case "sent":
+      return "sent";
+    case "trash":
+      return "trash";
+    default:
+      return "lesbox";
+  }
+}
+
 interface UiState {
   view: AppView;
   selectedThreadId: string | null;
+  /** Transient list/view to return to after opening a thread. */
+  threadReturnView: AppView | null;
   selectedContactId: string | null;
   searchQuery: string;
   powerThrough: boolean;
@@ -370,6 +399,7 @@ export const useMailStore = create<MailStore>()(
       ...seed,
       view: "lesbox",
       selectedThreadId: null,
+      threadReturnView: null,
       selectedContactId: null,
       searchQuery: "",
       powerThrough: false,
@@ -381,7 +411,12 @@ export const useMailStore = create<MailStore>()(
       settingsTab: "accounts",
       toast: null,
 
-      setView: (view) => set({ view, selectedThreadId: view === "thread" ? get().selectedThreadId : get().selectedThreadId }),
+      setView: (view) =>
+        set({
+          view,
+          // Leaving the reading pane retires the remembered list.
+          threadReturnView: view === "thread" ? get().threadReturnView : null,
+        }),
       openThread: (id) => {
         const thread = get().threads.find((t) => t.id === id);
         if (!thread) return;
@@ -394,6 +429,7 @@ export const useMailStore = create<MailStore>()(
         set({
           view: "thread",
           selectedThreadId: id,
+          threadReturnView: get().view === "thread" ? get().threadReturnView : get().view,
           threads: get().threads.map((t) => (t.id === id ? { ...t, seen: true } : t)),
         });
       },
@@ -436,6 +472,7 @@ export const useMailStore = create<MailStore>()(
         set({
           inboxAccountId: accountId,
           selectedThreadId: null,
+          threadReturnView: null,
           multiOpenIds: [],
           // Silent switches (sync) must not wipe in-progress UI work
           searchQuery: silent ? get().searchQuery : "",
@@ -680,16 +717,7 @@ export const useMailStore = create<MailStore>()(
         const selected = get().selectedThreadId;
         const leaving = Boolean(selected && ids.has(selected));
         const fromBox = leaving ? get().threads.find((t) => t.id === selected)?.box : null;
-        const backView =
-          fromBox === "feed" || fromBox === "screener"
-            ? ("feed" as const)
-            : fromBox === "paper_trail"
-              ? ("paper_trail" as const)
-              : fromBox === "spam"
-                ? ("spam" as const)
-                : fromBox === "sent"
-                  ? ("sent" as const)
-                  : ("lesbox" as const);
+        const backView = resolveThreadBackView(fromBox, get().threadReturnView);
         set({
           threads: get().threads.map((t) =>
             ids.has(t.id)
@@ -698,7 +726,11 @@ export const useMailStore = create<MailStore>()(
           ),
           toast: threadIds.length > 1 ? `Moved ${threadIds.length} to Trash` : "Moved to Trash",
           ...(leaving
-            ? { view: get().view === "thread" ? backView : get().view, selectedThreadId: null }
+            ? {
+                view: get().view === "thread" ? backView : get().view,
+                selectedThreadId: null,
+                threadReturnView: null,
+              }
             : {}),
         });
       },
@@ -2161,6 +2193,47 @@ export function selectDockThreads(
     const tag = mode === "reply_later" ? "snoozed" : "on-hold";
     return (t.tags || []).includes(tag);
   });
+}
+
+/**
+ * Lower-priority mail for the reversible Easy Cleanup review queue.
+ *
+ * Safety rules:
+ * - Never include MoneyBox, Sent, Spam, or Trash.
+ * - Never include queued / held mail.
+ * - Exclude contacts the user has sent or replied to at least twice.
+ * - Exclude contacts explicitly routed to MoneyBox.
+ */
+export function selectCleanupThreads(
+  threads: Thread[],
+  contacts: Contact[],
+  messages: Record<string, Message | undefined>,
+  opts?: { accountId?: string | null },
+) {
+  const scoped = selectAccountThreads(threads, opts?.accountId, messages);
+  const sentCounts = new Map<string, number>();
+
+  for (const thread of scoped) {
+    for (const messageId of thread.messageIds || []) {
+      const message = messages[messageId];
+      if (!message?.isOutgoing) continue;
+      const recipients = [...(message.to || []), ...(message.cc || []), ...(message.bcc || [])];
+      for (const recipient of new Set(recipients.map((email) => email.trim().toLowerCase()).filter(Boolean))) {
+        sentCounts.set(recipient, (sentCounts.get(recipient) || 0) + 1);
+      }
+    }
+  }
+
+  return scoped
+    .filter((thread) => {
+      if (!["feed", "screener", "paper_trail"].includes(thread.box)) return false;
+      if (thread.replyLater || thread.setAside) return false;
+      const email = thread.contactEmail.trim().toLowerCase();
+      const contact = contacts.find((item) => item.email.trim().toLowerCase() === email);
+      if (contact?.status === "blocked" || contact?.defaultBox === "lesbox") return false;
+      return (sentCounts.get(email) || 0) < 2;
+    })
+    .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
 }
 
 /** Sidebar / toast helper — live dock badge totals for the active account. */
