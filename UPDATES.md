@@ -1,5 +1,14 @@
 # Envision Mail updates
 
+## 2.6.47
+- **Deal pipelines finally hold mail.** Every stage column now has an **Add mail to …** picker, so a conversation can be placed in *Needs reply*, *In review*, or *Done* without hunting for a hidden setting. Before this, nothing could ever be put into a pipeline and every column read "Empty".
+- **Drag a card between columns**, or use the **‹ previous / next ›** buttons on each card. **Remove** takes a conversation off the board and leaves the email exactly where it was.
+- Cards show the sender and when the conversation last moved; each column and each pipeline shows a live count.
+- **Collections work the same way** — add mail from the collection itself, see sender and time on every row, and **Open** or **Remove** without opening the thread first.
+- Opening an email now offers a **Pipeline stage** menu listing every pipeline and stage (plus *Not in a pipeline*), and the collections the email belongs to appear as chips you can click to remove.
+- An email that's on a board shows a **pipeline · stage** chip under its subject.
+- New pipelines start with **Needs reply / In review / Done**, and deleting a pipeline or collection only removes the grouping — no mail is ever deleted.
+
 ## 2.6.46
 - **Teams, Zoom, and Meet links are now clickable everywhere an event shows up** — the day list, the day popup, agenda, Day Cover, and reminder pop-ups all get a **Join Teams meeting** button that opens the meeting in your browser (which hands off to the Teams or Zoom app).
 - **A join link buried in an event's Notes or Location now works.** Mac Calendar events keep the Teams URL in the notes field, so those meetings were unreachable text before; Envision Mail now finds the link, labels it with the right service, and saves it on the event.

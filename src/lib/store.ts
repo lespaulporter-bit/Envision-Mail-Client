@@ -169,8 +169,11 @@ interface Actions {
   clipText: (threadId: string, subject: string, text: string) => void;
   deleteClip: (id: string) => void;
   setWorkflowStage: (threadId: string, workflowId: string, stageId: string) => void;
+  removeFromWorkflow: (threadId: string) => void;
   addToCollection: (threadId: string, collectionId: string) => void;
+  removeFromCollection: (threadId: string, collectionId: string) => void;
   createCollection: (name: string) => void;
+  deleteCollection: (collectionId: string) => void;
   createSnippet: (name: string, body: string) => void;
   deleteSnippet: (id: string) => void;
   upsertSignature: (sig: SignatureTemplate) => void;
@@ -279,6 +282,7 @@ interface Actions {
   openReminder: (id: string) => void;
 
   createWorkflow: (name: string) => void;
+  deleteWorkflow: (workflowId: string) => void;
   resetDemo: () => void;
 
   // selectors as methods for convenience
@@ -969,6 +973,14 @@ export const useMailStore = create<MailStore>()(
           ),
         }),
 
+      removeFromWorkflow: (threadId) =>
+        set({
+          threads: get().threads.map((t) =>
+            t.id === threadId ? bumpThread({ ...t, workflowId: null, workflowStageId: null }) : t,
+          ),
+          toast: "Removed from the pipeline",
+        }),
+
       addToCollection: (threadId, collectionId) =>
         set({
           collections: get().collections.map((c) =>
@@ -983,9 +995,34 @@ export const useMailStore = create<MailStore>()(
           ),
         }),
 
+      removeFromCollection: (threadId, collectionId) =>
+        set({
+          collections: get().collections.map((c) =>
+            c.id === collectionId ? { ...c, threadIds: c.threadIds.filter((id) => id !== threadId) } : c,
+          ),
+          threads: get().threads.map((t) =>
+            t.id === threadId
+              ? { ...t, collectionIds: t.collectionIds.filter((id) => id !== collectionId) }
+              : t,
+          ),
+        }),
+
       createCollection: (name) =>
         set({
           collections: [...get().collections, { id: uid("col"), name, threadIds: [], shared: false }],
+          toast: `Collection “${name}” created`,
+        }),
+
+      // Only the grouping goes away — every conversation stays in its mailbox.
+      deleteCollection: (collectionId) =>
+        set({
+          collections: get().collections.filter((c) => c.id !== collectionId),
+          threads: get().threads.map((t) =>
+            t.collectionIds.includes(collectionId)
+              ? { ...t, collectionIds: t.collectionIds.filter((id) => id !== collectionId) }
+              : t,
+          ),
+          toast: "Collection removed — mail kept",
         }),
 
       createSnippet: (name, body) =>
@@ -1912,12 +1949,23 @@ export const useMailStore = create<MailStore>()(
               id: uid("wf"),
               name,
               stages: [
-                { id: uid("ws"), name: "Todo", color: "#FF5A36" },
-                { id: uid("ws"), name: "Doing", color: "#F5A623" },
+                { id: uid("ws"), name: "Needs reply", color: "#FF5A36" },
+                { id: uid("ws"), name: "In review", color: "#F5A623" },
                 { id: uid("ws"), name: "Done", color: "#00A86B" },
               ],
             } satisfies Workflow,
           ],
+          toast: `Pipeline “${name}” created`,
+        }),
+
+      // Only the board goes away — every conversation stays in its mailbox.
+      deleteWorkflow: (workflowId) =>
+        set({
+          workflows: get().workflows.filter((w) => w.id !== workflowId),
+          threads: get().threads.map((t) =>
+            t.workflowId === workflowId ? { ...t, workflowId: null, workflowStageId: null } : t,
+          ),
+          toast: "Pipeline removed — mail kept",
         }),
 
       resetDemo: () => {

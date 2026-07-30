@@ -41,7 +41,9 @@ export function ThreadView() {
   const clipText = useMailStore((s) => s.clipText);
   const moveThread = useMailStore((s) => s.moveThread);
   const setWorkflowStage = useMailStore((s) => s.setWorkflowStage);
+  const removeFromWorkflow = useMailStore((s) => s.removeFromWorkflow);
   const addToCollection = useMailStore((s) => s.addToCollection);
+  const removeFromCollection = useMailStore((s) => s.removeFromCollection);
   const createEventFromThread = useMailStore((s) => s.createEventFromThread);
   const scheduleMailReminder = useMailStore((s) => s.scheduleMailReminder);
   const toggleThreadNotify = useMailStore((s) => s.toggleThreadNotify);
@@ -123,6 +125,8 @@ export function ThreadView() {
   const contact = contacts.find((c) => c.email.toLowerCase() === thread.contactEmail.toLowerCase());
   const subject = thread.customSubject || thread.subject;
   const workflow = workflows.find((w) => w.id === thread.workflowId);
+  const stage = workflow?.stages.find((s) => s.id === thread.workflowStageId);
+  const threadCollections = collections.filter((c) => thread.collectionIds.includes(c.id));
   const mergeCandidates = threads.filter(
     (t) =>
       t.id !== thread.id &&
@@ -169,6 +173,12 @@ export function ThreadView() {
           {thread.contactName} · {thread.contactEmail}
           {thread.customSubject ? ` · original: “${thread.subject}”` : ""}
         </p>
+        {workflow && stage ? (
+          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink ring-1 ring-line">
+            <span className="h-2 w-2 rounded-full" style={{ background: stage.color }} />
+            {workflow.name} · {stage.name}
+          </p>
+        ) : null}
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -399,20 +409,29 @@ export function ThreadView() {
         )}
       </div>
 
-      {(workflow || collections.length > 0 || mergeCandidates.length > 0) && (
+      {(workflows.length > 0 || collections.length > 0 || mergeCandidates.length > 0) && (
         <div className="mb-6 grid gap-3 rounded-2xl border border-line bg-soft/50 p-4 md:grid-cols-3">
-          {workflow ? (
+          {workflows.length ? (
             <label className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Workflow stage
+              Pipeline stage
               <select
                 className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-2 text-sm normal-case"
-                value={thread.workflowStageId || ""}
-                onChange={(e) => setWorkflowStage(thread.id, workflow.id, e.target.value)}
+                value={workflow && thread.workflowStageId ? `${workflow.id}:${thread.workflowStageId}` : ""}
+                onChange={(e) => {
+                  const [workflowId, stageId] = e.target.value.split(":");
+                  if (workflowId && stageId) setWorkflowStage(thread.id, workflowId, stageId);
+                  else removeFromWorkflow(thread.id);
+                }}
               >
-                {workflow.stages.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
+                <option value="">Not in a pipeline</option>
+                {workflows.map((wf) => (
+                  <optgroup key={wf.id} label={wf.name}>
+                    {wf.stages.map((s) => (
+                      <option key={s.id} value={`${wf.id}:${s.id}`}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
@@ -421,18 +440,35 @@ export function ThreadView() {
             Add to collection
             <select
               className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-2 text-sm normal-case"
-              defaultValue=""
+              value=""
               onChange={(e) => {
                 if (e.target.value) addToCollection(thread.id, e.target.value);
               }}
             >
-              <option value="">Choose…</option>
-              {collections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+              <option value="">{collections.length ? "Choose…" : "Create one in Collections first"}</option>
+              {collections
+                .filter((c) => !thread.collectionIds.includes(c.id))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
             </select>
+            {threadCollections.length ? (
+              <span className="mt-2 flex flex-wrap gap-1 normal-case">
+                {threadCollections.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    title="Remove from this collection"
+                    onClick={() => removeFromCollection(thread.id, c.id)}
+                    className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-ink ring-1 ring-line hover:text-salmon"
+                  >
+                    {c.name} ×
+                  </button>
+                ))}
+              </span>
+            ) : null}
           </label>
           {mergeCandidates.length ? (
             <label className="text-xs font-semibold uppercase tracking-wide text-muted">

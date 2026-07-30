@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, Button, EmptyState, Input, SectionHeader, Textarea } from "@/components/ui";
+import { Avatar, Badge, Button, EmptyState, Input, SectionHeader, Textarea } from "@/components/ui";
 import { AttachmentList } from "@/components/AttachmentList";
 import { BrandLogo } from "@/components/BrandLogo";
 import { LinkifiedText } from "@/components/MeetingLink";
@@ -17,7 +17,7 @@ import { clipBelongsToAccount } from "@/lib/account-scope";
 import { blockAllFromSenderSmart } from "@/lib/mail-delete";
 import { CALENDAR_TIMEZONE_OPTIONS, localTimezoneId } from "@/lib/timezones";
 import { formatThreadTime } from "@/lib/utils";
-import { boxLabel } from "@/lib/types";
+import type { Thread } from "@/lib/types";
 import { useMemo, useState, useEffect } from "react";
 
 function TimezoneOptions() {
@@ -329,16 +329,54 @@ export function SnippetsView() {
   );
 }
 
+/** Puts a conversation into a collection or pipeline stage without leaving the board. */
+function AddMailPicker({
+  threads,
+  onPick,
+  label,
+  emptyNote,
+}: {
+  threads: Thread[];
+  onPick: (threadId: string) => void;
+  label: string;
+  emptyNote: string;
+}) {
+  if (threads.length === 0) return <p className="text-xs text-muted">{emptyNote}</p>;
+  return (
+    <select
+      className="w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm"
+      value=""
+      onChange={(e) => {
+        if (e.target.value) onPick(e.target.value);
+      }}
+    >
+      <option value="">{label}</option>
+      {threads.slice(0, 100).map((t) => (
+        <option key={t.id} value={t.id}>
+          {t.contactName} — {t.customSubject || t.subject}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function byNewest(a: Thread, b: Thread) {
+  return +new Date(b.updatedAt) - +new Date(a.updatedAt);
+}
+
 export function CollectionsView() {
   const collections = useMailStore((s) => s.collections);
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const createCollection = useMailStore((s) => s.createCollection);
+  const addToCollection = useMailStore((s) => s.addToCollection);
+  const removeFromCollection = useMailStore((s) => s.removeFromCollection);
+  const deleteCollection = useMailStore((s) => s.deleteCollection);
   const openThread = useMailStore((s) => s.openThread);
   const [name, setName] = useState("");
   const scopedThreads = useMemo(
-    () => selectAccountThreads(threads, inboxAccountId, messages),
+    () => [...selectAccountThreads(threads, inboxAccountId, messages)].sort(byNewest),
     [threads, inboxAccountId, messages],
   );
 
@@ -346,7 +384,7 @@ export function CollectionsView() {
     <div className="px-4 py-6 md:px-8">
       <SectionHeader
         title="Collections"
-        subtitle="Threads from this account only — switch accounts for another workspace."
+        subtitle="Group conversations by deal, customer, or project. Threads from this account only — switch accounts for another workspace."
       />
       <form
         className="mb-4 flex gap-2"
@@ -361,35 +399,81 @@ export function CollectionsView() {
         <Input className="max-w-sm" placeholder="New collection name" value={name} onChange={(e) => setName(e.target.value)} />
         <Button type="submit">Create</Button>
       </form>
-      <div className="space-y-4">
-        {collections.map((c) => {
-          const scopedIds = c.threadIds.filter((id) => scopedThreads.some((t) => t.id === id));
-          return (
-          <section key={c.id} className="rounded-2xl border border-line bg-white p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <h2 className="font-display text-2xl">{c.name}</h2>
-              {c.shared ? <span className="rounded bg-mint/10 px-2 py-0.5 text-xs font-semibold text-mint">Shared</span> : null}
-            </div>
-            <ul className="space-y-2">
-              {scopedIds.map((id) => {
-                const t = scopedThreads.find((x) => x.id === id);
-                if (!t) return null;
-                return (
-                  <li key={id}>
-                    <button type="button" className="text-left text-blurple hover:underline" onClick={() => openThread(id)}>
-                      {t.contactName}: {t.customSubject || t.subject}
-                    </button>
-                  </li>
-                );
-              })}
-              {scopedIds.length === 0 ? (
-                <li className="text-sm text-muted">No threads from this account in this collection.</li>
-              ) : null}
-            </ul>
-          </section>
-          );
-        })}
-      </div>
+      {collections.length === 0 ? (
+        <EmptyState
+          title="No collections yet"
+          body="Name one above — “Metro2 deal”, “Trade-ins”, “Lender docs” — then add conversations to it from here or from any open email."
+        />
+      ) : (
+        <div className="space-y-4">
+          {collections.map((c) => {
+            const inCollection = scopedThreads.filter((t) => c.threadIds.includes(t.id));
+            const available = scopedThreads.filter((t) => !c.threadIds.includes(t.id));
+            return (
+              <section key={c.id} className="rounded-2xl border border-line bg-white p-5">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <h2 className="font-display text-2xl">{c.name}</h2>
+                  <Badge tone={inCollection.length ? "blurple" : "soft"}>{inCollection.length}</Badge>
+                  {c.shared ? (
+                    <span className="rounded bg-mint/10 px-2 py-0.5 text-xs font-semibold text-mint">Shared</span>
+                  ) : null}
+                  <Button
+                    className="ml-auto"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => deleteCollection(c.id)}
+                    title="Removes the collection only — your mail stays put"
+                  >
+                    Delete collection
+                  </Button>
+                </div>
+                <ul className="mb-3 space-y-1">
+                  {inCollection.map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex flex-wrap items-center gap-2 rounded-xl border border-line px-3 py-2"
+                    >
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => openThread(t.id)}
+                      >
+                        <span className="block truncate text-sm font-medium text-ink">
+                          {t.customSubject || t.subject}
+                        </span>
+                        <span className="block truncate text-xs text-muted">
+                          {t.contactName} · {formatThreadTime(t.updatedAt)}
+                        </span>
+                      </button>
+                      <Button size="sm" variant="soft" onClick={() => openThread(t.id)}>
+                        Open
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => removeFromCollection(t.id, c.id)}>
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                  {inCollection.length === 0 ? (
+                    <li className="rounded-xl border border-dashed border-line px-3 py-4 text-sm text-muted">
+                      Nothing here yet — pick a conversation below to add the first one.
+                    </li>
+                  ) : null}
+                </ul>
+                <AddMailPicker
+                  threads={available}
+                  onPick={(id) => addToCollection(id, c.id)}
+                  label={`Add mail to ${c.name}…`}
+                  emptyNote={
+                    scopedThreads.length === 0
+                      ? "Sync an account to see conversations you can add."
+                      : "Every conversation in this account is already in this collection."
+                  }
+                />
+              </section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -400,16 +484,23 @@ export function WorkflowsView() {
   const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const createWorkflow = useMailStore((s) => s.createWorkflow);
+  const deleteWorkflow = useMailStore((s) => s.deleteWorkflow);
+  const setWorkflowStage = useMailStore((s) => s.setWorkflowStage);
+  const removeFromWorkflow = useMailStore((s) => s.removeFromWorkflow);
   const openThread = useMailStore((s) => s.openThread);
   const [name, setName] = useState("");
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const scopedThreads = useMemo(
-    () => selectAccountThreads(threads, inboxAccountId, messages),
+    () => [...selectAccountThreads(threads, inboxAccountId, messages)].sort(byNewest),
     [threads, inboxAccountId, messages],
   );
 
   return (
     <div className="px-4 py-6 md:px-8">
-      <SectionHeader title="Workflows" subtitle="Stages for this account’s mail only." />
+      <SectionHeader
+        title="Workflows"
+        subtitle="Move a conversation across stages as the deal progresses. Drag a card between columns, or use the arrows."
+      />
       <form
         className="mb-4 flex gap-2"
         onSubmit={(e) => {
@@ -420,39 +511,128 @@ export function WorkflowsView() {
           }
         }}
       >
-        <Input className="max-w-sm" placeholder="New workflow" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input className="max-w-sm" placeholder="New pipeline name" value={name} onChange={(e) => setName(e.target.value)} />
         <Button type="submit">Create</Button>
       </form>
-      {workflows.map((wf) => (
-        <section key={wf.id} className="mb-6">
-          <h2 className="mb-3 font-display text-2xl">{wf.name}</h2>
-          <div className="grid gap-3 md:grid-cols-3">
-            {wf.stages.map((stage) => {
-              const stageThreads = scopedThreads.filter(
-                (t) => t.workflowId === wf.id && t.workflowStageId === stage.id,
-              );
-              return (
-                <div key={stage.id} className="rounded-2xl border border-line bg-white p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: stage.color }} />
-                    <h3 className="font-semibold">{stage.name}</h3>
+      {workflows.length === 0 ? (
+        <EmptyState
+          title="No pipelines yet"
+          body="Create one above — “Deal pipeline” starts with Needs reply, In review, and Done — then drop conversations into a stage."
+        />
+      ) : null}
+      {workflows.map((wf) => {
+        const inPipeline = scopedThreads.filter((t) => t.workflowId === wf.id);
+        return (
+          <section key={wf.id} className="mb-6">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <h2 className="font-display text-2xl">{wf.name}</h2>
+              <Badge tone={inPipeline.length ? "blurple" : "soft"}>{inPipeline.length} in play</Badge>
+              <Button
+                className="ml-auto"
+                size="sm"
+                variant="ghost"
+                onClick={() => deleteWorkflow(wf.id)}
+                title="Removes the board only — your mail stays put"
+              >
+                Delete pipeline
+              </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {wf.stages.map((stage, stageIndex) => {
+                const stageThreads = inPipeline.filter((t) => t.workflowStageId === stage.id);
+                const available = scopedThreads.filter(
+                  (t) => !(t.workflowId === wf.id && t.workflowStageId === stage.id),
+                );
+                const prev = wf.stages[stageIndex - 1];
+                const next = wf.stages[stageIndex + 1];
+                return (
+                  <div
+                    key={stage.id}
+                    className="rounded-2xl border border-line bg-white p-4 transition"
+                    onDragOver={(e) => {
+                      if (draggingId) e.preventDefault();
+                    }}
+                    onDrop={() => {
+                      if (draggingId) setWorkflowStage(draggingId, wf.id, stage.id);
+                      setDraggingId(null);
+                    }}
+                  >
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: stage.color }} />
+                      <h3 className="font-semibold">{stage.name}</h3>
+                      <Badge tone="soft">{stageThreads.length}</Badge>
+                    </div>
+                    <ul className="mb-3 space-y-2 text-sm">
+                      {stageThreads.map((t) => (
+                        <li
+                          key={t.id}
+                          draggable
+                          onDragStart={() => setDraggingId(t.id)}
+                          onDragEnd={() => setDraggingId(null)}
+                          className="cursor-grab rounded-xl border border-line px-3 py-2 active:cursor-grabbing"
+                        >
+                          <button
+                            type="button"
+                            className="block w-full text-left"
+                            onClick={() => openThread(t.id)}
+                          >
+                            <span className="block truncate font-medium text-ink hover:text-blurple">
+                              {t.customSubject || t.subject}
+                            </span>
+                            <span className="block truncate text-xs text-muted">
+                              {t.contactName} · {formatThreadTime(t.updatedAt)}
+                            </span>
+                          </button>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {prev ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title={`Move to ${prev.name}`}
+                                onClick={() => setWorkflowStage(t.id, wf.id, prev.id)}
+                              >
+                                ‹ {prev.name}
+                              </Button>
+                            ) : null}
+                            {next ? (
+                              <Button
+                                size="sm"
+                                variant="soft"
+                                title={`Move to ${next.name}`}
+                                onClick={() => setWorkflowStage(t.id, wf.id, next.id)}
+                              >
+                                {next.name} ›
+                              </Button>
+                            ) : null}
+                            <Button size="sm" variant="ghost" onClick={() => removeFromWorkflow(t.id)}>
+                              Remove
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                      {stageThreads.length === 0 ? (
+                        <li className="rounded-xl border border-dashed border-line px-3 py-4 text-muted">
+                          Drop a card here, or add mail below.
+                        </li>
+                      ) : null}
+                    </ul>
+                    <AddMailPicker
+                      threads={available}
+                      onPick={(id) => setWorkflowStage(id, wf.id, stage.id)}
+                      label={`Add mail to ${stage.name}…`}
+                      emptyNote={
+                        scopedThreads.length === 0
+                          ? "Sync an account to see conversations you can add."
+                          : "Every conversation in this account is already in this stage."
+                      }
+                    />
                   </div>
-                  <ul className="space-y-2 text-sm">
-                    {stageThreads.map((t) => (
-                      <li key={t.id}>
-                        <button type="button" className="text-left hover:text-blurple" onClick={() => openThread(t.id)}>
-                          {t.customSubject || t.subject}
-                        </button>
-                      </li>
-                    ))}
-                    {stageThreads.length === 0 ? <li className="text-muted">Empty</li> : null}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ))}
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
