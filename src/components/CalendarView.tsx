@@ -144,6 +144,7 @@ export function CalendarView() {
   const [daySheetDate, setDaySheetDate] = useState<string | null>(null);
   const [daySheetCompose, setDaySheetCompose] = useState(false);
   const dayClickTimerRef = useRef<number | null>(null);
+  const eventFormRef = useRef<HTMLFormElement | null>(null);
   /** Live clock for countdown chips */
   const [nowMs, setNowMs] = useState(() => Date.now());
   /** Minutes before start — 0 = at start time; -1 = none */
@@ -320,7 +321,7 @@ export function CalendarView() {
     setEventDate(ymd);
     setDaySheetDate(ymd);
     if (opts?.edit) {
-      beginEdit(opts.edit);
+      beginEdit(opts.edit, { inDaySheet: true });
       // The day sheet owns this edit; do not leave the hidden page composer open.
       setEventFormOpen(false);
       setDaySheetCompose(true);
@@ -380,11 +381,19 @@ export function CalendarView() {
   useEffect(() => {
     if (!daySheetDate) return;
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") closeDaySheet();
+      if (ev.key !== "Escape") return;
+      // While editing in the day sheet, Escape returns to the list first (Mac & Windows).
+      if (daySheetCompose) {
+        resetForm();
+        setDaySheetCompose(false);
+        setEventDate(daySheetDate);
+        return;
+      }
+      closeDaySheet();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [daySheetDate]);
+  }, [daySheetDate, daySheetCompose]);
 
   useEffect(
     () => () => {
@@ -393,7 +402,7 @@ export function CalendarView() {
     [],
   );
 
-  const beginEdit = (e: CalendarEvent) => {
+  const beginEdit = (e: CalendarEvent, opts?: { inDaySheet?: boolean }) => {
     setEventFormOpen(true);
     setEditingId(e.id);
     setTitle(e.title);
@@ -415,6 +424,12 @@ export function CalendarView() {
       typeof mins === "number" ? mins : e.reminderMinutes?.length === 0 ? -1 : 15,
     );
     setNotifyRecipients(true);
+    // Week / countdown edits open the page composer — bring actions into view on short windows.
+    if (!opts?.inDaySheet) {
+      requestAnimationFrame(() => {
+        eventFormRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
   };
 
   const resetForm = () => {
@@ -436,6 +451,31 @@ export function CalendarView() {
     setNotifyRecipients(true);
     setDaySheetCompose(false);
   };
+
+  const returnToDaySheetList = () => {
+    resetForm();
+    setDaySheetCompose(false);
+    if (daySheetDate) setEventDate(daySheetDate);
+  };
+
+  const dismissEditingEvent = () => {
+    if (!editingId) return;
+    dismissEvent(editingId);
+    if (daySheetDate) returnToDaySheetList();
+    else resetForm();
+  };
+
+  const deleteEditingEvent = () => {
+    if (!editingId) return;
+    const existing = events.find((event) => event.id === editingId);
+    if (!existing || isExternalCalendarSource(existing.source)) return;
+    deleteEvent(editingId);
+    setToast("Event deleted");
+    if (daySheetDate) returnToDaySheetList();
+    else resetForm();
+  };
+
+  const editingEvent = editingId ? events.find((event) => event.id === editingId) : undefined;
 
   const startNewEvent = (ymd = calendarDate, suggestedStart?: string) => {
     setEditingId(null);
@@ -1397,9 +1437,21 @@ export function CalendarView() {
                               />
                               {e.title}
                             </span>
-                            <Button size="sm" variant="ghost" onClick={() => undismissEvent(e.id)}>
-                              Undo dismiss
-                            </Button>
+                            <div className="flex flex-wrap gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => undismissEvent(e.id)}>
+                                Undo dismiss
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  cancelPendingDayClick();
+                                  openDaySheet(format(parseISO(e.start), "yyyy-MM-dd"), { edit: e });
+                                }}
+                              >
+                                Edit
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </li>
@@ -1429,6 +1481,7 @@ export function CalendarView() {
             </button>
           ) : (
           <form
+            ref={eventFormRef}
             className="space-y-2 rounded-xl border border-teal/25 bg-[linear-gradient(145deg,#ecfdf8_0%,#f0f9ff_55%,#fff7ed_100%)] p-3"
             onSubmit={(ev) => {
               ev.preventDefault();
@@ -1691,7 +1744,7 @@ export function CalendarView() {
                 Connect an IMAP/SMTP account in Settings to email calendar invites.
               </p>
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="sticky bottom-0 z-10 -mx-3 flex flex-wrap gap-2 border-t border-teal/20 bg-[linear-gradient(145deg,#ecfdf8_0%,#f0f9ff_55%,#fff7ed_100%)] px-3 pb-1 pt-3">
               <Button type="submit" disabled={savingEvent}>
                 {savingEvent
                   ? notifyRecipients && parseInvitees(inviteesText).length
@@ -1702,9 +1755,25 @@ export function CalendarView() {
                     : "Add event"}
               </Button>
               {editingId ? (
-                <Button type="button" variant="ghost" onClick={resetForm}>
-                  Cancel edit
-                </Button>
+                <>
+                  {editingEvent?.dismissedAt ? (
+                    <Button type="button" variant="soft" onClick={() => undismissEvent(editingId)}>
+                      Undo dismiss
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="soft" onClick={dismissEditingEvent}>
+                      Dismiss
+                    </Button>
+                  )}
+                  {editingEvent && !isExternalCalendarSource(editingEvent.source) ? (
+                    <Button type="button" variant="ghost" onClick={deleteEditingEvent}>
+                      Delete
+                    </Button>
+                  ) : null}
+                  <Button type="button" variant="ghost" onClick={resetForm}>
+                    Cancel edit
+                  </Button>
+                </>
               ) : (
                 <Button type="button" variant="ghost" onClick={() => setEventFormOpen(false)}>
                   Cancel
@@ -1848,14 +1917,13 @@ export function CalendarView() {
               </Button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              {!daySheetCompose ? (
-                <>
-                  <ul className="space-y-2">
-                    {daySheetEvents.map((e) => {
-                      const ended = eventHasEnded(e, nowMs);
-                      const dismissed = !!e.dismissedAt;
-                      return (
+            {!daySheetCompose ? (
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                <ul className="space-y-2">
+                  {daySheetEvents.map((e) => {
+                    const ended = eventHasEnded(e, nowMs);
+                    const dismissed = !!e.dismissedAt;
+                    return (
                       <li
                         key={e.id}
                         className={`rounded-xl border border-line p-3 ${dismissed ? "bg-soft/50 opacity-80" : ""}`}
@@ -1929,7 +1997,7 @@ export function CalendarView() {
                               size="sm"
                               variant="soft"
                               onClick={() => {
-                                beginEdit(e);
+                                beginEdit(e, { inDaySheet: true });
                                 setEventFormOpen(false);
                                 setDaySheetCompose(true);
                               }}
@@ -1973,32 +2041,33 @@ export function CalendarView() {
                           </div>
                         </div>
                       </li>
-                      );
-                    })}
-                    {daySheetEvents.length === 0 ? (
-                      <li className="rounded-xl border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
-                        Nothing scheduled — create an event for this day.
-                      </li>
-                    ) : null}
-                  </ul>
-                  <div className="mt-4">
-                    <Button
-                      type="button"
-                      className="w-full"
-                      onClick={() => openDaySheet(daySheetDate, { compose: true })}
-                    >
-                      New event
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <form
-                  className="space-y-2"
-                  onSubmit={(ev) => {
-                    ev.preventDefault();
-                    void saveEvent();
-                  }}
-                >
+                    );
+                  })}
+                  {daySheetEvents.length === 0 ? (
+                    <li className="rounded-xl border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
+                      Nothing scheduled — create an event for this day.
+                    </li>
+                  ) : null}
+                </ul>
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={() => openDaySheet(daySheetDate, { compose: true })}
+                  >
+                    New event
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <form
+                className="flex min-h-0 flex-1 flex-col"
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  void saveEvent();
+                }}
+              >
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
                   <h3 className="text-sm font-semibold text-ink">
                     {editingId ? "Edit event" : "New event"}
                   </h3>
@@ -2199,7 +2268,9 @@ export function CalendarView() {
                       ) : null}
                     </div>
                   ) : null}
-                  <div className="flex flex-wrap gap-2 pt-1">
+                </div>
+                <div className="shrink-0 border-t border-line bg-white px-4 py-3">
+                  <div className="flex flex-wrap gap-2">
                     <Button type="submit" disabled={savingEvent}>
                       {savingEvent
                         ? notifyRecipients && parseInvitees(inviteesText).length
@@ -2209,21 +2280,29 @@ export function CalendarView() {
                           ? "Save changes"
                           : "Add event"}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        resetForm();
-                        setDaySheetCompose(false);
-                        setEventDate(daySheetDate);
-                      }}
-                    >
+                    {editingId ? (
+                      editingEvent?.dismissedAt ? (
+                        <Button type="button" variant="soft" onClick={() => undismissEvent(editingId)}>
+                          Undo dismiss
+                        </Button>
+                      ) : (
+                        <Button type="button" variant="soft" onClick={dismissEditingEvent}>
+                          Dismiss
+                        </Button>
+                      )
+                    ) : null}
+                    {editingEvent && !isExternalCalendarSource(editingEvent.source) ? (
+                      <Button type="button" variant="ghost" onClick={deleteEditingEvent}>
+                        Delete
+                      </Button>
+                    ) : null}
+                    <Button type="button" variant="ghost" onClick={returnToDaySheetList}>
                       Back to list
                     </Button>
                   </div>
-                </form>
-              )}
-            </div>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       ) : null}
