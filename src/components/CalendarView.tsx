@@ -2,7 +2,7 @@
 
 import { CalendarTimezoneClocks } from "@/components/CalendarTimezoneClocks";
 import { Button, Input, Textarea } from "@/components/ui";
-import { desktopApi, isDesktop, isMacDesktop, isWindowsDesktop } from "@/lib/desktop";
+import { desktopApi, isDesktop, isMacDesktop, isWindowsDesktop, thisComputerLabel } from "@/lib/desktop";
 import { useMailStore } from "@/lib/store";
 import type { CalendarEvent, CalendarInvitee } from "@/lib/types";
 import { eventHasEnded, externalCalendarLabel, isExternalCalendarSource } from "@/lib/types";
@@ -1599,7 +1599,7 @@ export function CalendarView() {
                 {teamsInstalled === false ? (
                   <p className="text-xs text-amber-800">
                     Teams wasn&apos;t found in the usual install folders. You can still try{" "}
-                    <strong>Open Teams</strong> — if Teams is signed in on this Mac/PC it should open.
+                    <strong>Open Teams</strong> — if Teams is signed in on {thisComputerLabel()} it should open.
                   </p>
                 ) : null}
                 {useTeams ? (
@@ -1615,7 +1615,7 @@ export function CalendarView() {
                         {openingTeams ? "Opening Teams…" : "Open Teams to create meeting"}
                       </Button>
                       <span className="text-xs text-muted">
-                        Uses the Teams account signed in on this Mac/PC.
+                        Uses the Teams account signed in on {thisComputerLabel()}.
                       </span>
                     </div>
                     <Input

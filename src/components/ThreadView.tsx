@@ -113,13 +113,9 @@ export function ThreadView() {
     [threads, threadId, inboxAccountId, storeMessages, threadReturnView],
   );
 
-  // Long threads open with only the newest message expanded, until the reader says otherwise.
-  const defaultCollapsedIds = useMemo(
-    () => (messages.length > 1 ? new Set(messages.slice(0, -1).map((m) => m.id)) : new Set<string>()),
-    [messages],
-  );
+  // Every message starts collapsed; Expand / Collapse (and Expand all) override per message.
   const isCollapsed = (messageId: string) =>
-    collapseOverrides[`${threadId}:${messageId}`] ?? defaultCollapsedIds.has(messageId);
+    collapseOverrides[`${threadId}:${messageId}`] ?? true;
   const setCollapsed = (messageId: string, collapsed: boolean) =>
     setCollapseOverrides((current) => ({ ...current, [`${threadId}:${messageId}`]: collapsed }));
 
@@ -249,12 +245,11 @@ export function ThreadView() {
             {tagLabel(tag)}
           </Badge>
         ))}
-        {messages.length > 1 ? (
+        {messages.length > 0 ? (
           <>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="ml-auto"
+            <button
+              type="button"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-[#f3e8ff] px-3 py-1.5 text-xs font-semibold text-[#6d28d9] ring-1 ring-[#ddd6fe] transition hover:bg-[#ede9fe]"
               onClick={() => {
                 const next: Record<string, boolean> = {};
                 for (const m of messages) next[`${threadId}:${m.id}`] = false;
@@ -262,10 +257,10 @@ export function ThreadView() {
               }}
             >
               Expand all
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#a855f7] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.45)] transition hover:brightness-110"
               onClick={() => {
                 const next: Record<string, boolean> = {};
                 for (const m of messages) next[`${threadId}:${m.id}`] = true;
@@ -273,7 +268,7 @@ export function ThreadView() {
               }}
             >
               Collapse all
-            </Button>
+            </button>
           </>
         ) : null}
       </div>
@@ -631,6 +626,22 @@ export function ThreadView() {
             key={m.id}
             className={`rounded-2xl border border-line p-5 ${m.isOutgoing ? "ml-8 bg-soft/80" : "bg-white"}`}
           >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setCollapsed(m.id, !isCollapsed(m.id))}
+                aria-expanded={!isCollapsed(m.id)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#a855f7] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.55)] transition hover:brightness-110 active:scale-[0.98]"
+              >
+                <span aria-hidden>{isCollapsed(m.id) ? "▸" : "▾"}</span>
+                {isCollapsed(m.id) ? "Expand" : "Collapse"}
+              </button>
+              {m.trackersBlocked.length > 0 ? (
+                <Badge tone="salmon">
+                  {m.trackersBlocked.length} tracker{m.trackersBlocked.length > 1 ? "s" : ""} blocked
+                </Badge>
+              ) : null}
+            </div>
             <div className="mb-3 flex items-center gap-3">
               {(() => {
                 // brandsTick forces re-render after account logos load
@@ -665,22 +676,6 @@ export function ThreadView() {
                   </div>
                 ) : null}
               </div>
-              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                {m.trackersBlocked.length > 0 ? (
-                  <Badge tone="salmon">
-                    {m.trackersBlocked.length} tracker{m.trackersBlocked.length > 1 ? "s" : ""} blocked
-                  </Badge>
-                ) : null}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setCollapsed(m.id, !isCollapsed(m.id))}
-                  aria-expanded={!isCollapsed(m.id)}
-                >
-                  {isCollapsed(m.id) ? "Expand" : "Collapse"}
-                </Button>
-              </div>
             </div>
             {!isCollapsed(m.id) ? (
               <>
@@ -707,7 +702,7 @@ export function ThreadView() {
                     Read by {m.readReceipts!.map((r) => r.readerName || r.readerEmail).join(", ")}
                   </div>
                 ) : null}
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
                     variant="ghost"
@@ -719,12 +714,20 @@ export function ThreadView() {
                   >
                     Clip selection / snippet
                   </Button>
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed(m.id, true)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[#f3e8ff] px-3 py-1.5 text-xs font-semibold text-[#6d28d9] ring-1 ring-[#ddd6fe] transition hover:bg-[#ede9fe]"
+                  >
+                    <span aria-hidden>▴</span>
+                    Collapse
+                  </button>
                 </div>
               </>
             ) : (
               <button
                 type="button"
-                className="w-full rounded-xl bg-soft px-3 py-2 text-left text-sm text-ink"
+                className="w-full rounded-xl bg-soft px-3 py-2 text-left text-sm text-ink transition hover:bg-[#f3e8ff]/60"
                 onClick={() => setCollapsed(m.id, false)}
               >
                 <p className="line-clamp-3 whitespace-pre-wrap">
@@ -735,7 +738,9 @@ export function ThreadView() {
                     📎 {m.attachments.length} attachment{m.attachments.length > 1 ? "s" : ""}
                   </span>
                 ) : null}
-                <span className="mt-1 inline-block text-xs font-medium text-teal">Expand</span>
+                <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#7c3aed]">
+                  <span aria-hidden>▸</span> Expand
+                </span>
               </button>
             )}
           </article>

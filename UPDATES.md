@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.58
+- **Emails open collapsed.** Every message in a thread starts collapsed with a purple **Expand** / **Collapse** control at the top; **Expand all** / **Collapse all** match the same look.
+- Calendar Teams copy uses **this Mac** / **this PC** correctly per platform.
+
 ## 2.6.57
 - **Mac & Windows calendar sync:** all-day events from Apple Calendar and Outlook now sync with `allDay` so they appear on the All-day row (not lost at midnight).
 - **Outlook recurring appointments** use per-occurrence IDs so instances no longer overwrite each other.
