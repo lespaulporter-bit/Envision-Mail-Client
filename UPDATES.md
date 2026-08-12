@@ -1,5 +1,12 @@
 # Envision Mail updates
 
+## 2.6.57
+- **Mac & Windows calendar sync:** all-day events from Apple Calendar and Outlook now sync with `allDay` so they appear on the All-day row (not lost at midnight).
+- **Outlook recurring appointments** use per-occurrence IDs so instances no longer overwrite each other.
+- **Mac Calendar** includes the event URL in notes so Teams/Zoom join links resolve after Sync.
+- **Local calendar dates** (Today, Day Cover habits, Open from reminder) no longer use UTC slicing that jumped a day after evening.
+- **Day popup Edit** includes Date, Calendar, and Reminder (same as the main form). Day-list **Edit** opens the popup. Agenda already has full actions.
+
 ## 2.6.56
 - **Agenda has full event actions:** **Dismiss**, **Edit** (opens the day popup), **Countdown**, **Duplicate**, and **Delete** — same controls as the day list, not a read-only card.
 

@@ -70,9 +70,15 @@ function Add-CalFolder($folder, $label) {
     if ($start -lt $startRange -or $start -gt $endRange) { continue }
 
     $id = $null
-    try { $id = [string]$it.GlobalAppointmentID } catch {}
-    if (-not $id) { try { $id = [string]$it.EntryID } catch {} }
+    # EntryID is unique per occurrence when IncludeRecurrences is on.
+    # GlobalAppointmentID is the same for every instance of a series.
+    try { $id = [string]$it.EntryID } catch {}
+    if (-not $id) { try { $id = [string]$it.GlobalAppointmentID } catch {} }
     if (-not $id) { $id = "$eid-$i-$($start.ToString('o'))" }
+    elseif ($start) {
+      # Guard against duplicate EntryIDs across weird stores.
+      $id = "$id|$($start.ToString('yyyyMMddHHmmss'))"
+    }
 
     $title = 'Untitled'
     try { if ($it.Subject) { $title = [string]$it.Subject } } catch {}
@@ -80,6 +86,8 @@ function Add-CalFolder($folder, $label) {
     try { if ($it.Location) { $location = [string]$it.Location } } catch {}
     $notes = ''
     try { if ($it.Body) { $notes = [string]$it.Body } } catch {}
+    $allDay = $false
+    try { $allDay = [bool]$it.AllDayEvent } catch { $allDay = $false }
     # Outlook often puts Teams join URLs in Body / Location — keep them for Envision.
 
     $events.Add(@{
@@ -90,6 +98,7 @@ function Add-CalFolder($folder, $label) {
       calendarId = $eid
       location = $location
       notes = $notes
+      allDay = $allDay
     }) | Out-Null
   }
 }

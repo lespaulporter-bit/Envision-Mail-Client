@@ -95,6 +95,13 @@ function run() {
       try { location = String(ev.location() || ""); } catch (e12) {}
       var notes = "";
       try { notes = String(ev.description() || ""); } catch (e13) {}
+      var url = "";
+      try { url = String(ev.url() || ""); } catch (eUrl) {}
+      if (url && notes.indexOf(url) < 0) {
+        notes = notes ? (notes + "\\n" + url) : url;
+      }
+      var allDay = false;
+      try { allDay = Boolean(ev.allday()); } catch (eAll) { allDay = false; }
       events.push({
         id: eid,
         title: title,
@@ -102,7 +109,8 @@ function run() {
         end: end || start,
         calendarId: calendarId,
         location: location,
-        notes: notes
+        notes: notes,
+        allDay: allDay
       });
     }
   }

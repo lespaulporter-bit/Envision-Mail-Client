@@ -4,7 +4,7 @@ import { Button } from "@/components/ui";
 import { ExternalLink } from "@/components/MeetingLink";
 import { resolveMeetingLink } from "@/lib/meeting-links";
 import { useMailStore } from "@/lib/store";
-import { formatCountdown } from "@/lib/utils";
+import { formatCountdown, localYmd } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 
@@ -20,7 +20,7 @@ export function CoverArt() {
   const setView = useMailStore((s) => s.setView);
   const [task, setTask] = useState("");
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localYmd();
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);

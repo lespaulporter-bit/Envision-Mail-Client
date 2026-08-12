@@ -813,8 +813,8 @@ export function CalendarView() {
 
   const eventZoneHint = (hhmm: string) => {
     if (!dualZones || !hhmm || !eventDate || allDay) return null;
-    // Event time pickers use the Mac’s local wall clock
-    const source = localTimezoneId();
+            // Event time pickers use this computer’s local wall clock
+            const source = localTimezoneId();
     const a = formatLocalHhmmInZone(eventDate, hhmm, source, primaryZone);
     const b = formatLocalHhmmInZone(eventDate, hhmm, source, secondaryZone);
     if (!a && !b) return null;
@@ -1343,7 +1343,14 @@ export function CalendarView() {
                       <Button size="sm" variant="soft" onClick={() => dismissEvent(e.id)}>
                         Dismiss
                       </Button>
-                      <Button size="sm" variant="soft" onClick={() => beginEdit(e)}>
+                      <Button
+                        size="sm"
+                        variant="soft"
+                        onClick={() => {
+                          cancelPendingDayClick();
+                          openDaySheet(format(parseISO(e.start), "yyyy-MM-dd"), { edit: e });
+                        }}
+                      >
                         Edit
                       </Button>
                       <Button size="sm" variant="soft" onClick={() => updateEvent(e.id, { countdown: !e.countdown })}>
@@ -2001,6 +2008,49 @@ export function CalendarView() {
                     required
                     autoFocus
                   />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="block text-xs font-medium text-muted">
+                      Calendar
+                      <select
+                        className="mt-1 w-full cursor-pointer rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                        value={selectedCalId || defaultCalId}
+                        onChange={(e) => setSelectedCalId(e.target.value)}
+                      >
+                        {calendars.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                            {externalCalendarLabel(c.source) ? ` (${externalCalendarLabel(c.source)})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-medium text-muted">
+                      Reminder
+                      <select
+                        className="mt-1 w-full cursor-pointer rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                        value={reminderMinutesBefore}
+                        onChange={(e) => setReminderMinutesBefore(Number(e.target.value))}
+                      >
+                        <option value={-1}>None</option>
+                        <option value={0}>At event time</option>
+                        <option value={5}>5 minutes before</option>
+                        <option value={15}>15 minutes before</option>
+                        <option value={30}>30 minutes before</option>
+                        <option value={60}>1 hour before</option>
+                        <option value={1440}>1 day before</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label className="block text-xs font-medium text-muted">
+                    Date
+                    <Input
+                      className="mt-1"
+                      type="date"
+                      value={eventDate}
+                      onChange={(e) => setEventDate(e.target.value)}
+                      required
+                    />
+                  </label>
                   <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
                     All-day event

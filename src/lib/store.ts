@@ -28,9 +28,9 @@ import {
 } from "./reminders";
 import { normalizeSometimeTasks, weekStartKey } from "./sometime-tasks";
 import { mergeRecentRecipients } from "./recipient-suggest";
+import { localYmd, uid } from "./utils";
 import { parseMailtoUrl } from "./mailto";
 import { inferThreadAccountId, threadBelongsToAccount } from "./account-scope";
-import { uid } from "./utils";
 import { withMeetingLink } from "./meeting-links";
 
 export type AppView =
@@ -430,7 +430,7 @@ export const useMailStore = create<MailStore>()(
       multiOpenIds: [],
       inboxAccountId: null,
       composeDraft: { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
-      calendarDate: new Date().toISOString().slice(0, 10),
+      calendarDate: localYmd(),
       calendarView: "week",
       settingsTab: "accounts",
       toast: null,
@@ -1997,7 +1997,7 @@ export const useMailStore = create<MailStore>()(
         if (!r) return;
         if (r.source === "calendar") {
           const ev = get().events.find((e) => e.id === r.sourceId);
-          if (ev) set({ view: "calendar", calendarDate: ev.start.slice(0, 10) });
+          if (ev) set({ view: "calendar", calendarDate: localYmd(ev.start) });
           else set({ view: "calendar" });
         } else if (r.source === "mail") {
           get().openThread(r.sourceId);

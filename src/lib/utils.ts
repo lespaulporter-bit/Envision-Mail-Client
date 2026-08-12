@@ -38,6 +38,13 @@ export function relativeTime(iso: string) {
   return formatDistanceToNowStrict(parseISO(iso), { addSuffix: true });
 }
 
+/** Local calendar day as yyyy-MM-dd (never UTC — avoids off-by-one after evening). */
+export function localYmd(d: Date | string | number = new Date()) {
+  const date = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(+date)) return format(new Date(), "yyyy-MM-dd");
+  return format(date, "yyyy-MM-dd");
+}
+
 /** Live remaining time until an event start — used by Calendar + Day Cover countdowns. */
 export function formatCountdown(targetIso: string, nowMs = Date.now()) {
   const diff = +new Date(targetIso) - nowMs;
