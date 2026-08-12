@@ -1,7 +1,13 @@
 # Envision Mail updates
 
+## 2.6.50
+- **Windows gets the same calendar sync Mac already had.** On Windows, **Sync Outlook Calendar** pulls appointments from classic Outlook (same past-30 / next-60 day window). On Mac, **Sync Mac Calendars** still pulls from Apple Calendar.
+- **Import .ics** works on both Mac and Windows — drop invites from Outlook, Google, Apple, or Teams into Envision Mail the same way.
+- Synced events show **Outlook**, **Mac**, or **Imported** labels; local events you create in Envision stay fully editable on every OS.
+- Local calendars, Teams meetings, email invites, countdowns, day popups, and join links were already shared — they stay that way.
+
 ## 2.6.49
-- **Windows-first copy.** Shortcuts and labels now follow the OS: **Ctrl+Enter** on Windows/PC, **⌘Enter** on Mac. Phrases that said “this Mac” now say **this PC** on Windows (and **this computer** in the browser). Mac Calendar sync stays Mac-only; everything else is shared.
+- **Windows-aware shortcuts and wording.** Send hints show **Ctrl+Enter** on Windows and **⌘Enter** on Mac. Phrases that said “this Mac” now say **this PC** on Windows (and **this computer** in the browser).
 
 ## 2.6.48
 - **Reply Queue actually sends.** *Send & next* now goes out over SMTP (same path as a normal reply) instead of only writing a local draft the recipient never sees.

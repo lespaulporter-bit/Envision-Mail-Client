@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld("lesMail", {
   detectTeams: () => ipcRenderer.invoke("mail:detectTeams"),
   openTeamsMeeting: (payload) => ipcRenderer.invoke("mail:openTeamsMeeting", payload || {}),
   syncMacCalendars: () => ipcRenderer.invoke("calendar:syncMac"),
+  syncSystemCalendars: () => ipcRenderer.invoke("calendar:syncSystem"),
+  importIcsCalendar: () => ipcRenderer.invoke("calendar:importIcs"),
   getAppInfo: () => ipcRenderer.invoke("app:getInfo"),
   getUpdateStatus: () => ipcRenderer.invoke("app:getUpdateStatus"),
   setUpdateFeedUrl: (url) => ipcRenderer.invoke("app:setUpdateFeedUrl", url),

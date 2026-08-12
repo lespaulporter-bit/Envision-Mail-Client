@@ -2,9 +2,10 @@
 
 import { CalendarTimezoneClocks } from "@/components/CalendarTimezoneClocks";
 import { Button, Input, Textarea } from "@/components/ui";
-import { desktopApi, isDesktop } from "@/lib/desktop";
+import { desktopApi, isDesktop, isMacDesktop, isWindowsDesktop } from "@/lib/desktop";
 import { useMailStore } from "@/lib/store";
 import type { CalendarEvent, CalendarInvitee } from "@/lib/types";
+import { externalCalendarLabel, isExternalCalendarSource } from "@/lib/types";
 import { formatLocalHhmmInZone, localTimezoneId } from "@/lib/timezones";
 import {
   addDays,
@@ -96,7 +97,7 @@ export function CalendarView() {
   const deleteEvent = useMailStore((s) => s.deleteEvent);
   const duplicateEvent = useMailStore((s) => s.duplicateEvent);
   const toggleCalendarVisible = useMailStore((s) => s.toggleCalendarVisible);
-  const importMacCalendarData = useMailStore((s) => s.importMacCalendarData);
+  const importSystemCalendarData = useMailStore((s) => s.importSystemCalendarData);
   const toggleHabit = useMailStore((s) => s.toggleHabit);
   const setJournal = useMailStore((s) => s.setJournal);
   const setDayLabel = useMailStore((s) => s.setDayLabel);
@@ -127,7 +128,8 @@ export function CalendarView() {
   const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
   const [notifyRecipients, setNotifyRecipients] = useState(true);
   const [savingEvent, setSavingEvent] = useState(false);
-  const [syncingMac, setSyncingMac] = useState(false);
+  const [syncingSystem, setSyncingSystem] = useState(false);
+  const [importingIcs, setImportingIcs] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
   const [taskDraft, setTaskDraft] = useState("");
   const [journalDraft, setJournalDraft] = useState("");
@@ -146,7 +148,7 @@ export function CalendarView() {
   const [reminderMinutesBefore, setReminderMinutesBefore] = useState(
     () => settings.defaultEventReminderMinutes ?? 15,
   );
-  const isMacDesktop = isDesktop() && desktopApi()?.platform === "darwin";
+  const onDesktop = isDesktop();
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -154,7 +156,7 @@ export function CalendarView() {
   }, []);
 
   const defaultCalId =
-    calendars.find((c) => c.source !== "mac" && c.visible)?.id ||
+    calendars.find((c) => !isExternalCalendarSource(c.source) && c.visible)?.id ||
     calendars[0]?.id ||
     "cal_default";
 
@@ -780,7 +782,7 @@ export function CalendarView() {
             />
           </div>
           <p className="mt-2 max-w-xl text-sm text-muted">
-            Day · week · month · agenda — Teams/Zoom invites, Mac sync, habits, journal, and countdowns.
+            Day · week · month · agenda — Teams/Zoom invites, calendar sync (Mac & Windows), habits, journal, and countdowns.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -794,33 +796,79 @@ export function CalendarView() {
               {v}
             </Button>
           ))}
-          {isMacDesktop ? (
-            <Button
-              size="sm"
-              variant="soft"
-              disabled={syncingMac}
-              onClick={() => {
-                void (async () => {
-                  setSyncingMac(true);
-                  try {
-                    const api = desktopApi();
-                    const result = await api?.syncMacCalendars();
-                    if (!result?.ok) {
-                      setToast(result?.error || "Mac Calendar sync failed");
-                      return;
+          {onDesktop ? (
+            <>
+              <Button
+                size="sm"
+                variant="soft"
+                disabled={syncingSystem}
+                title={
+                  isMacDesktop()
+                    ? "Pull events from Apple Calendar"
+                    : isWindowsDesktop()
+                      ? "Pull events from Outlook on this PC"
+                      : "Sync system calendars"
+                }
+                onClick={() => {
+                  void (async () => {
+                    setSyncingSystem(true);
+                    try {
+                      const api = desktopApi();
+                      const result = await api?.syncSystemCalendars?.();
+                      if (!result?.ok) {
+                        setToast(result?.error || "Calendar sync failed");
+                        return;
+                      }
+                      const source = result.source === "windows" || result.source === "mac" ? result.source : isWindowsDesktop() ? "windows" : "mac";
+                      importSystemCalendarData({
+                        source,
+                        calendars: result.calendars || [],
+                        events: result.events || [],
+                      });
+                    } finally {
+                      setSyncingSystem(false);
                     }
-                    importMacCalendarData({
-                      calendars: result.calendars || [],
-                      events: result.events || [],
-                    });
-                  } finally {
-                    setSyncingMac(false);
-                  }
-                })();
-              }}
-            >
-              {syncingMac ? "Syncing…" : "Sync Mac Calendars"}
-            </Button>
+                  })();
+                }}
+              >
+                {syncingSystem
+                  ? "Syncing…"
+                  : isWindowsDesktop()
+                    ? "Sync Outlook Calendar"
+                    : isMacDesktop()
+                      ? "Sync Mac Calendars"
+                      : "Sync calendars"}
+              </Button>
+              <Button
+                size="sm"
+                variant="soft"
+                disabled={importingIcs}
+                title="Import a .ics invite from Outlook, Google, Apple, or Teams — works the same on Mac and Windows"
+                onClick={() => {
+                  void (async () => {
+                    setImportingIcs(true);
+                    try {
+                      const api = desktopApi();
+                      const result = await api?.importIcsCalendar?.();
+                      if (!result || result.cancelled) return;
+                      if (!result.ok) {
+                        setToast(result.error || "Import failed");
+                        return;
+                      }
+                      importSystemCalendarData({
+                        source: "ics",
+                        calendars: result.calendars || [],
+                        events: result.events || [],
+                      });
+                    } finally {
+                      setImportingIcs(false);
+                    }
+                  })();
+                }}
+              >
+                {importingIcs ? "Importing…" : "Import .ics"}
+              </Button>
+            </>
           ) : null}
         </div>
       </div>
@@ -844,7 +892,7 @@ export function CalendarView() {
               style={{ background: c.color }}
               title={c.visible ? "Hide calendar" : "Show calendar"}
             >
-              {c.source === "mac" ? "Mac · " : ""}
+              {externalCalendarLabel(c.source) ? `${externalCalendarLabel(c.source)} · ` : ""}
               {c.name}
             </button>
           ))}
@@ -1078,8 +1126,10 @@ export function CalendarView() {
                           style={{ background: colorFor(e.calendarId) }}
                         />
                         {e.title}
-                        {e.source === "mac" ? (
-                          <span className="ml-2 text-xs font-normal text-muted">Mac</span>
+                        {isExternalCalendarSource(e.source) ? (
+                          <span className="ml-2 text-xs font-normal text-muted">
+                            {externalCalendarLabel(e.source)}
+                          </span>
                         ) : null}
                         {e.allDay ? (
                           <span className="ml-2 text-xs font-normal text-muted">All day</span>
@@ -1139,7 +1189,7 @@ export function CalendarView() {
                           {sendingInviteId === e.id ? "Sending…" : "Email invites"}
                         </Button>
                       ) : null}
-                      {e.source !== "mac" ? (
+                      {!isExternalCalendarSource(e.source) ? (
                         <Button size="sm" variant="ghost" onClick={() => deleteEvent(e.id)}>
                           Delete
                         </Button>
@@ -1202,7 +1252,7 @@ export function CalendarView() {
                   {calendars.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
-                      {c.source === "mac" ? " (Mac)" : ""}
+                      {externalCalendarLabel(c.source) ? ` (${externalCalendarLabel(c.source)})` : ""}
                     </option>
                   ))}
                 </select>
@@ -1599,8 +1649,10 @@ export function CalendarView() {
                                 style={{ background: colorFor(e.calendarId) }}
                               />
                               {e.title}
-                              {e.source === "mac" ? (
-                                <span className="ml-2 text-xs font-normal text-muted">Mac</span>
+                              {isExternalCalendarSource(e.source) ? (
+                                <span className="ml-2 text-xs font-normal text-muted">
+                                  {externalCalendarLabel(e.source)}
+                                </span>
                               ) : null}
                             </div>
                             <div className="mt-0.5 text-sm text-muted">
@@ -1668,7 +1720,7 @@ export function CalendarView() {
                                 {sendingInviteId === e.id ? "Emailing…" : "Email recipients"}
                               </Button>
                             ) : null}
-                            {e.source !== "mac" ? (
+                            {!isExternalCalendarSource(e.source) ? (
                               <Button
                                 size="sm"
                                 variant="ghost"

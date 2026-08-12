@@ -233,6 +233,39 @@ export interface LesMailDesktopApi {
       notes?: string;
     }>;
   }>;
+  /** Mac Calendar.app or Windows Outlook — same shape on both platforms. */
+  syncSystemCalendars: () => Promise<{
+    ok: boolean;
+    error?: string;
+    source?: "mac" | "windows" | "ics";
+    provider?: string;
+    calendars?: Array<{ id: string; name: string; color?: string }>;
+    events?: Array<{
+      id: string;
+      title: string;
+      start: string;
+      end: string;
+      calendarId: string;
+      location?: string;
+      notes?: string;
+    }>;
+  }>;
+  importIcsCalendar: () => Promise<{
+    ok: boolean;
+    cancelled?: boolean;
+    error?: string;
+    source?: "ics";
+    calendars?: Array<{ id: string; name: string; color?: string }>;
+    events?: Array<{
+      id: string;
+      title: string;
+      start: string;
+      end: string;
+      calendarId: string;
+      location?: string;
+      notes?: string;
+    }>;
+  }>;
   getUpdateStatus: () => Promise<{
     feedUrl: string;
     lastCheckAt: string | null;

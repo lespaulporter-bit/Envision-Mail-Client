@@ -191,7 +191,7 @@ export interface CalendarEvent {
   fromThreadId?: string | null;
   invitesSentAt?: string | null;
   externalId?: string | null;
-  source?: "local" | "mac" | null;
+  source?: "local" | "mac" | "windows" | "ics" | null;
 }
 
 export interface SubCalendar {
@@ -199,8 +199,20 @@ export interface SubCalendar {
   name: string;
   color: string;
   visible: boolean;
-  source?: "local" | "mac";
+  source?: "local" | "mac" | "windows" | "ics";
   externalId?: string | null;
+}
+
+/** Synced from Mac Calendar, Windows Outlook, or an imported .ics — not created inside Envision. */
+export function isExternalCalendarSource(source?: string | null) {
+  return source === "mac" || source === "windows" || source === "ics";
+}
+
+export function externalCalendarLabel(source?: string | null) {
+  if (source === "mac") return "Mac";
+  if (source === "windows") return "Outlook";
+  if (source === "ics") return "Imported";
+  return "";
 }
 
 export interface Habit {

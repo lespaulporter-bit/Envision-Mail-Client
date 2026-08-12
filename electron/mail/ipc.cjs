@@ -19,7 +19,8 @@ const appState = require("./app-state.cjs");
 const autoUpdate = require("./auto-update.cjs");
 const { detectMicrosoftTeams, openTeamsNewMeeting } = require("./calendar-invite.cjs");
 const { discoverMailSettings } = require("./discover.cjs");
-const { syncMacCalendars } = require("./mac-calendar.cjs");
+const { syncSystemCalendars, syncMacCalendars } = require("./system-calendar.cjs");
+const { importIcsFiles } = require("./ics-import.cjs");
 
 function registerMailIpc() {
   ipcMain.handle("mail:presets", async () => PRESETS);
@@ -413,6 +414,8 @@ function registerMailIpc() {
   });
 
   ipcMain.handle("calendar:syncMac", async () => syncMacCalendars());
+  ipcMain.handle("calendar:syncSystem", async () => syncSystemCalendars());
+  ipcMain.handle("calendar:importIcs", async () => importIcsFiles());
 
   ipcMain.handle("app:getInfo", async () => ({
     name: app.getName(),

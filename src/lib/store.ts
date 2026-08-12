@@ -18,7 +18,7 @@ import type {
   Thread,
   Workflow,
 } from "./types";
-import { normalizeBox, normalizeMailBox, boxLabel } from "./types";
+import { normalizeBox, normalizeMailBox, boxLabel, isExternalCalendarSource } from "./types";
 import { syncThreadTags, threadHasContent } from "./thread-tags";
 import {
   activatePendingReminders,
@@ -255,6 +255,20 @@ interface Actions {
   toggleCalendarVisible: (calendarId: string) => void;
   duplicateEvent: (id: string) => void;
   importMacCalendarData: (payload: {
+    calendars: Array<{ id: string; name: string; color?: string }>;
+    events: Array<{
+      id: string;
+      title: string;
+      start: string;
+      end: string;
+      calendarId: string;
+      location?: string;
+      notes?: string;
+    }>;
+  }) => void;
+  /** Import from Mac Calendar, Windows Outlook, or .ics — same merge rules on every OS. */
+  importSystemCalendarData: (payload: {
+    source?: "mac" | "windows" | "ics";
     calendars: Array<{ id: string; name: string; color?: string }>;
     events: Array<{
       id: string;
@@ -1641,7 +1655,7 @@ export const useMailStore = create<MailStore>()(
 
       addEvent: (event) => {
         const fallbackCal =
-          get().calendars.find((c) => c.source !== "mac" && c.visible)?.id ||
+          get().calendars.find((c) => !isExternalCalendarSource(c.source) && c.visible)?.id ||
           get().calendars[0]?.id ||
           "cal_default";
         const created: CalendarEvent = withMeetingLink({
@@ -1689,14 +1703,24 @@ export const useMailStore = create<MailStore>()(
         });
       },
 
-      importMacCalendarData: ({ calendars: macCals, events: macEvents }) => {
+      importMacCalendarData: (payload) =>
+        get().importSystemCalendarData({ ...payload, source: "mac" }),
+
+      importSystemCalendarData: ({ source = "mac", calendars: incomingCals, events: incomingEvents }) => {
         const pastelColors = ["#A78BFA", "#60A5FA", "#34D399", "#F472B6", "#FBBF24", "#FB923C", "#38BDF8"];
+        const defaultName =
+          source === "windows" ? "Outlook Calendar" : source === "ics" ? "Imported (.ics)" : "Mac Calendar";
+        const idPrefix = source === "windows" ? "wincal" : source === "ics" ? "icscal" : "maccal";
+        const toastVerb = source === "ics" ? "Imported" : "Synced";
+        const toastNoun =
+          source === "windows" ? "Outlook" : source === "ics" ? "calendar" : "Mac";
+
         let calendars = [...get().calendars];
         const calIdByExternal = new Map<string, string>();
 
-        macCals.forEach((mc, i) => {
+        incomingCals.forEach((mc, i) => {
           const externalId = String(mc.id);
-          const existing = calendars.find((c) => c.source === "mac" && c.externalId === externalId);
+          const existing = calendars.find((c) => c.source === source && c.externalId === externalId);
           if (existing) {
             calendars = calendars.map((c) =>
               c.id === existing.id
@@ -1705,37 +1729,38 @@ export const useMailStore = create<MailStore>()(
                     name: mc.name || c.name,
                     color: mc.color || c.color,
                     visible: c.visible,
-                    source: "mac" as const,
+                    source,
                     externalId,
                   }
                 : c,
             );
             calIdByExternal.set(externalId, existing.id);
           } else {
-            const id = uid("maccal");
+            const id = uid(idPrefix);
             calendars.push({
               id,
-              name: mc.name || "Mac Calendar",
+              name: mc.name || defaultName,
               color: mc.color || pastelColors[i % pastelColors.length],
               visible: true,
-              source: "mac",
+              source,
               externalId,
             });
             calIdByExternal.set(externalId, id);
           }
         });
 
-        const keepLocal = get().events.filter((e) => e.source !== "mac");
-        const macMerged = macEvents.map((me) => {
+        // Replace only events from this same external source — leave local + other OS syncs alone.
+        const keepOther = get().events.filter((e) => e.source !== source);
+        const merged = incomingEvents.map((me) => {
           const externalId = String(me.id);
-          const prev = get().events.find((e) => e.source === "mac" && e.externalId === externalId);
+          const prev = get().events.find((e) => e.source === source && e.externalId === externalId);
           const calendarId =
             calIdByExternal.get(String(me.calendarId)) ||
             prev?.calendarId ||
-            calendars.find((c) => c.source === "mac")?.id ||
+            calendars.find((c) => c.source === source)?.id ||
             calendars[0]?.id ||
             "cal_default";
-          // Mac keeps the Teams/Zoom join URL inside notes or location — promote it.
+          // Outlook/Mac often leave Teams/Zoom join URLs in notes or location.
           return withMeetingLink({
             id: prev?.id || uid("e"),
             title: me.title || "Untitled",
@@ -1745,7 +1770,7 @@ export const useMailStore = create<MailStore>()(
             location: me.location || undefined,
             notes: me.notes || undefined,
             externalId,
-            source: "mac" as const,
+            source,
             reminderMinutes: prev?.reminderMinutes,
             countdown: prev?.countdown,
           });
@@ -1753,8 +1778,8 @@ export const useMailStore = create<MailStore>()(
 
         set({
           calendars,
-          events: [...keepLocal, ...macMerged],
-          toast: `Synced ${macMerged.length} Mac event${macMerged.length === 1 ? "" : "s"}`,
+          events: [...keepOther, ...merged],
+          toast: `${toastVerb} ${merged.length} ${toastNoun} event${merged.length === 1 ? "" : "s"}`,
         });
       },
 
@@ -1851,7 +1876,9 @@ export const useMailStore = create<MailStore>()(
           start: start.toISOString(),
           end: end.toISOString(),
           calendarId:
-            get().calendars.find((c) => c.source !== "mac")?.id || get().calendars[0]?.id || "cal_default",
+            get().calendars.find((c) => !isExternalCalendarSource(c.source))?.id ||
+            get().calendars[0]?.id ||
+            "cal_default",
           fromThreadId: threadId,
           reminderMinutes: [15],
         });
