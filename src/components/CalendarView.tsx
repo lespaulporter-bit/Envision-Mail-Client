@@ -22,7 +22,6 @@ import {
   startOfDay,
   startOfMonth,
   startOfWeek,
-  differenceInMinutes,
 } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1139,50 +1138,94 @@ export function CalendarView() {
                   <p className="text-sm text-muted">Nothing scheduled.</p>
                 ) : (
                   <ul className="space-y-2">
-                    {active.map((e) => (
+                    {active.map((e) => {
+                      const ymd = format(d, "yyyy-MM-dd");
+                      return (
                       <li key={e.id} className="rounded-xl border border-line p-3">
-                        <div className="flex w-full items-start gap-3">
-                          <button
-                            type="button"
-                            onClick={() => beginEdit(e)}
-                            className="flex min-w-0 flex-1 items-start gap-3 text-left hover:opacity-90"
-                          >
-                            <span
-                              className="mt-1 h-3 w-3 shrink-0 rounded-full"
-                              style={{ background: colorFor(e.calendarId) }}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold">{e.title}</div>
-                              <div className="text-sm text-muted">
-                                {e.allDay
-                                  ? "All day"
-                                  : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
-                                {e.location ? ` · ${e.location}` : ""}
-                                {dualZones && secondaryZone && !e.allDay
-                                  ? ` · ${formatInTz(e.start, secondaryZone)}`
-                                  : ""}
-                              </div>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-ink">
+                              <span
+                                className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
+                                style={{ background: colorFor(e.calendarId) }}
+                              />
+                              {e.title}
+                              {isExternalCalendarSource(e.source) ? (
+                                <span className="ml-2 text-xs font-normal text-muted">
+                                  {externalCalendarLabel(e.source)}
+                                </span>
+                              ) : null}
+                              {e.allDay ? (
+                                <span className="ml-2 text-xs font-normal text-muted">All day</span>
+                              ) : null}
                             </div>
-                            <span className="text-xs text-muted">
-                              {differenceInMinutes(parseISO(e.end), parseISO(e.start))}m
-                            </span>
-                          </button>
-                          <div className="flex shrink-0 flex-wrap gap-1">
+                            <div className="mt-0.5 text-sm text-muted">
+                              {e.allDay
+                                ? "All day"
+                                : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
+                              {e.location ? ` · ${e.location}` : ""}
+                              {dualZones && secondaryZone && !e.allDay
+                                ? ` · ${formatInTz(e.start, secondaryZone)}`
+                                : ""}
+                            </div>
+                            {e.countdown && +new Date(e.start) >= nowMs ? (
+                              <div
+                                className={`mt-0.5 font-mono text-xs tracking-tight ${
+                                  formatCountdown(e.start, nowMs).urgent
+                                    ? "text-amber-700/80"
+                                    : "text-teal/70"
+                                }`}
+                              >
+                                {formatCountdown(e.start, nowMs).label}
+                              </div>
+                            ) : null}
+                            {resolveMeetingLink(e) ? (
+                              <div className="mt-1">
+                                <JoinMeetingLink link={resolveMeetingLink(e)!} compact />
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap gap-1">
                             <Button size="sm" variant="soft" onClick={() => dismissEvent(e.id)}>
                               Dismiss
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => beginEdit(e)}>
+                            <Button
+                              size="sm"
+                              variant="soft"
+                              onClick={() => {
+                                cancelPendingDayClick();
+                                openDaySheet(ymd, { edit: e });
+                              }}
+                            >
                               Edit
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="soft"
+                              onClick={() => updateEvent(e.id, { countdown: !e.countdown })}
+                            >
+                              {e.countdown ? "Countdown ✓" : "Countdown"}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => duplicateEvent(e.id)}>
+                              Duplicate
+                            </Button>
+                            {!isExternalCalendarSource(e.source) ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  deleteEvent(e.id);
+                                  setToast("Event deleted");
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            ) : null}
                           </div>
                         </div>
-                        {resolveMeetingLink(e) ? (
-                          <div className="mt-1 pl-6">
-                            <JoinMeetingLink link={resolveMeetingLink(e)!} compact />
-                          </div>
-                        ) : null}
                       </li>
-                    ))}
+                      );
+                    })}
                     {dismissed.length > 0 ? (
                       <li className="space-y-2 border-t border-dashed border-line pt-2">
                         <p className="text-xs font-medium text-muted">
@@ -1200,9 +1243,21 @@ export function CalendarView() {
                               />
                               {e.title}
                             </span>
-                            <Button size="sm" variant="ghost" onClick={() => undismissEvent(e.id)}>
-                              Undo dismiss
-                            </Button>
+                            <div className="flex flex-wrap gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => undismissEvent(e.id)}>
+                                Undo dismiss
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  cancelPendingDayClick();
+                                  openDaySheet(format(d, "yyyy-MM-dd"), { edit: e });
+                                }}
+                              >
+                                Edit
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </li>

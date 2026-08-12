@@ -1,5 +1,8 @@
 # Envision Mail updates
 
+## 2.6.56
+- **Agenda has full event actions:** **Dismiss**, **Edit** (opens the day popup), **Countdown**, **Duplicate**, and **Delete** — same controls as the day list, not a read-only card.
+
 ## 2.6.55
 - **Undo dismiss restores reminders and countdowns** — dismissing no longer permanently clears countdown; calendar reminder rows are removed so they can fire again after Undo.
 - Month cells show **N dismissed · open day** instead of looking empty; agenda keeps dismissed rows with **Undo dismiss**.
