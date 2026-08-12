@@ -4,7 +4,7 @@ import { desktopApi } from "@/lib/desktop";
 import { extractUrls, type ResolvedMeetingLink } from "@/lib/meeting-links";
 import { cn } from "@/lib/utils";
 import { Video } from "lucide-react";
-import type { MouseEvent, ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 
 /** Desktop hands links to the system browser, which then offers the Teams/Zoom app. */
 function openLink(url: string, event: MouseEvent) {
@@ -50,19 +50,46 @@ export function JoinMeetingLink({
   className?: string;
   compact?: boolean;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void navigator.clipboard
+      ?.writeText(link.url)
+      .then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1600);
+      })
+      .catch(() => undefined);
+  };
+
   return (
-    <ExternalLink
-      href={link.url}
-      title={link.url}
-      className={cn(
-        "mt-1 inline-flex items-center gap-1.5 rounded-full bg-teal px-2.5 py-1 font-semibold text-white transition hover:brightness-110",
-        compact ? "text-[11px]" : "text-xs",
-        className,
-      )}
-    >
-      <Video className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
-      {link.label}
-    </ExternalLink>
+    <span className={cn("mt-1 inline-flex flex-wrap items-center gap-1.5", className)}>
+      <ExternalLink
+        href={link.url}
+        title={link.url}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full bg-teal px-2.5 py-1 font-semibold text-white transition hover:brightness-110",
+          compact ? "text-[11px]" : "text-xs",
+        )}
+      >
+        <Video className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
+        {link.label}
+      </ExternalLink>
+      <button
+        type="button"
+        onClick={copy}
+        title="Copy join link"
+        className={cn(
+          "rounded-full border border-line bg-white px-2 py-1 font-medium transition hover:border-teal/40 hover:text-teal",
+          compact ? "text-[11px]" : "text-xs",
+          copied ? "text-teal" : "text-muted",
+        )}
+      >
+        {copied ? "Copied" : "Copy link"}
+      </button>
+    </span>
   );
 }
 

@@ -5,8 +5,10 @@ import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { MailHtml } from "@/components/MailHtml";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
-import { Badge, Button, EmptyState, SectionHeader } from "@/components/ui";
+import { Badge, Button, EmptyState, Input, SectionHeader } from "@/components/ui";
 import { desktopApi, isDesktop } from "@/lib/desktop";
+import { bodyToHtml } from "@/lib/html-body";
+import { threadMatchesFilter } from "@/lib/list-filter";
 import {
   selectBoxThreads,
   selectCleanupThreads,
@@ -535,10 +537,12 @@ export function FeedView() {
 export function PaperTrailView() {
   const threads = useMailStore((s) => s.threads);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const [filter, setFilter] = useState("");
   const list = useMemo(
     () => selectBoxThreads(threads, "paper_trail", { accountId: inboxAccountId }),
     [threads, inboxAccountId],
   );
+  const visible = useMemo(() => list.filter((t) => threadMatchesFilter(t, filter)), [list, filter]);
 
   return (
     <div className="px-4 py-6 md:px-8">
@@ -546,11 +550,21 @@ export function PaperTrailView() {
         title="The Receipts"
         subtitle="Receipts, confirmations, and transactional clutter — out of your face, easy to find."
       />
+      {list.length > 0 ? (
+        <Input
+          className="mb-4 max-w-md"
+          placeholder="Filter by sender or subject…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      ) : null}
       {list.length === 0 ? (
         <EmptyState title="No paper yet" body="Transactional mail you screen here will wait patiently." />
+      ) : visible.length === 0 ? (
+        <EmptyState title="No matches" body="Clear the filter to see every receipt again." />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
-          {list.map((t) => (
+          {visible.map((t) => (
             <ThreadRow key={t.id} thread={t} />
           ))}
         </div>
@@ -840,10 +854,12 @@ export function ScreenerView() {
 export function SentView() {
   const threads = useMailStore((s) => s.threads);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const [filter, setFilter] = useState("");
   const list = useMemo(
     () => selectBoxThreads(threads, "sent", { accountId: inboxAccountId }),
     [threads, inboxAccountId],
   );
+  const visible = useMemo(() => list.filter((t) => threadMatchesFilter(t, filter)), [list, filter]);
 
   return (
     <div className="px-4 py-6 md:px-8">
@@ -851,14 +867,24 @@ export function SentView() {
         title="Sent"
         subtitle="Green ✓ = recipient opened a message when you requested a read receipt. Sync to refresh status."
       />
+      {list.length > 0 ? (
+        <Input
+          className="mb-4 max-w-md"
+          placeholder="Filter by recipient or subject…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      ) : null}
       {list.length === 0 ? (
         <EmptyState
           title="No sent mail yet"
           body="Sync an account to pull Sent from IMAP, or write a new message."
         />
+      ) : visible.length === 0 ? (
+        <EmptyState title="No matches" body="Clear the filter to see every sent conversation again." />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
-          {list.map((t) => (
+          {visible.map((t) => (
             <ThreadRow key={t.id} thread={t} showReadReceipt />
           ))}
         </div>
@@ -1115,10 +1141,12 @@ export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const [filter, setFilter] = useState("");
   const list = selectDockThreads(threads, mode, {
     accountId: inboxAccountId,
     messages,
   });
+  const visible = useMemo(() => list.filter((t) => threadMatchesFilter(t, filter)), [list, filter]);
   const setView = useMailStore((s) => s.setView);
 
   return (
@@ -1136,14 +1164,24 @@ export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
           ) : null
         }
       />
+      {list.length > 0 ? (
+        <Input
+          className="mb-4 max-w-md"
+          placeholder="Filter by sender or subject…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      ) : null}
       {list.length === 0 ? (
         <EmptyState
           title="Nothing here"
           body={mode === "reply_later" ? "Snooze threads from any email." : "Hold travel info, links, and numbers."}
         />
+      ) : visible.length === 0 ? (
+        <EmptyState title="No matches" body="Clear the filter to see every item again." />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
-          {list.map((t) => (
+          {visible.map((t) => (
             <ThreadRow key={t.id} thread={t} />
           ))}
         </div>
@@ -1157,13 +1195,17 @@ export function FocusReplyView() {
   const messagesMap = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const sendReply = useMailStore((s) => s.sendReply);
+  const setToast = useMailStore((s) => s.setToast);
+  const signatures = useMailStore((s) => s.signatures || []);
+  const settings = useMailStore((s) => s.settings);
   const queue = selectDockThreads(threads, "reply_later", {
     accountId: inboxAccountId,
     messages: messagesMap,
   });
   const [index, setIndex] = useState(0);
   const [body, setBody] = useState("");
-  const current = queue[index];
+  const [sending, setSending] = useState(false);
+  const current = queue[Math.min(index, Math.max(0, queue.length - 1))];
   const getThreadMessages = useMailStore((s) => s.getThreadMessages);
 
   if (!current) {
@@ -1177,11 +1219,70 @@ export function FocusReplyView() {
   const messages = getThreadMessages(current.id);
   const last = messages[messages.length - 1];
 
+  const sendAndNext = async () => {
+    if (sending) return;
+    const bodyText = body.trim();
+    if (!bodyText) {
+      setToast("Write a reply first");
+      return;
+    }
+    setSending(true);
+    try {
+      const api = desktopApi();
+      const sendAccountId = current.accountId || inboxAccountId || "";
+      const sig =
+        signatures.find((s) => s.id === settings.defaultSignatureId) ||
+        signatures.find((s) => s.isDefault);
+      const bodyHtml = `${bodyToHtml(bodyText)}${
+        sig
+          ? `<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${
+              sig.imageDataUrl
+                ? `<div style="margin-top:8px"><img src="${sig.imageDataUrl}" alt="" style="max-height:72px"/></div>`
+                : ""
+            }</div>`
+          : ""
+      }`;
+      if (!api) {
+        setToast("Open the Envision Mail desktop app to send via SMTP");
+        return;
+      }
+      if (!sendAccountId) {
+        setToast("Select an account before sending");
+        return;
+      }
+      const result = await api.sendMail({
+        accountId: sendAccountId,
+        to: current.contactEmail,
+        subject: `Re: ${current.customSubject || current.subject}`,
+        text: bodyText,
+        html: bodyHtml,
+        requestReadReceipt: settings.requestReadReceiptsByDefault ?? false,
+      });
+      if (!result.ok) {
+        const err = result.error || "SMTP send failed";
+        const authHint =
+          /auth|password|credentials|login|535|534|decrypt|safeStorage|re-enter/i.test(err)
+            ? " — Settings → Accounts → paste a new app password → Save"
+            : "";
+        setToast(err + authHint);
+        return;
+      }
+      sendReply(current.id, bodyText);
+      setBody("");
+      setIndex((i) => Math.min(i, Math.max(0, queue.length - 2)));
+      setToast("Reply sent via SMTP");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "SMTP send failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 md:px-8">
       <SectionHeader
         title="Reply Queue"
-        subtitle={`${index + 1} of ${queue.length} — includes Screening / New Senders mail you queued (MoneyBox $ stays clear).`}
+        subtitle={`${Math.min(index, queue.length - 1) + 1} of ${queue.length} — includes Screening / New Senders mail you queued (MoneyBox $ stays clear).`}
       />
       <article className="rounded-2xl border border-line bg-white p-5">
         <h2 className="font-display text-2xl">{current.customSubject || current.subject}</h2>
@@ -1202,20 +1303,21 @@ export function FocusReplyView() {
           rows={6}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Your reply…"
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              e.preventDefault();
+              void sendAndNext();
+            }
+          }}
+          placeholder="Your reply… (⌘Enter to send)"
         />
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button
-            onClick={() => {
-              sendReply(current.id, body);
-              setBody("");
-              setIndex((i) => Math.min(i, Math.max(0, queue.length - 2)));
-            }}
-          >
-            Send & next
+          <Button disabled={sending} onClick={() => void sendAndNext()}>
+            {sending ? "Sending…" : "Send & next"}
           </Button>
           <Button
             variant="soft"
+            disabled={sending}
             onClick={() => {
               setBody("");
               setIndex((i) => Math.min(i + 1, queue.length - 1));

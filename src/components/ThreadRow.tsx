@@ -26,6 +26,8 @@ export function ThreadRow({
 }) {
   const messages = useMailStore((s) => s.messages);
   const contacts = useMailStore((s) => s.contacts);
+  const workflows = useMailStore((s) => s.workflows);
+  const collections = useMailStore((s) => s.collections);
   const multiOpenIds = useMailStore((s) => s.multiOpenIds);
   const openThread = useMailStore((s) => s.openThread);
   const toggleMultiOpen = useMailStore((s) => s.toggleMultiOpen);
@@ -38,6 +40,9 @@ export function ThreadRow({
   const contact = contacts.find((c) => c.email === thread.contactEmail);
   const subject = thread.customSubject || thread.subject;
   const selected = multiOpenIds.includes(thread.id);
+  const workflow = workflows.find((w) => w.id === thread.workflowId);
+  const stage = workflow?.stages.find((s) => s.id === thread.workflowStageId);
+  const threadCollections = collections.filter((c) => thread.collectionIds.includes(c.id));
 
   const outgoing = thread.messageIds
     .map((id) => messages[id])
@@ -134,6 +139,29 @@ export function ThreadRow({
                 ) : null}
               </div>
               <div className={cn("truncate text-sm", !thread.seen ? "text-ink" : "text-muted")}>{subject}</div>
+              {workflow && stage ? (
+                <div className="mt-1 inline-flex max-w-full items-center gap-1.5 truncate rounded-full bg-soft px-2 py-0.5 text-[11px] font-medium text-ink ring-1 ring-line">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: stage.color }} />
+                  <span className="truncate">
+                    {workflow.name} · {stage.name}
+                  </span>
+                </div>
+              ) : null}
+              {threadCollections.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {threadCollections.slice(0, 3).map((c) => (
+                    <span
+                      key={c.id}
+                      className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-muted ring-1 ring-line"
+                    >
+                      {c.name}
+                    </span>
+                  ))}
+                  {threadCollections.length > 3 ? (
+                    <span className="text-[11px] text-muted">+{threadCollections.length - 3}</span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <time className="shrink-0 text-xs text-muted">{formatThreadTime(thread.updatedAt)}</time>
           </div>

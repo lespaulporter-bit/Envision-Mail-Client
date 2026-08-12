@@ -135,6 +135,69 @@ export function ThreadView() {
       threadBelongsToAccount(t, inboxAccountId || thread.accountId, storeMessages),
   );
 
+  const sendViaSmtp = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const api = desktopApi();
+      const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
+      const bodyText = reply.trim();
+      if (!bodyText && !sig?.html) {
+        setToast("Write a reply or choose a signature");
+        return;
+      }
+      const bodyHtml = `${bodyText ? bodyToHtml(bodyText) : ""}${
+        sig
+          ? `<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${
+              sig.imageDataUrl
+                ? `<div style="margin-top:8px"><img src="${sig.imageDataUrl}" alt="" style="max-height:72px"/></div>`
+                : ""
+            }</div>`
+          : ""
+      }`;
+      const { parseRecipientEmails } = await import("@/lib/recipient-suggest");
+      const ccJoined = parseRecipientEmails(replyCc).join(", ") || undefined;
+      const bccJoined = parseRecipientEmails(replyBcc).join(", ") || undefined;
+      const sendAccountId = accountId || inboxAccountId || thread.accountId || "";
+      if (!api) {
+        setToast("Open the Envision Mail desktop app to send via SMTP");
+        return;
+      }
+      if (!sendAccountId) {
+        setToast("Select an account before sending");
+        return;
+      }
+      const result = await api.sendMail({
+        accountId: sendAccountId,
+        to: thread.contactEmail,
+        cc: ccJoined,
+        bcc: bccJoined,
+        subject: `Re: ${thread.customSubject || thread.subject}`,
+        text: bodyText || "(see HTML signature)",
+        html: bodyHtml,
+        requestReadReceipt: requestReceipt,
+      });
+      if (!result.ok) {
+        const err = result.error || "SMTP send failed";
+        const authHint =
+          /auth|password|credentials|login|535|534|decrypt|safeStorage|re-enter/i.test(err)
+            ? " — Settings → Accounts → paste a new app password → Save"
+            : "";
+        setToast(err + authHint);
+        return;
+      }
+      setToast(requestReceipt ? "Reply sent · read receipt requested" : "Reply sent via SMTP");
+      sendReply(thread.id, bodyText || " ");
+      setReply("");
+      setReplyCc("");
+      setReplyBcc("");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "SMTP send failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-3xl animate-fade-in px-4 py-6 md:px-8">
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -151,6 +214,33 @@ export function ThreadView() {
             {tagLabel(tag)}
           </Badge>
         ))}
+        {messages.length > 1 ? (
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto"
+              onClick={() => {
+                const next: Record<string, boolean> = {};
+                for (const m of messages) next[`${threadId}:${m.id}`] = false;
+                setCollapseOverrides((current) => ({ ...current, ...next }));
+              }}
+            >
+              Expand all
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                const next: Record<string, boolean> = {};
+                for (const m of messages) next[`${threadId}:${m.id}`] = true;
+                setCollapseOverrides((current) => ({ ...current, ...next }));
+              }}
+            >
+              Collapse all
+            </Button>
+          </>
+        ) : null}
       </div>
 
       <header className="mb-6">
@@ -185,27 +275,25 @@ export function ThreadView() {
         <Button
           size="sm"
           variant={thread.replyLater ? "primary" : "soft"}
-          className={cn(thread.replyLater && "ring-2 ring-teal/30")}
-          onClick={() => toggleReplyLater(thread.id)}
-        >
-          {thread.replyLater ? "Snoozed ✓" : "Snooze"}
-        </Button>
-        <Button
-          size="sm"
-          variant={thread.replyLater ? "primary" : "soft"}
           className={cn(thread.replyLater && "bg-teal text-white hover:bg-teal/90")}
           title={
             thread.replyLater
-              ? "Already in Reply Queue — click to remove, or open Reply Queue from the sidebar"
+              ? "In Reply Queue — click to open the queue, or hold Shift and click to remove"
               : "Add this email to Reply Queue so you can knock out replies later"
           }
-          onClick={() => {
+          onClick={(e) => {
+            if (thread.replyLater && e.shiftKey) {
+              toggleReplyLater(thread.id);
+              setToast("Removed from Reply Queue");
+              return;
+            }
             if (!thread.replyLater) {
               toggleReplyLater(thread.id);
-            } else {
-              setView("focus_reply");
-              setToast("Opening Reply Queue");
+              setToast("Added to Reply Queue");
+              return;
             }
+            setView("focus_reply");
+            setToast("Opening Reply Queue");
           }}
         >
           {thread.replyLater ? "In Reply Queue ✓" : "Reply Queue"}
@@ -658,9 +746,15 @@ export function ThreadView() {
         ) : null}
         <Textarea
           rows={5}
-          placeholder="Write a reply…"
+          placeholder="Write a reply… (⌘Enter to send)"
           value={reply}
           onChange={(e) => setReply(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              e.preventDefault();
+              void sendViaSmtp();
+            }
+          }}
         />
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" variant="soft" onClick={() => setShowReplyCcBcc((v) => !v)}>
@@ -707,75 +801,7 @@ export function ThreadView() {
           Request read receipt
         </label>
         <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={sending}
-            onClick={async () => {
-              if (sending) return;
-              setSending(true);
-              try {
-                const api = desktopApi();
-                const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
-                const bodyText = reply.trim();
-                if (!bodyText && !sig?.html) {
-                  setToast("Write a reply or choose a signature");
-                  return;
-                }
-                const bodyHtml = `${bodyText ? bodyToHtml(bodyText) : ""}${
-                  sig
-                    ? `<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${
-                        sig.imageDataUrl
-                          ? `<div style="margin-top:8px"><img src="${sig.imageDataUrl}" alt="" style="max-height:72px"/></div>`
-                          : ""
-                      }</div>`
-                    : ""
-                }`;
-                const { parseRecipientEmails } = await import("@/lib/recipient-suggest");
-                const ccJoined = parseRecipientEmails(replyCc).join(", ") || undefined;
-                const bccJoined = parseRecipientEmails(replyBcc).join(", ") || undefined;
-                const sendAccountId = accountId || inboxAccountId || thread.accountId || "";
-                if (!api) {
-                  setToast("Open the Envision Mail desktop app to send via SMTP");
-                  return;
-                }
-                if (!sendAccountId) {
-                  setToast("Select an account before sending");
-                  return;
-                }
-                const result = await api.sendMail({
-                  accountId: sendAccountId,
-                  to: thread.contactEmail,
-                  cc: ccJoined,
-                  bcc: bccJoined,
-                  subject: `Re: ${thread.customSubject || thread.subject}`,
-                  text: bodyText || "(see HTML signature)",
-                  html: bodyHtml,
-                  requestReadReceipt: requestReceipt,
-                });
-                if (!result.ok) {
-                  const err = result.error || "SMTP send failed";
-                  const authHint =
-                    /auth|password|credentials|login|535|534|decrypt|safeStorage|re-enter/i.test(err)
-                      ? " — Settings → Accounts → paste a new app password → Save"
-                      : "";
-                  setToast(err + authHint);
-                  return;
-                }
-                setToast(
-                  requestReceipt
-                    ? "Reply sent · read receipt requested"
-                    : "Reply sent via SMTP",
-                );
-                sendReply(thread.id, bodyText || " ");
-                setReply("");
-                setReplyCc("");
-                setReplyBcc("");
-              } catch (err) {
-                setToast(err instanceof Error ? err.message : "SMTP send failed");
-              } finally {
-                setSending(false);
-              }
-            }}
-          >
+          <Button disabled={sending} onClick={() => void sendViaSmtp()}>
             {sending ? "Sending…" : "Send via SMTP"}
           </Button>
           <Button

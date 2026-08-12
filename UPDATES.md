@@ -1,5 +1,14 @@
 # Envision Mail updates
 
+## 2.6.48
+- **Reply Queue actually sends.** *Send & next* now goes out over SMTP (same path as a normal reply) instead of only writing a local draft the recipient never sees.
+- **⌘Enter / Ctrl+Enter** sends from Compose, Thread reply, and Reply Queue.
+- Mail lists show **pipeline · stage** and collection chips under the subject so board mail is visible without opening the thread.
+- Thread toolbar: one clear **Reply Queue** control (Shift-click removes); **Expand all / Collapse all** for long conversations.
+- Filter boxes on **Sent**, **Snooze**, **On Hold**, **The Receipts**, and **Attachments**.
+- Search results show friendly mailbox names and timestamps instead of raw box ids.
+- Meeting join buttons include **Copy link** next to Join.
+
 ## 2.6.47
 - **Deal pipelines finally hold mail.** Every stage column now has an **Add mail to …** picker, so a conversation can be placed in *Needs reply*, *In review*, or *Done* without hunting for a hidden setting. Before this, nothing could ever be put into a pipeline and every column read "Empty".
 - **Drag a card between columns**, or use the **‹ previous / next ›** buttons on each card. **Remove** takes a conversation off the board and leaves the email exactly where it was.

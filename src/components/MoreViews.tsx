@@ -18,6 +18,7 @@ import { blockAllFromSenderSmart } from "@/lib/mail-delete";
 import { CALENDAR_TIMEZONE_OPTIONS, localTimezoneId } from "@/lib/timezones";
 import { formatThreadTime } from "@/lib/utils";
 import type { Thread } from "@/lib/types";
+import { boxLabel } from "@/lib/types";
 import { useMemo, useState, useEffect } from "react";
 
 function TimezoneOptions() {
@@ -210,6 +211,7 @@ export function AttachmentsView() {
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
+  const [filter, setFilter] = useState("");
   const allowedThreadIds = useMemo(() => {
     if (!inboxAccountId) return null;
     return new Set(
@@ -219,16 +221,36 @@ export function AttachmentsView() {
   const attachments = getAttachments().filter(
     (a) => !allowedThreadIds || allowedThreadIds.has(a.threadId),
   );
+  const visible = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return attachments;
+    return attachments.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        (a.mimeType || "").toLowerCase().includes(q) ||
+        a.name.split(".").pop()?.toLowerCase().includes(q),
+    );
+  }, [attachments, filter]);
 
   return (
     <div className="px-4 py-6 md:px-8">
       <SectionHeader title="Attachments" subtitle="Files from this account only — switch accounts to see another inbox’s files." />
+      {attachments.length > 0 ? (
+        <Input
+          className="mb-4 max-w-md"
+          placeholder="Filter by filename or type…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      ) : null}
       {attachments.length === 0 ? (
         <EmptyState title="No attachments" body="Files from email appear here automatically." />
+      ) : visible.length === 0 ? (
+        <EmptyState title="No matches" body="Clear the filter to see every attachment again." />
       ) : (
         <div className="rounded-2xl border border-line bg-white p-3">
           <AttachmentList
-            attachments={attachments}
+            attachments={visible}
             accountIdFor={(a) => threads.find((t) => t.id === a.threadId)?.accountId ?? inboxAccountId}
             renderMeta={(a) => `Received ${formatThreadTime(a.receivedAt)}`}
             renderExtraActions={(a) => (
@@ -1243,9 +1265,15 @@ export function SearchView() {
                 className="w-full rounded-xl border border-line bg-white px-4 py-3 text-left hover:bg-soft"
                 onClick={() => openThread(t.id)}
               >
-                <div className="font-medium">{t.customSubject || t.subject}</div>
-                <div className="text-sm text-muted">
-                  {t.contactName} · {t.box}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{t.customSubject || t.subject}</div>
+                    <div className="text-sm text-muted">
+                      {t.contactName} · {boxLabel(t.box)}
+                      {!t.seen ? " · Unread" : ""}
+                    </div>
+                  </div>
+                  <time className="shrink-0 text-xs text-muted">{formatThreadTime(t.updatedAt)}</time>
                 </div>
               </button>
             </li>
@@ -1500,9 +1528,15 @@ export function ComposeView() {
         />
         <Textarea
           rows={10}
-          placeholder="Write your email…"
+          placeholder="Write your email… (⌘Enter to send)"
           value={composeDraft.body}
           onChange={(e) => setCompose({ body: e.target.value })}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              e.preventDefault();
+              void doSend();
+            }
+          }}
         />
         {signatures.length > 0 ? (
           <label className="block text-sm">
