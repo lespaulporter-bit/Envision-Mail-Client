@@ -310,7 +310,7 @@ export function ClipsView() {
 }
 
 export function SnippetsView() {
-  const snippets = useMailStore((s) => s.snippets);
+  const snippets = useMailStore((s) => asArray(s.snippets));
   const createSnippet = useMailStore((s) => s.createSnippet);
   const deleteSnippet = useMailStore((s) => s.deleteSnippet);
   const [name, setName] = useState("");

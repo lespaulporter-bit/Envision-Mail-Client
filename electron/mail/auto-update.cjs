@@ -130,7 +130,11 @@ function getAppBundlePath() {
 }
 
 function pendingDir() {
-  return path.join(app.getPath("home"), "Library", "Caches", "envision-mail-updater", "pending");
+  // Mac zip updater; Windows uses electron-updater's own download dir — keep a real local folder if needed.
+  if (process.platform === "darwin") {
+    return path.join(app.getPath("home"), "Library", "Caches", "envision-mail-updater", "pending");
+  }
+  return path.join(app.getPath("userData"), "updater-pending");
 }
 
 function isNewerVersion(remote, local) {
@@ -381,7 +385,9 @@ function promptRestartToInstall(ver) {
       title: "Envision Mail update ready",
       message: `Version ${ver} is ready to install.`,
       detail:
-        "Restart Envision Mail to apply the update. Your mail, accounts, and collections stay on this Mac — updates never overwrite Application Support data.",
+        process.platform === "darwin"
+          ? "Restart Envision Mail to apply the update. Your mail, accounts, and collections stay on this Mac — updates never overwrite Application Support data."
+          : "Restart Envision Mail to apply the update. Your mail, accounts, and collections stay on this PC — updates never overwrite your local app data.",
     })
     .then(({ response }) => {
       if (response !== 0) return;

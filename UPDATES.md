@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.63
+- **Mac + Windows hardening.** Static file server blocks path escapes on both OSes; Windows updater no longer looks under a fake `Library/Caches` folder; update dialog copy is platform-correct.
+- Hydration normalizes missing `messageIds` / `collectionIds` / `attachments` so opening threads and Attachments cannot crash on legacy data.
+
 ## 2.6.62
 - **React “Something went wrong” / error #185 fixed.** Account-scoped lists were returning a new array on every store read, which triggered an infinite re-render loop on open (MoneyBox Day Cover, Calendar, thread rows, reminders).
 - Zustand selectors now use stable shallow compares / empty-array fallbacks. Persist hydration waits before showing the shell.

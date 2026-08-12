@@ -2147,14 +2147,14 @@ export const useMailStore = create<MailStore>()(
       getThreadMessages: (threadId) => {
         const thread = get().threads.find((t) => t.id === threadId);
         if (!thread) return [];
-        return thread.messageIds
+        return (thread.messageIds || [])
           .map((id) => get().messages[id])
           .filter(Boolean)
           .sort((a, b) => +new Date(a.sentAt) - +new Date(b.sentAt));
       },
 
       getAttachments: () => {
-        const all = Object.values(get().messages).flatMap((m) => m.attachments);
+        const all = Object.values(get().messages).flatMap((m) => m?.attachments || []);
         return all.sort((a, b) => +new Date(b.receivedAt) - +new Date(a.receivedAt));
       },
     }),
@@ -2210,10 +2210,14 @@ export const useMailStore = create<MailStore>()(
           }
           next = {
             ...next,
+            messageIds: Array.isArray(next.messageIds) ? next.messageIds : [],
+            collectionIds: Array.isArray(next.collectionIds) ? next.collectionIds : [],
             replyLater: Boolean(next.replyLater),
             setAside: Boolean(next.setAside),
             tags: syncThreadTags({
               ...next,
+              messageIds: Array.isArray(next.messageIds) ? next.messageIds : [],
+              collectionIds: Array.isArray(next.collectionIds) ? next.collectionIds : [],
               replyLater: Boolean(next.replyLater),
               setAside: Boolean(next.setAside),
             }),
@@ -2237,18 +2241,20 @@ export const useMailStore = create<MailStore>()(
           if (!msg) continue;
           const html = String(msg.bodyHtml || "");
           const text = String(msg.bodyText || "");
+          const attachments = Array.isArray(msg.attachments) ? msg.attachments : [];
+          let nextMsg = msg.attachments === attachments ? msg : { ...msg, attachments };
           if (html.length > MAX_BODY || text.length > MAX_BODY) {
-            messagesCapped[id] = {
-              ...msg,
+            nextMsg = {
+              ...nextMsg,
+              attachments,
               bodyHtml:
                 html.length > MAX_BODY
                   ? `${html.slice(0, MAX_BODY)}\n<!-- truncated for performance -->`
                   : html,
               bodyText: text.length > MAX_BODY ? text.slice(0, MAX_BODY) : text,
             };
-          } else {
-            messagesCapped[id] = msg;
           }
+          messagesCapped[id] = nextMsg;
         }
         const rawSettings = { ...current.settings, ...(p.settings || {}) } as typeof current.settings & {
           spamCorps?: boolean;

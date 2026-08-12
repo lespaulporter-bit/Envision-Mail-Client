@@ -136,7 +136,7 @@ export function ThreadView() {
   const subject = thread.customSubject || thread.subject;
   const workflow = workflows.find((w) => w.id === thread.workflowId);
   const stage = workflow?.stages.find((s) => s.id === thread.workflowStageId);
-  const threadCollections = collections.filter((c) => thread.collectionIds.includes(c.id));
+  const threadCollections = collections.filter((c) => (thread.collectionIds || []).includes(c.id));
   const mergeCandidates = threads.filter(
     (t) =>
       t.id !== thread.id &&
@@ -560,7 +560,7 @@ export function ThreadView() {
             >
               <option value="">{collections.length ? "Choose…" : "Create one in Collections first"}</option>
               {collections
-                .filter((c) => !thread.collectionIds.includes(c.id))
+                .filter((c) => !(thread.collectionIds || []).includes(c.id))
                 .map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}

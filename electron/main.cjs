@@ -119,15 +119,34 @@ function contentType(filePath) {
 }
 
 function resolveStaticPath(urlPath, outDir) {
-  let pathname = decodeURIComponent((urlPath || "/").split("?")[0]);
-  if (pathname.endsWith("/")) pathname += "index.html";
-  if (!path.extname(pathname)) {
-    const asDir = path.join(outDir, pathname, "index.html");
-    if (fs.existsSync(asDir)) return asDir;
-    const asHtml = path.join(outDir, `${pathname}.html`);
-    if (fs.existsSync(asHtml)) return asHtml;
+  let pathname = decodeURIComponent((urlPath || "/").split("?")[0] || "/");
+  // Strip leading slashes so URL paths never become absolute on Windows.
+  pathname = pathname.replace(/^[/\\]+/, "");
+  if (!pathname) {
+    pathname = "index.html";
+  } else if (/[/\\]$/.test(pathname)) {
+    pathname = `${pathname.replace(/[/\\]+$/, "")}/index.html`;
   }
-  return path.join(outDir, pathname);
+
+  const root = path.resolve(outDir);
+  const tryResolve = (rel) => {
+    const candidate = path.resolve(root, rel);
+    const relToRoot = path.relative(root, candidate);
+    if (!relToRoot || relToRoot.startsWith("..") || path.isAbsolute(relToRoot)) {
+      // Allow exact root only if someone asks for it; otherwise reject escapes.
+      if (candidate === root) return null;
+      if (relToRoot.startsWith("..") || path.isAbsolute(relToRoot)) return null;
+    }
+    return candidate;
+  };
+
+  if (!path.extname(pathname)) {
+    const asDir = tryResolve(path.join(pathname, "index.html"));
+    if (asDir && fs.existsSync(asDir)) return asDir;
+    const asHtml = tryResolve(`${pathname}.html`);
+    if (asHtml && fs.existsSync(asHtml)) return asHtml;
+  }
+  return tryResolve(pathname) || path.join(root, "404.html");
 }
 
 function startStaticServer() {
@@ -139,10 +158,13 @@ function startStaticServer() {
   return new Promise((resolve, reject) => {
     staticServer = http.createServer((req, res) => {
       try {
+        const root = path.resolve(outDir);
         const filePath = resolveStaticPath(req.url || "/", outDir);
-        if (!filePath.startsWith(outDir) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        const rel = path.relative(root, filePath);
+        const outside = !filePath || rel.startsWith("..") || path.isAbsolute(rel);
+        if (outside || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
           // Prefer the static 404 page so client navigations don't blank out with a raw "Not found".
-          const notFound = path.join(outDir, "404.html");
+          const notFound = path.join(root, "404.html");
           if (fs.existsSync(notFound)) {
             res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
             fs.createReadStream(notFound).pipe(res);
