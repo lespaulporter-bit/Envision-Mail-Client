@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.52
+- **Dismiss past calendar events** without deleting them. Once an event’s end time has passed, **Dismiss** clears its countdown and any active calendar reminders, keeps the event on the calendar, and moves it to a dismissed section with **Undo dismiss**.
+- Works in the day list and the day popup, for local and synced (Mac / Outlook / .ics) events. Dismiss state survives calendar re-sync.
+
 ## 2.6.51
 - **Prev / Next** while reading a conversation — move through the same list you came from without going Back first.
 - **Trash:** filter, select many, and **Restore selected** (single Restore / Delete forever still work).

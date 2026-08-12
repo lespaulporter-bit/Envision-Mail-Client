@@ -252,6 +252,9 @@ interface Actions {
   addEvent: (event: Omit<CalendarEvent, "id">) => CalendarEvent;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
   deleteEvent: (id: string) => void;
+  /** Clear a past (or any) event from countdowns/reminders without deleting it. */
+  dismissEvent: (id: string) => void;
+  undismissEvent: (id: string) => void;
   toggleCalendarVisible: (calendarId: string) => void;
   duplicateEvent: (id: string) => void;
   importMacCalendarData: (payload: {
@@ -1678,6 +1681,35 @@ export const useMailStore = create<MailStore>()(
 
       deleteEvent: (id) => set({ events: get().events.filter((e) => e.id !== id) }),
 
+      dismissEvent: (id) => {
+        const nowIso = new Date().toISOString();
+        set({
+          events: get().events.map((e) =>
+            e.id === id
+              ? withMeetingLink({
+                  ...e,
+                  dismissedAt: nowIso,
+                  countdown: false,
+                })
+              : e,
+          ),
+          reminders: (get().reminders || []).map((r) =>
+            r.source === "calendar" && r.sourceId === id && r.status !== "dismissed"
+              ? { ...r, status: "dismissed" as const }
+              : r,
+          ),
+          toast: "Dismissed — kept on the calendar, cleared from countdowns and reminders",
+        });
+      },
+
+      undismissEvent: (id) =>
+        set({
+          events: get().events.map((e) =>
+            e.id === id ? { ...e, dismissedAt: null } : e,
+          ),
+          toast: "Event restored to your active list",
+        }),
+
       toggleCalendarVisible: (calendarId) =>
         set({
           calendars: get().calendars.map((c) =>
@@ -1773,6 +1805,7 @@ export const useMailStore = create<MailStore>()(
             source,
             reminderMinutes: prev?.reminderMinutes,
             countdown: prev?.countdown,
+            dismissedAt: prev?.dismissedAt,
           });
         });
 

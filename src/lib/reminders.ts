@@ -73,6 +73,7 @@ export function collectDueReminders(opts: {
   const next: Reminder[] = [];
 
   for (const event of opts.events) {
+    if (event.dismissedAt) continue;
     // Explicit empty array = reminders disabled for this event
     if (Array.isArray(event.reminderMinutes) && event.reminderMinutes.length === 0) continue;
     const minutesList =

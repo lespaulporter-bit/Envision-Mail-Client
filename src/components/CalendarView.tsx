@@ -5,7 +5,7 @@ import { Button, Input, Textarea } from "@/components/ui";
 import { desktopApi, isDesktop, isMacDesktop, isWindowsDesktop } from "@/lib/desktop";
 import { useMailStore } from "@/lib/store";
 import type { CalendarEvent, CalendarInvitee } from "@/lib/types";
-import { externalCalendarLabel, isExternalCalendarSource } from "@/lib/types";
+import { eventHasEnded, externalCalendarLabel, isExternalCalendarSource } from "@/lib/types";
 import { formatLocalHhmmInZone, localTimezoneId } from "@/lib/timezones";
 import {
   addDays,
@@ -95,6 +95,8 @@ export function CalendarView() {
   const addEvent = useMailStore((s) => s.addEvent);
   const updateEvent = useMailStore((s) => s.updateEvent);
   const deleteEvent = useMailStore((s) => s.deleteEvent);
+  const dismissEvent = useMailStore((s) => s.dismissEvent);
+  const undismissEvent = useMailStore((s) => s.undismissEvent);
   const duplicateEvent = useMailStore((s) => s.duplicateEvent);
   const toggleCalendarVisible = useMailStore((s) => s.toggleCalendarVisible);
   const importSystemCalendarData = useMailStore((s) => s.importSystemCalendarData);
@@ -259,15 +261,25 @@ export function CalendarView() {
     const sheetDate = parseISO(daySheetDate);
     return events
       .filter((event) => isSameDay(parseISO(event.start), sheetDate))
-      .sort((a, b) => +new Date(a.start) - +new Date(b.start));
+      .sort((a, b) => {
+        const aDismissed = a.dismissedAt ? 1 : 0;
+        const bDismissed = b.dismissedAt ? 1 : 0;
+        if (aDismissed !== bDismissed) return aDismissed - bDismissed;
+        return +new Date(a.start) - +new Date(b.start);
+      });
   }, [daySheetDate, events]);
+
+  const daySheetActiveCount = useMemo(
+    () => daySheetEvents.filter((e) => !e.dismissedAt).length,
+    [daySheetEvents],
+  );
 
   const colorFor = (calendarId: string) =>
     calendars.find((c) => c.id === calendarId)?.color || "#0d9488";
 
   const countdowns = useMemo(() => {
     return filteredEvents
-      .filter((e) => e.countdown && +new Date(e.start) >= nowMs)
+      .filter((e) => !e.dismissedAt && e.countdown && +new Date(e.start) >= nowMs)
       .sort((a, b) => +new Date(a.start) - +new Date(b.start))
       .slice(0, 5)
       .map((e) => ({
@@ -275,6 +287,14 @@ export function CalendarView() {
         cd: formatCountdown(e.start, nowMs),
       }));
   }, [filteredEvents, nowMs]);
+
+  const eventsForDay = (d: Date) => {
+    const list = dayEvents(d);
+    return {
+      active: list.filter((e) => !e.dismissedAt),
+      dismissed: list.filter((e) => !!e.dismissedAt),
+    };
+  };
 
   const parseInvitees = (text: string): CalendarInvitee[] => {
     const existing = editingId ? events.find((event) => event.id === editingId)?.invitees || [] : [];
@@ -1116,7 +1136,13 @@ export function CalendarView() {
           </h3>
           {!editingId ? (
             <ul className="mb-4 space-y-3">
-              {dayEvents(date).map((e) => (
+              {(() => {
+                const { active, dismissed } = eventsForDay(date);
+                return (
+                  <>
+                    {active.map((e) => {
+                      const ended = eventHasEnded(e, nowMs);
+                      return (
                 <li key={e.id} className="rounded-xl border border-line p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
@@ -1133,6 +1159,9 @@ export function CalendarView() {
                         ) : null}
                         {e.allDay ? (
                           <span className="ml-2 text-xs font-normal text-muted">All day</span>
+                        ) : null}
+                        {ended ? (
+                          <span className="ml-2 text-xs font-normal text-muted">Past</span>
                         ) : null}
                       </div>
                       <div className="text-sm text-muted">
@@ -1170,6 +1199,11 @@ export function CalendarView() {
                       ) : null}
                     </div>
                     <div className="flex flex-wrap gap-1">
+                      {ended ? (
+                        <Button size="sm" variant="soft" onClick={() => dismissEvent(e.id)}>
+                          Dismiss
+                        </Button>
+                      ) : null}
                       <Button size="sm" variant="soft" onClick={() => beginEdit(e)}>
                         Edit
                       </Button>
@@ -1197,10 +1231,38 @@ export function CalendarView() {
                     </div>
                   </div>
                 </li>
-              ))}
-              {dayEvents(date).length === 0 ? (
-                <li className="text-sm text-muted">No events yet — create one below or click a time slot.</li>
-              ) : null}
+                      );
+                    })}
+                    {dismissed.length > 0 ? (
+                      <li className="space-y-2 border-t border-dashed border-line pt-3">
+                        <p className="text-xs font-medium text-muted">
+                          Dismissed ({dismissed.length}) — cleared from countdowns & reminders
+                        </p>
+                        {dismissed.map((e) => (
+                          <div
+                            key={e.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-canvas/60 px-3 py-2 text-sm text-muted"
+                          >
+                            <span>
+                              <span
+                                className="mr-2 inline-block h-2 w-2 rounded-full opacity-60"
+                                style={{ background: colorFor(e.calendarId) }}
+                              />
+                              {e.title}
+                            </span>
+                            <Button size="sm" variant="ghost" onClick={() => undismissEvent(e.id)}>
+                              Undo dismiss
+                            </Button>
+                          </div>
+                        ))}
+                      </li>
+                    ) : null}
+                    {active.length === 0 && dismissed.length === 0 ? (
+                      <li className="text-sm text-muted">No events yet — create one below or click a time slot.</li>
+                    ) : null}
+                  </>
+                );
+              })()}
             </ul>
           ) : null}
 
@@ -1626,8 +1688,12 @@ export function CalendarView() {
                   {format(parseISO(daySheetDate), "EEEE, MMMM d")}
                 </h2>
                 <p className="mt-0.5 text-xs text-muted">
-                  {daySheetEvents.length} event
-                  {daySheetEvents.length === 1 ? "" : "s"} · add or edit below
+                  {daySheetActiveCount} event
+                  {daySheetActiveCount === 1 ? "" : "s"}
+                  {daySheetEvents.length > daySheetActiveCount
+                    ? ` · ${daySheetEvents.length - daySheetActiveCount} dismissed`
+                    : ""}{" "}
+                  · add or edit below
                 </p>
               </div>
               <Button type="button" size="sm" variant="ghost" onClick={closeDaySheet}>
@@ -1639,8 +1705,14 @@ export function CalendarView() {
               {!daySheetCompose ? (
                 <>
                   <ul className="space-y-2">
-                    {daySheetEvents.map((e) => (
-                      <li key={e.id} className="rounded-xl border border-line p-3">
+                    {daySheetEvents.map((e) => {
+                      const ended = eventHasEnded(e, nowMs);
+                      const dismissed = !!e.dismissedAt;
+                      return (
+                      <li
+                        key={e.id}
+                        className={`rounded-xl border border-line p-3 ${dismissed ? "bg-canvas/50 opacity-80" : ""}`}
+                      >
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
                             <div className="font-semibold text-ink">
@@ -1654,6 +1726,11 @@ export function CalendarView() {
                                   {externalCalendarLabel(e.source)}
                                 </span>
                               ) : null}
+                              {dismissed ? (
+                                <span className="ml-2 text-xs font-normal text-muted">Dismissed</span>
+                              ) : ended ? (
+                                <span className="ml-2 text-xs font-normal text-muted">Past</span>
+                              ) : null}
                             </div>
                             <div className="mt-0.5 text-sm text-muted">
                               {e.allDay
@@ -1661,7 +1738,7 @@ export function CalendarView() {
                                 : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
                               {e.location ? ` · ${e.location}` : ""}
                             </div>
-                            {e.countdown && +new Date(e.start) >= nowMs ? (
+                            {e.countdown && !dismissed && +new Date(e.start) >= nowMs ? (
                               <div
                                 className={`mt-0.5 font-mono text-xs tracking-tight ${
                                   formatCountdown(e.start, nowMs).urgent
@@ -1692,6 +1769,15 @@ export function CalendarView() {
                             ) : null}
                           </div>
                           <div className="flex flex-wrap gap-1">
+                            {dismissed ? (
+                              <Button size="sm" variant="soft" onClick={() => undismissEvent(e.id)}>
+                                Undo dismiss
+                              </Button>
+                            ) : ended ? (
+                              <Button size="sm" variant="soft" onClick={() => dismissEvent(e.id)}>
+                                Dismiss
+                              </Button>
+                            ) : null}
                             <Button
                               size="sm"
                               variant="soft"
@@ -1703,13 +1789,15 @@ export function CalendarView() {
                             >
                               Edit
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="soft"
-                              onClick={() => updateEvent(e.id, { countdown: !e.countdown })}
-                            >
-                              {e.countdown ? "Countdown ✓" : "Countdown"}
-                            </Button>
+                            {!dismissed ? (
+                              <Button
+                                size="sm"
+                                variant="soft"
+                                onClick={() => updateEvent(e.id, { countdown: !e.countdown })}
+                              >
+                                {e.countdown ? "Countdown ✓" : "Countdown"}
+                              </Button>
+                            ) : null}
                             {isDesktop() && accountId && (e.invitees?.length || 0) > 0 ? (
                               <Button
                                 size="sm"
@@ -1735,7 +1823,8 @@ export function CalendarView() {
                           </div>
                         </div>
                       </li>
-                    ))}
+                      );
+                    })}
                     {daySheetEvents.length === 0 ? (
                       <li className="rounded-xl border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
                         Nothing scheduled — create an event for this day.

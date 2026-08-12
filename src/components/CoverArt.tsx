@@ -30,7 +30,7 @@ export function CoverArt() {
   const upcoming = useMemo(
     () =>
       events
-        .filter((e) => +new Date(e.end) >= nowMs)
+        .filter((e) => !e.dismissedAt && +new Date(e.end) >= nowMs)
         .sort((a, b) => +new Date(a.start) - +new Date(b.start))
         .slice(0, 5),
     [events, nowMs],
@@ -39,7 +39,7 @@ export function CoverArt() {
   const countdowns = useMemo(
     () =>
       events
-        .filter((e) => e.countdown && +new Date(e.start) >= nowMs)
+        .filter((e) => !e.dismissedAt && e.countdown && +new Date(e.start) >= nowMs)
         .sort((a, b) => +new Date(a.start) - +new Date(b.start))
         .slice(0, 5),
     [events, nowMs],

@@ -192,6 +192,14 @@ export interface CalendarEvent {
   invitesSentAt?: string | null;
   externalId?: string | null;
   source?: "local" | "mac" | "windows" | "ics" | null;
+  /** Cleared from active attention after the event has passed — not deleted. */
+  dismissedAt?: string | null;
+}
+
+/** True once the event's end (or start if no end) is in the past. */
+export function eventHasEnded(event: CalendarEvent, nowMs = Date.now()) {
+  const end = +new Date(event.end || event.start);
+  return Number.isFinite(end) && end < nowMs;
 }
 
 export interface SubCalendar {
