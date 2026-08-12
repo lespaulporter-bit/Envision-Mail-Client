@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.61
+- **Load crash fixed.** Oversized email HTML (10MB+ newsletters with embedded images) was ballooning local state to ~80MB and breaking the app on open with “This page couldn’t load.”
+- Message bodies are capped on sync and pruned on load; state moves over IPC as a string to avoid cloning a huge object graph.
+- Logo no longer navigates away from the mail UI; marketing “Open app” uses a full page load. Added an in-app error screen with Reload.
+
 ## 2.6.60
 - **Signature fix.** Choosing a signature no longer dumps raw HTML into the Compose / Reply text box. Signatures attach as formatted HTML when you send (via **Signature for send** / **Signature (on send)**).
 - Compose auto-cleans any leftover markup already stuck in a draft. Templates and snippets insert plain text into the box.

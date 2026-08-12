@@ -1,4 +1,23 @@
-import Link from "next/link";
+import type { CSSProperties, ReactNode } from "react";
+
+/** Full document navigation into the app — avoids Next soft-nav failures in the Electron static shell. */
+function AppEntry({
+  href = "/app/",
+  className,
+  style,
+  children,
+}: {
+  href?: string;
+  className?: string;
+  style?: CSSProperties;
+  children: ReactNode;
+}) {
+  return (
+    <a href={href} className={className} style={style}>
+      {children}
+    </a>
+  );
+}
 
 const features = [
   { title: "Screening", body: "New senders land here. Allow → MoneyBox $ forever — or leave them in Screening." },
@@ -41,19 +60,19 @@ export default function HomePage() {
           <a href="#features" className="font-medium text-teal hover:text-ink">
             Features
           </a>
-          <Link
+          <AppEntry
             href="/app/"
             className="rounded-lg border border-teal/30 bg-white px-3.5 py-2 font-semibold text-teal shadow-sm hover:bg-[#e6f7f3]"
           >
             Open app
-          </Link>
-          <Link
+          </AppEntry>
+          <AppEntry
             href="/app/"
             className="rounded-lg px-3.5 py-2 font-semibold text-white shadow-sm hover:brightness-105"
             style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", color: "#ffffff" }}
           >
             Get started
-          </Link>
+          </AppEntry>
         </nav>
       </header>
 
@@ -69,13 +88,13 @@ export default function HomePage() {
               Sync and send for real.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
+              <AppEntry
                 href="/app/"
                 className="rounded-xl px-5 py-3 font-semibold text-white shadow-md transition hover:brightness-105"
                 style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", color: "#ffffff" }}
               >
                 Open Envision Mail
-              </Link>
+              </AppEntry>
               <a
                 href="#how"
                 className="rounded-xl bg-white px-5 py-3 font-semibold text-ink ring-1 ring-line hover:ring-teal/40"

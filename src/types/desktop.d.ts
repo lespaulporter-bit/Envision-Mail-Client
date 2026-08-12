@@ -134,8 +134,8 @@ export interface LesMailDesktopApi {
     nextSkipNewest?: number;
     hasMore?: boolean;
   }>;
-  loadAppState: () => Promise<unknown>;
-  saveAppState: (payload: unknown) => Promise<{ ok: boolean; path?: string }>;
+  loadAppState: () => Promise<string | { state?: unknown; version?: number } | null>;
+  saveAppState: (payload: string | unknown) => Promise<{ ok: boolean; path?: string }>;
   sendMail: (payload: {
     accountId: string;
     to: string;

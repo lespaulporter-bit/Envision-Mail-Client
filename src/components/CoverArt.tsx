@@ -116,7 +116,15 @@ export function CoverArt() {
                   <li key={e.id}>
                     <button type="button" className="text-left hover:underline" onClick={() => setView("calendar")}>
                       <div className="font-medium">{e.title}</div>
-                      <div className="text-white/70">{format(parseISO(e.start), "EEE h:mm a")}</div>
+                      <div className="text-white/70">
+                        {(() => {
+                          try {
+                            return format(parseISO(e.start), "EEE h:mm a");
+                          } catch {
+                            return e.start;
+                          }
+                        })()}
+                      </div>
                     </button>
                   </li>
                 ))}
@@ -132,7 +140,15 @@ export function CoverArt() {
                     <li key={e.id} className={cd.urgent ? "text-amber-200" : ""}>
                       <div className="font-mono text-base font-semibold tracking-tight">{cd.label}</div>
                       <div className="text-white/80">{e.title}</div>
-                      <div className="text-[11px] text-white/55">{format(parseISO(e.start), "EEE MMM d · h:mm a")}</div>
+                      <div className="text-[11px] text-white/55">
+                        {(() => {
+                          try {
+                            return format(parseISO(e.start), "EEE MMM d · h:mm a");
+                          } catch {
+                            return e.start;
+                          }
+                        })()}
+                      </div>
                     </li>
                   );
                 })}

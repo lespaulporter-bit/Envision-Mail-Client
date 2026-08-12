@@ -227,6 +227,14 @@ function sanitizeHtml(html) {
     .replace(/src=["']https?:\/\/[^"']*(?:track|pixel|beacon)[^"']*["']/gi, 'src=""');
 }
 
+/** Cap stored HTML so one newsletter with embedded images can't blow up app state (~80MB+). */
+const MAX_STORED_BODY = 400_000;
+function capStoredBody(html) {
+  const raw = String(html || "");
+  if (raw.length <= MAX_STORED_BODY) return raw;
+  return `${raw.slice(0, MAX_STORED_BODY)}\n<!-- truncated for performance -->`;
+}
+
 function idPrefixForFolder(accountId, folder) {
   if (folder === "sent") return `imap_${accountId}_sent`;
   if (folder === "spam") return `imap_${accountId}_spam`;
@@ -238,7 +246,9 @@ async function parseFetchedMessage(msg, account, folder) {
   const parsed = await simpleParser(msg.source);
   const fromAddr = parsed.from?.value?.[0] || {};
   const toAddrs = (parsed.to?.value || []).map((v) => v.address).filter(Boolean);
-  const html = sanitizeHtml(parsed.html || `<p>${(parsed.text || "").replace(/\n/g, "<br/>")}</p>`);
+  const html = capStoredBody(
+    sanitizeHtml(parsed.html || `<p>${(parsed.text || "").replace(/\n/g, "<br/>")}</p>`),
+  );
   const messageId = `${idPrefixForFolder(account.id, folder)}_${msg.uid}`;
   const attachments = (parsed.attachments || []).map((a, idx) => ({
     id: `att_${folder}_${msg.uid}_${idx}`,
@@ -250,6 +260,7 @@ async function parseFetchedMessage(msg, account, folder) {
     receivedAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
   }));
   const unsub = extractUnsubscribeInfo(parsed, html);
+  const bodyTextRaw = parsed.text || stripHtml(html);
   return {
     uid: msg.uid,
     folder,
@@ -261,7 +272,7 @@ async function parseFetchedMessage(msg, account, folder) {
     to: toAddrs.length ? toAddrs : [account.email],
     subject: parsed.subject || "(no subject)",
     bodyHtml: html,
-    bodyText: parsed.text || stripHtml(html),
+    bodyText: capStoredBody(bodyTextRaw),
     sentAt: (parsed.date || msg.internalDate || new Date()).toISOString(),
     seen: Boolean(msg.flags?.has("\\Seen")),
     attachments,

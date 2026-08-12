@@ -141,6 +141,13 @@ function startStaticServer() {
       try {
         const filePath = resolveStaticPath(req.url || "/", outDir);
         if (!filePath.startsWith(outDir) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+          // Prefer the static 404 page so client navigations don't blank out with a raw "Not found".
+          const notFound = path.join(outDir, "404.html");
+          if (fs.existsSync(notFound)) {
+            res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+            fs.createReadStream(notFound).pipe(res);
+            return;
+          }
           res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
           res.end("Not found");
           return;

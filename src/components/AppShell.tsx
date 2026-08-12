@@ -279,7 +279,7 @@ export function AppShell() {
       <WallpaperBackground />
       <aside className="sticky top-0 flex h-screen w-[240px] shrink-0 flex-col border-r border-line bg-white/70 backdrop-blur">
         <div className="border-b border-line px-4 py-4">
-          <BrandLogo href="/" showVersion />
+          <BrandLogo href="" showVersion />
           {accounts.length > 0 ? (
             <label className="relative mt-3 block">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted">

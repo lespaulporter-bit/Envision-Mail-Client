@@ -347,23 +347,36 @@ function createDurableStorage() {
       try {
         const api = typeof window !== "undefined" ? window.lesMail : undefined;
         if (api?.loadAppState) {
-          const file = (await api.loadAppState()) as { state?: unknown; version?: number } | null;
-          if (file && file.state && typeof file.state === "object") {
-            const threads = (file.state as { threads?: unknown[] }).threads;
-            const collections = (file.state as { collections?: unknown[] }).collections;
-            const hasData =
-              (Array.isArray(threads) && threads.length > 0) ||
-              (Array.isArray(collections) && collections.length > 0);
-            if (hasData || !localStorage.getItem(name)) {
-              const wrapped = JSON.stringify({ state: file.state, version: file.version ?? 0 });
-              memory = wrapped;
-              try {
-                localStorage.setItem(name, wrapped);
-              } catch {
-                /* quota */
+          const file = await api.loadAppState();
+          let wrapped: string | null = null;
+          if (typeof file === "string" && file.trim()) {
+            wrapped = file;
+          } else if (file && typeof file === "object" && (file as { state?: unknown }).state) {
+            wrapped = JSON.stringify({
+              state: (file as { state: unknown }).state,
+              version: (file as { version?: number }).version ?? 0,
+            });
+          }
+          if (wrapped) {
+            try {
+              const parsed = JSON.parse(wrapped) as { state?: { threads?: unknown[]; collections?: unknown[] } };
+              const threads = parsed.state?.threads;
+              const collections = parsed.state?.collections;
+              const hasData =
+                (Array.isArray(threads) && threads.length > 0) ||
+                (Array.isArray(collections) && collections.length > 0);
+              if (hasData || !localStorage.getItem(name)) {
+                memory = wrapped;
+                try {
+                  localStorage.setItem(name, wrapped);
+                } catch {
+                  /* quota — file-backed string is enough */
+                }
+                hydratedFromFile = true;
+                return wrapped;
               }
-              hydratedFromFile = true;
-              return wrapped;
+            } catch {
+              /* fall through */
             }
           }
         }
@@ -398,8 +411,8 @@ function createDurableStorage() {
       try {
         const api = typeof window !== "undefined" ? window.lesMail : undefined;
         if (api?.saveAppState) {
-          const parsed = JSON.parse(value) as { state?: unknown; version?: number };
-          await api.saveAppState(parsed);
+          // Pass the string through IPC — avoids cloning a huge object graph twice.
+          await api.saveAppState(value);
         }
       } catch (err) {
         console.warn("saveAppState failed", err);
@@ -2217,6 +2230,26 @@ export const useMailStore = create<MailStore>()(
         });
         const rescued = backfillImapAccountIds(threads, messages);
         const contacts = contactsRaw;
+        // Cap any legacy multi‑MB bodies that slipped in before the IMAP size guard.
+        const MAX_BODY = 400_000;
+        const messagesCapped: typeof messages = {};
+        for (const [id, msg] of Object.entries(messages || {})) {
+          if (!msg) continue;
+          const html = String(msg.bodyHtml || "");
+          const text = String(msg.bodyText || "");
+          if (html.length > MAX_BODY || text.length > MAX_BODY) {
+            messagesCapped[id] = {
+              ...msg,
+              bodyHtml:
+                html.length > MAX_BODY
+                  ? `${html.slice(0, MAX_BODY)}\n<!-- truncated for performance -->`
+                  : html,
+              bodyText: text.length > MAX_BODY ? text.slice(0, MAX_BODY) : text,
+            };
+          } else {
+            messagesCapped[id] = msg;
+          }
+        }
         const rawSettings = { ...current.settings, ...(p.settings || {}) } as typeof current.settings & {
           spamCorps?: boolean;
         };
@@ -2271,7 +2304,7 @@ export const useMailStore = create<MailStore>()(
           ...p,
           threads: rescued,
           contacts,
-          messages,
+          messages: messagesCapped,
           clips,
           signatures: p.signatures || current.signatures || [],
           snippets: p.snippets?.length ? p.snippets : current.snippets || [],
