@@ -12,6 +12,7 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { parseRecipientEmails } from "@/lib/recipient-suggest";
 import { desktopApi, sendShortcutHint, thisComputerLabel } from "@/lib/desktop";
+import { filterByActiveAccount } from "@/lib/account-scope";
 import { selectAccountThreads, selectDockThreads, useMailStore } from "@/lib/store";
 import { clipBelongsToAccount } from "@/lib/account-scope";
 import { blockAllFromSenderSmart } from "@/lib/mail-delete";
@@ -387,7 +388,7 @@ function byNewest(a: Thread, b: Thread) {
 }
 
 export function CollectionsView() {
-  const collections = useMailStore((s) => s.collections);
+  const collections = useMailStore((s) => filterByActiveAccount(s.collections, s.inboxAccountId));
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
@@ -501,7 +502,7 @@ export function CollectionsView() {
 }
 
 export function WorkflowsView() {
-  const workflows = useMailStore((s) => s.workflows);
+  const workflows = useMailStore((s) => filterByActiveAccount(s.workflows, s.inboxAccountId));
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);

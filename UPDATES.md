@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.59
+- **Strict account tenancy.** Calendar events, calendars, habits, journal, day labels, “Sometime this week,” reminders, pipelines, and collections are stamped with the active account and never show under another inbox.
+- Day Cover / Calendar / reminder pop-ups filter by the active account. Sync Mac / Outlook / .ics attaches to the account you synced under.
+- Legacy unscoped schedule data is claimed by the first account you switch into after updating — then stays with that account only.
+
 ## 2.6.58
 - **Emails open collapsed.** Every message in a thread starts collapsed with a purple **Expand** / **Collapse** control at the top; **Expand all** / **Collapse all** match the same look.
 - Calendar Teams copy uses **this Mac** / **this PC** correctly per platform.

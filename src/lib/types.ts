@@ -154,6 +154,8 @@ export interface Collection {
   name: string;
   threadIds: string[];
   shared: boolean;
+  /** Owning inbox — never shown under another account. */
+  accountId?: string | null;
 }
 
 export interface WorkflowStage {
@@ -166,6 +168,8 @@ export interface Workflow {
   id: string;
   name: string;
   stages: WorkflowStage[];
+  /** Owning inbox — never shown under another account. */
+  accountId?: string | null;
 }
 
 export interface CalendarInvitee {
@@ -194,6 +198,8 @@ export interface CalendarEvent {
   source?: "local" | "mac" | "windows" | "ics" | null;
   /** Cleared from active attention after the event has passed — not deleted. */
   dismissedAt?: string | null;
+  /** Owning inbox — schedule never crosses accounts. */
+  accountId?: string | null;
 }
 
 /** True once the event's end (or start if no end) is in the past. */
@@ -209,6 +215,8 @@ export interface SubCalendar {
   visible: boolean;
   source?: "local" | "mac" | "windows" | "ics";
   externalId?: string | null;
+  /** Owning inbox — calendars never cross accounts. */
+  accountId?: string | null;
 }
 
 /** Synced from Mac Calendar, Windows Outlook, or an imported .ics — not created inside Envision. */
@@ -228,18 +236,21 @@ export interface Habit {
   name: string;
   color: string;
   completedDates: string[];
+  accountId?: string | null;
 }
 
 export interface JournalEntry {
   id: string;
   date: string;
   body: string;
+  accountId?: string | null;
 }
 
 export interface DayLabel {
   id: string;
   date: string;
   label: string;
+  accountId?: string | null;
 }
 
 export interface SometimeTask {
@@ -251,6 +262,7 @@ export interface SometimeTask {
   weekKey?: string;
   /** True after an unchecked task rolled from a prior week */
   carriedOver?: boolean;
+  accountId?: string | null;
 }
 
 /** Outlook-style on-screen reminder (calendar, mail, or manual) */
@@ -268,6 +280,7 @@ export interface Reminder {
   location?: string;
   meetingUrl?: string;
   createdAt: string;
+  accountId?: string | null;
 }
 
 export interface Settings {

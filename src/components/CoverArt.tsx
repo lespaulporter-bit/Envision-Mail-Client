@@ -4,15 +4,18 @@ import { Button } from "@/components/ui";
 import { ExternalLink } from "@/components/MeetingLink";
 import { resolveMeetingLink } from "@/lib/meeting-links";
 import { useMailStore } from "@/lib/store";
+import { filterByActiveAccount } from "@/lib/account-scope";
 import { formatCountdown, localYmd } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 
 export function CoverArt() {
   const settings = useMailStore((s) => s.settings);
-  const events = useMailStore((s) => s.events);
-  const habits = useMailStore((s) => s.habits);
-  const sometimeTasks = useMailStore((s) => s.sometimeTasks);
+  const events = useMailStore((s) => filterByActiveAccount(s.events, s.inboxAccountId));
+  const habits = useMailStore((s) => filterByActiveAccount(s.habits, s.inboxAccountId));
+  const sometimeTasks = useMailStore((s) =>
+    filterByActiveAccount(s.sometimeTasks, s.inboxAccountId),
+  );
   const toggleHabit = useMailStore((s) => s.toggleHabit);
   const toggleSometimeTask = useMailStore((s) => s.toggleSometimeTask);
   const addSometimeTask = useMailStore((s) => s.addSometimeTask);

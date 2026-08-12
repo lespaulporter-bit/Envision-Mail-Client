@@ -78,3 +78,32 @@ export function clipBelongsToAccount(
   if (!thread) return false;
   return threadBelongsToAccount(thread, accountId, messages);
 }
+
+/** Strict tenancy for stamped workspace data (calendar, habits, boards, …). */
+export function belongsToActiveAccount(
+  item: { accountId?: string | null } | null | undefined,
+  accountId: string | null | undefined,
+) {
+  if (!accountId) return true;
+  if (!item) return false;
+  return item.accountId === accountId;
+}
+
+export function filterByActiveAccount<T extends { accountId?: string | null }>(
+  items: T[] | null | undefined,
+  accountId: string | null | undefined,
+): T[] {
+  const list = items || [];
+  if (!accountId) return list;
+  return list.filter((item) => item.accountId === accountId);
+}
+
+/** Assign legacy unscoped rows to an account once (upgrade path — stops cross-account leaks). */
+export function stampMissingAccountId<T extends { accountId?: string | null }>(
+  items: T[] | null | undefined,
+  accountId: string | null | undefined,
+): T[] {
+  const list = items || [];
+  if (!accountId) return list;
+  return list.map((item) => (item.accountId ? item : { ...item, accountId }));
+}

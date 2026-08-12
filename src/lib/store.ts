@@ -30,7 +30,7 @@ import { normalizeSometimeTasks, weekStartKey } from "./sometime-tasks";
 import { mergeRecentRecipients } from "./recipient-suggest";
 import { localYmd, uid } from "./utils";
 import { parseMailtoUrl } from "./mailto";
-import { inferThreadAccountId, threadBelongsToAccount } from "./account-scope";
+import { inferThreadAccountId, threadBelongsToAccount, stampMissingAccountId, filterByActiveAccount, belongsToActiveAccount } from "./account-scope";
 import { withMeetingLink } from "./meeting-links";
 
 export type AppView =
@@ -506,6 +506,16 @@ export const useMailStore = create<MailStore>()(
             : { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
           view: silent ? get().view : "lesbox",
           settings: nextSettings,
+          // Claim any legacy unscoped workspace rows for this account once (never reassign owned rows).
+          events: stampMissingAccountId(get().events, accountId),
+          calendars: stampMissingAccountId(get().calendars, accountId),
+          habits: stampMissingAccountId(get().habits, accountId),
+          journal: stampMissingAccountId(get().journal, accountId),
+          dayLabels: stampMissingAccountId(get().dayLabels, accountId),
+          sometimeTasks: stampMissingAccountId(get().sometimeTasks, accountId),
+          reminders: stampMissingAccountId(get().reminders || [], accountId),
+          collections: stampMissingAccountId(get().collections, accountId),
+          workflows: stampMissingAccountId(get().workflows, accountId),
           toast: silent
             ? get().toast
             : accountId && meta?.email
@@ -1028,7 +1038,16 @@ export const useMailStore = create<MailStore>()(
 
       createCollection: (name) =>
         set({
-          collections: [...get().collections, { id: uid("col"), name, threadIds: [], shared: false }],
+          collections: [
+            ...get().collections,
+            {
+              id: uid("col"),
+              name,
+              threadIds: [],
+              shared: false,
+              accountId: get().inboxAccountId ?? null,
+            },
+          ],
           toast: `Collection “${name}” created`,
         }),
 
@@ -1659,17 +1678,44 @@ export const useMailStore = create<MailStore>()(
       },
 
       addEvent: (event) => {
-        const fallbackCal =
-          get().calendars.find((c) => !isExternalCalendarSource(c.source) && c.visible)?.id ||
-          get().calendars[0]?.id ||
-          "cal_default";
+        const accountId = event.accountId ?? get().inboxAccountId ?? null;
+        let calendars = get().calendars;
+        const localForAccount = calendars.find(
+          (c) =>
+            !isExternalCalendarSource(c.source) &&
+            c.visible &&
+            belongsToActiveAccount(c, accountId),
+        );
+        let fallbackCal = localForAccount?.id;
+        if (!fallbackCal && accountId) {
+          fallbackCal = uid("cal");
+          calendars = [
+            ...calendars,
+            {
+              id: fallbackCal,
+              name: "Personal",
+              color: "#0d9488",
+              visible: true,
+              source: "local" as const,
+              accountId,
+            },
+          ];
+        }
+        if (!fallbackCal) {
+          fallbackCal =
+            calendars.find((c) => !isExternalCalendarSource(c.source) && c.visible)?.id ||
+            calendars[0]?.id ||
+            "cal_default";
+        }
         const created: CalendarEvent = withMeetingLink({
           ...event,
           id: uid("e"),
           calendarId: event.calendarId || fallbackCal,
           source: event.source ?? "local",
+          accountId,
         });
         set({
+          calendars,
           events: [...get().events, created],
           toast: "Event added",
         });
@@ -1748,13 +1794,19 @@ export const useMailStore = create<MailStore>()(
         const toastVerb = source === "ics" ? "Imported" : "Synced";
         const toastNoun =
           source === "windows" ? "Outlook" : source === "ics" ? "calendar" : "Mac";
+        const accountId = get().inboxAccountId ?? null;
 
         let calendars = [...get().calendars];
         const calIdByExternal = new Map<string, string>();
 
         incomingCals.forEach((mc, i) => {
           const externalId = String(mc.id);
-          const existing = calendars.find((c) => c.source === source && c.externalId === externalId);
+          const existing = calendars.find(
+            (c) =>
+              c.source === source &&
+              c.externalId === externalId &&
+              belongsToActiveAccount(c, accountId),
+          );
           if (existing) {
             calendars = calendars.map((c) =>
               c.id === existing.id
@@ -1765,6 +1817,7 @@ export const useMailStore = create<MailStore>()(
                     visible: c.visible,
                     source,
                     externalId,
+                    accountId,
                   }
                 : c,
             );
@@ -1778,20 +1831,28 @@ export const useMailStore = create<MailStore>()(
               visible: true,
               source,
               externalId,
+              accountId,
             });
             calIdByExternal.set(externalId, id);
           }
         });
 
-        // Replace only events from this same external source — leave local + other OS syncs alone.
-        const keepOther = get().events.filter((e) => e.source !== source);
+        // Replace only this account’s events from this external source.
+        const keepOther = get().events.filter(
+          (e) => !(e.source === source && belongsToActiveAccount(e, accountId)),
+        );
         const merged = incomingEvents.map((me) => {
           const externalId = String(me.id);
-          const prev = get().events.find((e) => e.source === source && e.externalId === externalId);
+          const prev = get().events.find(
+            (e) =>
+              e.source === source &&
+              e.externalId === externalId &&
+              belongsToActiveAccount(e, accountId),
+          );
           const calendarId =
             calIdByExternal.get(String(me.calendarId)) ||
             prev?.calendarId ||
-            calendars.find((c) => c.source === source)?.id ||
+            calendars.find((c) => c.source === source && belongsToActiveAccount(c, accountId))?.id ||
             calendars[0]?.id ||
             "cal_default";
           // Outlook/Mac often leave Teams/Zoom join URLs in notes or location.
@@ -1809,6 +1870,7 @@ export const useMailStore = create<MailStore>()(
             reminderMinutes: prev?.reminderMinutes,
             countdown: prev?.countdown,
             dismissedAt: prev?.dismissedAt,
+            accountId,
           });
         });
 
@@ -1845,6 +1907,7 @@ export const useMailStore = create<MailStore>()(
               createdAt: new Date().toISOString(),
               weekKey: weekStartKey(),
               carriedOver: false,
+              accountId: get().inboxAccountId ?? null,
             },
             ...normalizeSometimeTasks(get().sometimeTasks || []),
           ],
@@ -1879,24 +1942,30 @@ export const useMailStore = create<MailStore>()(
       },
 
       setJournal: (date, body) => {
-        const existing = get().journal.find((j) => j.date === date);
+        const accountId = get().inboxAccountId ?? null;
+        const existing = get().journal.find(
+          (j) => j.date === date && belongsToActiveAccount(j, accountId),
+        );
         if (existing) {
-          set({ journal: get().journal.map((j) => (j.date === date ? { ...j, body } : j)) });
+          set({ journal: get().journal.map((j) => (j.id === existing.id ? { ...j, body } : j)) });
         } else {
-          set({ journal: [...get().journal, { id: uid("j"), date, body }] });
+          set({ journal: [...get().journal, { id: uid("j"), date, body, accountId }] });
         }
       },
 
       setDayLabel: (date, label) => {
-        const existing = get().dayLabels.find((d) => d.date === date);
+        const accountId = get().inboxAccountId ?? null;
+        const existing = get().dayLabels.find(
+          (d) => d.date === date && belongsToActiveAccount(d, accountId),
+        );
         if (existing) {
           set({
             dayLabels: label
-              ? get().dayLabels.map((d) => (d.date === date ? { ...d, label } : d))
-              : get().dayLabels.filter((d) => d.date !== date),
+              ? get().dayLabels.map((d) => (d.id === existing.id ? { ...d, label } : d))
+              : get().dayLabels.filter((d) => d.id !== existing.id),
           });
         } else if (label) {
-          set({ dayLabels: [...get().dayLabels, { id: uid("dl"), date, label }] });
+          set({ dayLabels: [...get().dayLabels, { id: uid("dl"), date, label, accountId }] });
         }
       },
 
@@ -1907,27 +1976,39 @@ export const useMailStore = create<MailStore>()(
         start.setHours(start.getHours() + 24, 0, 0, 0);
         const end = new Date(start);
         end.setHours(end.getHours() + 1);
+        const accountId =
+          inferThreadAccountId(thread, get().messages) || get().inboxAccountId || null;
         get().addEvent({
           title: thread.customSubject || thread.subject,
           start: start.toISOString(),
           end: end.toISOString(),
           calendarId:
-            get().calendars.find((c) => !isExternalCalendarSource(c.source))?.id ||
+            get().calendars.find(
+              (c) => !isExternalCalendarSource(c.source) && belongsToActiveAccount(c, accountId),
+            )?.id ||
             get().calendars[0]?.id ||
             "cal_default",
           fromThreadId: threadId,
           reminderMinutes: [15],
+          accountId,
         });
         set({ view: "calendar", toast: "Event created with a 15-minute reminder" });
       },
 
       tickReminders: () => {
         const state = get();
+        const accountId = state.inboxAccountId;
         const existing = state.reminders || [];
         let reminders = activatePendingReminders(existing);
+        const scopedEvents = filterByActiveAccount(state.events || [], accountId);
+        const scopedThreads = accountId
+          ? (state.threads || []).filter((t) =>
+              threadBelongsToAccount(t, accountId, state.messages),
+            )
+          : state.threads || [];
         const incoming = collectDueReminders({
-          events: state.events || [],
-          threads: state.threads || [],
+          events: scopedEvents,
+          threads: scopedThreads,
           existing: reminders,
         });
         reminders = mergeNewReminders(reminders, incoming);
@@ -1960,6 +2041,11 @@ export const useMailStore = create<MailStore>()(
           id: uid("rem"),
           status: "pending",
           createdAt: new Date().toISOString(),
+          accountId:
+            draft.accountId ||
+            inferThreadAccountId(thread, get().messages) ||
+            get().inboxAccountId ||
+            null,
         };
         set({
           reminders: [...(get().reminders || []), reminder],
@@ -2011,6 +2097,7 @@ export const useMailStore = create<MailStore>()(
             {
               id: uid("wf"),
               name,
+              accountId: get().inboxAccountId ?? null,
               stages: [
                 { id: uid("ws"), name: "Needs reply", color: "#FF5A36" },
                 { id: uid("ws"), name: "In review", color: "#F5A623" },
@@ -2187,21 +2274,52 @@ export const useMailStore = create<MailStore>()(
           messages,
           clips,
           signatures: p.signatures || current.signatures || [],
-          collections: p.collections?.length ? p.collections : current.collections || [],
-          workflows: p.workflows?.length ? p.workflows : current.workflows || [],
           snippets: p.snippets?.length ? p.snippets : current.snippets || [],
           emailTemplates: p.emailTemplates?.length
             ? p.emailTemplates
             : current.emailTemplates || [],
-          reminders: Array.isArray(p.reminders) ? p.reminders : current.reminders || [],
+          reminders: stampMissingAccountId(
+            Array.isArray(p.reminders) ? p.reminders : current.reminders || [],
+            p.inboxAccountId ?? current.inboxAccountId ?? null,
+          ),
           recentRecipients: Array.isArray(p.recentRecipients)
             ? p.recentRecipients
             : current.recentRecipients || [],
-          sometimeTasks: normalizeSometimeTasks(
-            Array.isArray(p.sometimeTasks) ? p.sometimeTasks : current.sometimeTasks || [],
+          sometimeTasks: stampMissingAccountId(
+            normalizeSometimeTasks(
+              Array.isArray(p.sometimeTasks) ? p.sometimeTasks : current.sometimeTasks || [],
+            ),
+            p.inboxAccountId ?? current.inboxAccountId ?? null,
           ),
           // Backfills join links for events saved before Envision Mail read notes/location.
-          events: (Array.isArray(p.events) ? p.events : current.events || []).map(withMeetingLink),
+          events: stampMissingAccountId(
+            (Array.isArray(p.events) ? p.events : current.events || []).map(withMeetingLink),
+            p.inboxAccountId ?? current.inboxAccountId ?? null,
+          ),
+          calendars: stampMissingAccountId(
+            Array.isArray(p.calendars) ? p.calendars : current.calendars || [],
+            p.inboxAccountId ?? current.inboxAccountId ?? null,
+          ),
+          habits: stampMissingAccountId(
+            Array.isArray(p.habits) ? p.habits : current.habits || [],
+            p.inboxAccountId ?? current.inboxAccountId ?? null,
+          ),
+          journal: stampMissingAccountId(
+            Array.isArray(p.journal) ? p.journal : current.journal || [],
+            p.inboxAccountId ?? current.inboxAccountId ?? null,
+          ),
+          dayLabels: stampMissingAccountId(
+            Array.isArray(p.dayLabels) ? p.dayLabels : current.dayLabels || [],
+            p.inboxAccountId ?? current.inboxAccountId ?? null,
+          ),
+          collections: stampMissingAccountId(
+            p.collections?.length ? p.collections : current.collections || [],
+            p.inboxAccountId ?? current.inboxAccountId ?? null,
+          ),
+          workflows: stampMissingAccountId(
+            p.workflows?.length ? p.workflows : current.workflows || [],
+            p.inboxAccountId ?? current.inboxAccountId ?? null,
+          ),
           settings,
           inboxAccountId: p.inboxAccountId ?? current.inboxAccountId ?? null,
         };

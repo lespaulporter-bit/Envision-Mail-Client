@@ -1,6 +1,6 @@
 "use client";
 
-import { threadBelongsToAccount } from "@/lib/account-scope";
+import { threadBelongsToAccount, belongsToActiveAccount } from "@/lib/account-scope";
 import { ExternalLink } from "@/components/MeetingLink";
 import { detectMeetingProvider, meetingLinkLabel } from "@/lib/meeting-links";
 import { useMailStore } from "@/lib/store";
@@ -156,7 +156,11 @@ export function ReminderOverlay() {
       reminders
         .filter((r) => {
           if (r.status !== "active") return false;
-          if (r.source !== "mail" || !inboxAccountId) return true;
+          if (!inboxAccountId) return true;
+          if (r.source === "calendar" || r.source === "manual") {
+            return belongsToActiveAccount(r, inboxAccountId);
+          }
+          if (r.source !== "mail") return true;
           const thread = threads.find((t) => t.id === r.sourceId);
           if (!thread) return false;
           return threadBelongsToAccount(thread, inboxAccountId, messages);

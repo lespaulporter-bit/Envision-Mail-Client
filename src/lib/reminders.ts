@@ -25,6 +25,7 @@ export function buildMailReminder(
     source: "mail",
     sourceId: thread.id,
     occurrenceKey: reminderOccurrenceKey("mail", thread.id, dueAt.toISOString()),
+    accountId: thread.accountId ?? null,
   };
 }
 
@@ -56,6 +57,7 @@ export function buildCalendarOccurrence(
       occurrenceKey: key,
       location: event.location,
       meetingUrl: resolveMeetingLink(event)?.url,
+      accountId: event.accountId ?? null,
     },
   };
 }

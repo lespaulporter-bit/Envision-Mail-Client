@@ -3,6 +3,7 @@
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Avatar, Badge, Button } from "@/components/ui";
 import { MailHtml } from "@/components/MailHtml";
+import { filterByActiveAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
 import type { Thread } from "@/lib/types";
@@ -26,8 +27,8 @@ export function ThreadRow({
 }) {
   const messages = useMailStore((s) => s.messages);
   const contacts = useMailStore((s) => s.contacts);
-  const workflows = useMailStore((s) => s.workflows);
-  const collections = useMailStore((s) => s.collections);
+  const workflows = useMailStore((s) => filterByActiveAccount(s.workflows, s.inboxAccountId));
+  const collections = useMailStore((s) => filterByActiveAccount(s.collections, s.inboxAccountId));
   const multiOpenIds = useMailStore((s) => s.multiOpenIds);
   const openThread = useMailStore((s) => s.openThread);
   const toggleMultiOpen = useMailStore((s) => s.toggleMultiOpen);
