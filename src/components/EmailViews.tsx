@@ -4,6 +4,7 @@ import { CoverArt } from "@/components/CoverArt";
 import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { MailHtml } from "@/components/MailHtml";
+import { MultiOpenBanner } from "@/components/MultiOpenBanner";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Badge, Button, EmptyState, Input, SectionHeader } from "@/components/ui";
 import { desktopApi, isDesktop, sendShortcutHint, thisComputerLabel } from "@/lib/desktop";
@@ -30,8 +31,6 @@ export function MoneyBoxView() {
   const togglePowerThrough = useMailStore((s) => s.togglePowerThrough);
   const markAllSeenInBox = useMailStore((s) => s.markAllSeenInBox);
   const setCoverArt = useMailStore((s) => s.setCoverArt);
-  const clearMultiOpen = useMailStore((s) => s.clearMultiOpen);
-  const openThread = useMailStore((s) => s.openThread);
   const setView = useMailStore((s) => s.setView);
   const setSearch = useMailStore((s) => s.setSearch);
   const setToast = useMailStore((s) => s.setToast);
@@ -128,19 +127,7 @@ export function MoneyBoxView() {
 
       {tab === "all" && !powerThrough && settings.coverArt !== "none" ? <CoverArt /> : null}
 
-      {multiOpenIds.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-teal/30 bg-[#e6f7f3] px-4 py-3 text-sm">
-          <span>
-            <strong>{multiOpenIds.length}</strong> emails open together — scroll like a feed.
-          </span>
-          <Button size="sm" variant="soft" onClick={() => multiOpenIds.forEach((id) => openThread(id))}>
-            Jump first
-          </Button>
-          <Button size="sm" variant="ghost" onClick={clearMultiOpen}>
-            Clear
-          </Button>
-        </div>
-      )}
+      <MultiOpenBanner />
 
       {bubbled.length > 0 && tab !== "seen" && (
         <section className="mb-6">
@@ -563,11 +550,14 @@ export function PaperTrailView() {
       ) : visible.length === 0 ? (
         <EmptyState title="No matches" body="Clear the filter to see every receipt again." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line">
-          {visible.map((t) => (
-            <ThreadRow key={t.id} thread={t} />
-          ))}
-        </div>
+        <>
+          <MultiOpenBanner />
+          <div className="overflow-hidden rounded-2xl border border-line">
+            {visible.map((t) => (
+              <ThreadRow key={t.id} thread={t} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -883,11 +873,14 @@ export function SentView() {
       ) : visible.length === 0 ? (
         <EmptyState title="No matches" body="Clear the filter to see every sent conversation again." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line">
-          {visible.map((t) => (
-            <ThreadRow key={t.id} thread={t} showReadReceipt />
-          ))}
-        </div>
+        <>
+          <MultiOpenBanner />
+          <div className="overflow-hidden rounded-2xl border border-line">
+            {visible.map((t) => (
+              <ThreadRow key={t.id} thread={t} showReadReceipt />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -1046,11 +1039,18 @@ export function TrashView() {
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const settings = useMailStore((s) => s.settings);
   const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
   const list = useMemo(
     () => selectBoxThreads(threads, "trash", { accountId: inboxAccountId }),
     [threads, inboxAccountId],
   );
+  const visible = useMemo(() => list.filter((t) => threadMatchesFilter(t, filter)), [list, filter]);
   const days = settings.autoPurgeTrashDays ?? 30;
+  const selectedVisible = selected.filter((id) => visible.some((t) => t.id === id));
+
+  const toggleSelected = (id: string) =>
+    setSelected((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
 
   return (
     <div className="px-4 py-6 md:px-8">
@@ -1073,6 +1073,7 @@ export function TrashView() {
                   try {
                     const { emptyTrashFolder } = await import("@/lib/mail-delete");
                     await emptyTrashFolder();
+                    setSelected([]);
                   } finally {
                     setBusy(false);
                   }
@@ -1084,14 +1085,70 @@ export function TrashView() {
           ) : null
         }
       />
+      {list.length > 0 ? (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Input
+            className="max-w-md"
+            placeholder="Filter by sender or subject…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+          <Button
+            size="sm"
+            variant="soft"
+            onClick={() => setSelected(visible.map((t) => t.id))}
+            disabled={!visible.length}
+          >
+            Select all visible
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected([])} disabled={!selected.length}>
+            Clear selection
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy || selectedVisible.length === 0}
+            onClick={() => {
+              void (async () => {
+                setBusy(true);
+                try {
+                  const { restoreThreadFromTrash } = await import("@/lib/mail-delete");
+                  for (const id of selectedVisible) {
+                    // eslint-disable-next-line no-await-in-loop
+                    await restoreThreadFromTrash(id);
+                  }
+                  setSelected([]);
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            }}
+          >
+            Restore selected ({selectedVisible.length})
+          </Button>
+        </div>
+      ) : null}
       {list.length === 0 ? (
         <EmptyState title="Trash is empty" body="Deleted emails from MoneyBox $ and other views land here first." />
+      ) : visible.length === 0 ? (
+        <EmptyState title="No matches" body="Clear the filter to see every trash item again." />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
-          {list.map((t) => (
+          {visible.map((t) => (
             <div key={t.id} className="border-b border-line last:border-b-0">
-              <ThreadRow thread={t} />
-              <div className="flex flex-wrap gap-2 px-4 pb-3">
+              <div className="flex items-start gap-2 px-3 pt-3">
+                <input
+                  type="checkbox"
+                  className="mt-4"
+                  checked={selected.includes(t.id)}
+                  onChange={() => toggleSelected(t.id)}
+                  aria-label={`Select ${t.customSubject || t.subject}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <ThreadRow thread={t} />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 px-4 pb-3 pl-10">
                 <Button
                   size="sm"
                   variant="soft"
@@ -1102,6 +1159,7 @@ export function TrashView() {
                       try {
                         const { restoreThreadFromTrash } = await import("@/lib/mail-delete");
                         await restoreThreadFromTrash(t.id);
+                        setSelected((ids) => ids.filter((id) => id !== t.id));
                       } finally {
                         setBusy(false);
                       }
@@ -1120,6 +1178,7 @@ export function TrashView() {
                       try {
                         const { permanentlyDeleteThread } = await import("@/lib/mail-delete");
                         await permanentlyDeleteThread(t.id);
+                        setSelected((ids) => ids.filter((id) => id !== t.id));
                       } finally {
                         setBusy(false);
                       }
@@ -1180,11 +1239,14 @@ export function DockListView({ mode }: { mode: "reply_later" | "set_aside" }) {
       ) : visible.length === 0 ? (
         <EmptyState title="No matches" body="Clear the filter to see every item again." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line">
-          {visible.map((t) => (
-            <ThreadRow key={t.id} thread={t} />
-          ))}
-        </div>
+        <>
+          <MultiOpenBanner />
+          <div className="overflow-hidden rounded-2xl border border-line">
+            {visible.map((t) => (
+              <ThreadRow key={t.id} thread={t} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

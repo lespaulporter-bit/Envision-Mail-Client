@@ -8,7 +8,7 @@ import { PriorEmailsPanel } from "@/components/PriorEmailsPanel";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { threadBelongsToAccount } from "@/lib/account-scope";
-import { resolveThreadBackView, useMailStore } from "@/lib/store";
+import { resolveThreadBackView, selectThreadNeighbors, useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
 import { cn, formatMailDateTime, previewText, relativeTime } from "@/lib/utils";
 import { desktopApi, sendShortcutHint } from "@/lib/desktop";
@@ -70,8 +70,9 @@ export function ThreadView() {
   const [collapseOverrides, setCollapseOverrides] = useState<Record<string, boolean>>({});
   const signatures = useMailStore((s) => s.signatures || []);
   const settings = useMailStore((s) => s.settings);
-  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const threadReturnView = useMailStore((s) => s.threadReturnView);
+  const openThread = useMailStore((s) => s.openThread);
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const thread = threads.find((t) => t.id === threadId);
 
   useEffect(() => {
@@ -99,6 +100,17 @@ export function ThreadView() {
   const messages = useMemo(
     () => (threadId ? getThreadMessages(threadId) : []),
     [threadId, getThreadMessages, threads, storeMessages],
+  );
+  const neighbors = useMemo(
+    () =>
+      threadId
+        ? selectThreadNeighbors(threads, threadId, {
+            accountId: inboxAccountId,
+            messages: storeMessages,
+            returnView: threadReturnView,
+          })
+        : { prevId: null, nextId: null, index: -1, total: 0 },
+    [threads, threadId, inboxAccountId, storeMessages, threadReturnView],
   );
 
   // Long threads open with only the newest message expanded, until the reader says otherwise.
@@ -208,6 +220,29 @@ export function ThreadView() {
         >
           ← Back
         </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!neighbors.prevId}
+          title="Previous in this list"
+          onClick={() => neighbors.prevId && openThread(neighbors.prevId)}
+        >
+          ← Prev
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!neighbors.nextId}
+          title="Next in this list"
+          onClick={() => neighbors.nextId && openThread(neighbors.nextId)}
+        >
+          Next →
+        </Button>
+        {neighbors.total > 0 && neighbors.index >= 0 ? (
+          <span className="text-xs text-muted">
+            {neighbors.index + 1} of {neighbors.total}
+          </span>
+        ) : null}
         <Badge tone="blurple">{boxLabel(thread.box)}</Badge>
         {(thread.tags || []).map((tag) => (
           <Badge key={tag} tone={tag === "muted" || tag === "on-hold" ? "salmon" : tag === "snoozed" ? "mint" : "soft"}>

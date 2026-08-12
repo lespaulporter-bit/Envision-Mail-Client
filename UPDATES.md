@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.51
+- **Prev / Next** while reading a conversation — move through the same list you came from without going Back first.
+- **Trash:** filter, select many, and **Restore selected** (single Restore / Delete forever still work).
+- The **Multi** selection banner now appears on Sent, Snooze, On Hold, and Receipts — not only MoneyBox $.
+
 ## 2.6.50
 - **Windows gets the same calendar sync Mac already had.** On Windows, **Sync Outlook Calendar** pulls appointments from classic Outlook (same past-30 / next-60 day window). On Mac, **Sync Mac Calendars** still pulls from Apple Calendar.
 - **Import .ics** works on both Mac and Windows — drop invites from Outlook, Google, Apple, or Teams into Envision Mail the same way.

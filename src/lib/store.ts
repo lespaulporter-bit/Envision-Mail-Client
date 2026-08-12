@@ -2252,6 +2252,63 @@ export function selectDockThreads(
   });
 }
 
+/** Ordered list for Prev / Next while reading — follows the list you came from when possible. */
+export function selectThreadListForNavigation(
+  threads: Thread[],
+  thread: Thread,
+  opts: {
+    accountId?: string | null;
+    messages?: Record<string, Message | undefined>;
+    returnView?: AppView | null;
+  },
+): Thread[] {
+  const accountId = opts.accountId;
+  const messages = opts.messages;
+  const view = resolveThreadBackView(thread.box, opts.returnView);
+  if (view === "focus_reply" || view === "reply_later") {
+    return selectDockThreads(threads, "reply_later", { accountId, messages });
+  }
+  if (view === "set_aside") {
+    return selectDockThreads(threads, "set_aside", { accountId, messages });
+  }
+  if (view === "feed") {
+    return selectScreeningThreads(threads, { accountId, messages });
+  }
+  if (view === "cleanup") {
+    if (thread.box === "paper_trail") {
+      return selectBoxThreads(threads, "paper_trail", { accountId, messages });
+    }
+    return selectScreeningThreads(threads, { accountId, messages });
+  }
+  if (view === "paper_trail") return selectBoxThreads(threads, "paper_trail", { accountId, messages });
+  if (view === "spam") return selectBoxThreads(threads, "spam", { accountId, messages });
+  if (view === "sent") return selectBoxThreads(threads, "sent", { accountId, messages });
+  if (view === "trash") return selectBoxThreads(threads, "trash", { accountId, messages });
+  return selectBoxThreads(threads, "lesbox", { accountId, messages });
+}
+
+export function selectThreadNeighbors(
+  threads: Thread[],
+  threadId: string,
+  opts: {
+    accountId?: string | null;
+    messages?: Record<string, Message | undefined>;
+    returnView?: AppView | null;
+  },
+): { prevId: string | null; nextId: string | null; index: number; total: number } {
+  const thread = threads.find((t) => t.id === threadId);
+  if (!thread) return { prevId: null, nextId: null, index: -1, total: 0 };
+  const list = selectThreadListForNavigation(threads, thread, opts);
+  const index = list.findIndex((t) => t.id === threadId);
+  if (index < 0) return { prevId: null, nextId: null, index: -1, total: list.length };
+  return {
+    prevId: index > 0 ? list[index - 1]!.id : null,
+    nextId: index < list.length - 1 ? list[index + 1]!.id : null,
+    index,
+    total: list.length,
+  };
+}
+
 /**
  * Lower-priority mail for the reversible Easy Cleanup review queue.
  *
