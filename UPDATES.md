@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.54
+- **Dismiss bugs fixed:** dismissed events no longer stay on month/week/day grids and agenda; **Duplicate** no longer copies a dismissed state; day popup includes **Duplicate**; agenda rows get **Dismiss**.
+- Replaced a missing `bg-canvas` style with the real soft background so dismissed rows render correctly.
+
 ## 2.6.53
 - **Dismiss is always available** on calendar events (day list and day popup) — you no longer have to wait until the end time passes. Clears countdown and reminders; **Undo dismiss** brings it back.
 

@@ -251,8 +251,12 @@ export function CalendarView() {
   const viewingNow =
     calendarView === "month" ? isSameMonth(date, new Date()) : days.some((d) => isToday(d));
 
-  const dayEvents = (d: Date) =>
-    filteredEvents.filter((e) => isSameDay(parseISO(e.start), d));
+  const dayEvents = (d: Date, opts?: { includeDismissed?: boolean }) =>
+    filteredEvents.filter(
+      (e) =>
+        isSameDay(parseISO(e.start), d) &&
+        (opts?.includeDismissed ? true : !e.dismissedAt),
+    );
 
   // The popup is a complete day view: search text and hidden-calendar filters
   // must not conceal an appointment that is already scheduled.
@@ -289,7 +293,7 @@ export function CalendarView() {
   }, [filteredEvents, nowMs]);
 
   const eventsForDay = (d: Date) => {
-    const list = dayEvents(d);
+    const list = filteredEvents.filter((e) => isSameDay(parseISO(e.start), d));
     return {
       active: list.filter((e) => !e.dismissedAt),
       dismissed: list.filter((e) => !!e.dismissedAt),
@@ -1088,32 +1092,42 @@ export function CalendarView() {
                 ) : (
                   <ul className="space-y-2">
                     {list.map((e) => (
-                      <li key={e.id}>
-                        <button
-                          type="button"
-                          onClick={() => beginEdit(e)}
-                          className="flex w-full items-start gap-3 rounded-xl border border-line p-3 text-left hover:bg-soft/50"
-                        >
-                          <span
-                            className="mt-1 h-3 w-3 shrink-0 rounded-full"
-                            style={{ background: colorFor(e.calendarId) }}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="font-semibold">{e.title}</div>
-                            <div className="text-sm text-muted">
-                              {e.allDay
-                                ? "All day"
-                                : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
-                              {e.location ? ` · ${e.location}` : ""}
-                              {dualZones && secondaryZone && !e.allDay
-                                ? ` · ${formatInTz(e.start, secondaryZone)}`
-                                : ""}
+                      <li key={e.id} className="rounded-xl border border-line p-3">
+                        <div className="flex w-full items-start gap-3">
+                          <button
+                            type="button"
+                            onClick={() => beginEdit(e)}
+                            className="flex min-w-0 flex-1 items-start gap-3 text-left hover:opacity-90"
+                          >
+                            <span
+                              className="mt-1 h-3 w-3 shrink-0 rounded-full"
+                              style={{ background: colorFor(e.calendarId) }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold">{e.title}</div>
+                              <div className="text-sm text-muted">
+                                {e.allDay
+                                  ? "All day"
+                                  : `${format(parseISO(e.start), "h:mm a")} – ${format(parseISO(e.end), "h:mm a")}`}
+                                {e.location ? ` · ${e.location}` : ""}
+                                {dualZones && secondaryZone && !e.allDay
+                                  ? ` · ${formatInTz(e.start, secondaryZone)}`
+                                  : ""}
+                              </div>
                             </div>
+                            <span className="text-xs text-muted">
+                              {differenceInMinutes(parseISO(e.end), parseISO(e.start))}m
+                            </span>
+                          </button>
+                          <div className="flex shrink-0 flex-wrap gap-1">
+                            <Button size="sm" variant="soft" onClick={() => dismissEvent(e.id)}>
+                              Dismiss
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => beginEdit(e)}>
+                              Edit
+                            </Button>
                           </div>
-                          <span className="text-xs text-muted">
-                            {differenceInMinutes(parseISO(e.end), parseISO(e.start))}m
-                          </span>
-                        </button>
+                        </div>
                         {resolveMeetingLink(e) ? (
                           <div className="mt-1 pl-6">
                             <JoinMeetingLink link={resolveMeetingLink(e)!} compact />
@@ -1239,7 +1253,7 @@ export function CalendarView() {
                         {dismissed.map((e) => (
                           <div
                             key={e.id}
-                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-canvas/60 px-3 py-2 text-sm text-muted"
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-soft/60 px-3 py-2 text-sm text-muted"
                           >
                             <span>
                               <span
@@ -1709,7 +1723,7 @@ export function CalendarView() {
                       return (
                       <li
                         key={e.id}
-                        className={`rounded-xl border border-line p-3 ${dismissed ? "bg-canvas/50 opacity-80" : ""}`}
+                        className={`rounded-xl border border-line p-3 ${dismissed ? "bg-soft/50 opacity-80" : ""}`}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
@@ -1796,6 +1810,9 @@ export function CalendarView() {
                                 {e.countdown ? "Countdown ✓" : "Countdown"}
                               </Button>
                             ) : null}
+                            <Button size="sm" variant="ghost" onClick={() => duplicateEvent(e.id)}>
+                              Duplicate
+                            </Button>
                             {isDesktop() && accountId && (e.invitees?.length || 0) > 0 ? (
                               <Button
                                 size="sm"

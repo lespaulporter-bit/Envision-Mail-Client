@@ -1732,6 +1732,7 @@ export const useMailStore = create<MailStore>()(
           invitesSentAt: null,
           externalId: null,
           source: "local",
+          dismissedAt: null,
         });
       },
 
