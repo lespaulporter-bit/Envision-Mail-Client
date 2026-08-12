@@ -267,6 +267,7 @@ interface Actions {
       calendarId: string;
       location?: string;
       notes?: string;
+      allDay?: boolean;
     }>;
   }) => void;
   /** Import from Mac Calendar, Windows Outlook, or .ics — same merge rules on every OS. */
@@ -281,6 +282,7 @@ interface Actions {
       calendarId: string;
       location?: string;
       notes?: string;
+      allDay?: boolean;
     }>;
   }) => void;
   toggleHabit: (habitId: string, date: string) => void;
@@ -1689,14 +1691,13 @@ export const useMailStore = create<MailStore>()(
               ? withMeetingLink({
                   ...e,
                   dismissedAt: nowIso,
-                  countdown: false,
                 })
               : e,
           ),
-          reminders: (get().reminders || []).map((r) =>
-            r.source === "calendar" && r.sourceId === id && r.status !== "dismissed"
-              ? { ...r, status: "dismissed" as const }
-              : r,
+          // Drop calendar reminder rows for this event so Undo can recreate them.
+          // (Keeping dismissed rows would block collectDueReminders via occurrenceKey.)
+          reminders: (get().reminders || []).filter(
+            (r) => !(r.source === "calendar" && r.sourceId === id),
           ),
           toast: "Dismissed — kept on the calendar, cleared from countdowns and reminders",
         });
@@ -1799,6 +1800,7 @@ export const useMailStore = create<MailStore>()(
             title: me.title || "Untitled",
             start: me.start,
             end: me.end,
+            allDay: me.allDay ?? prev?.allDay,
             calendarId,
             location: me.location || undefined,
             notes: me.notes || undefined,

@@ -1,5 +1,11 @@
 # Envision Mail updates
 
+## 2.6.55
+- **Undo dismiss restores reminders and countdowns** — dismissing no longer permanently clears countdown; calendar reminder rows are removed so they can fire again after Undo.
+- Month cells show **N dismissed · open day** instead of looking empty; agenda keeps dismissed rows with **Undo dismiss**.
+- Week/day grid gains an **All day** row; multi-hour meetings span their time slots.
+- Imported `.ics` all-day events keep `allDay` through sync merge.
+
 ## 2.6.54
 - **Dismiss bugs fixed:** dismissed events no longer stay on month/week/day grids and agenda; **Duplicate** no longer copies a dismissed state; day popup includes **Duplicate**; agenda rows get **Dismiss**.
 - Replaced a missing `bg-canvas` style with the real soft background so dismissed rows render correctly.

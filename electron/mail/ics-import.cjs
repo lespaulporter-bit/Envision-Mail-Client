@@ -13,7 +13,9 @@ function unfoldIcs(text) {
   return String(text || "").replace(/\r\n/g, "\n").replace(/\n[ \t]/g, "");
 }
 
-/** Parse DTSTART/DTEND — supports UTC (Z), floating local, and VALUE=DATE all-day. */
+/** Parse DTSTART/DTEND — supports UTC (Z), floating local, and VALUE=DATE all-day.
+ *  Returns { iso, allDay }.
+ */
 function parseIcsDate(raw, params) {
   const value = String(raw || "").trim();
   if (!value) return null;
@@ -23,7 +25,8 @@ function parseIcsDate(raw, params) {
     const m = value.slice(4, 6);
     const d = value.slice(6, 8);
     const local = new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0);
-    return Number.isNaN(local.getTime()) ? null : local.toISOString();
+    if (Number.isNaN(local.getTime())) return null;
+    return { iso: local.toISOString(), allDay: true };
   }
   const m = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
   if (!m) return null;
@@ -31,10 +34,10 @@ function parseIcsDate(raw, params) {
   if (z) {
     const iso = `${yy}-${mo}-${dd}T${hh}:${mi}:${ss}.000Z`;
     const dt = new Date(iso);
-    return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
+    return Number.isNaN(dt.getTime()) ? null : { iso: dt.toISOString(), allDay: false };
   }
   const local = new Date(Number(yy), Number(mo) - 1, Number(dd), Number(hh), Number(mi), Number(ss));
-  return Number.isNaN(local.getTime()) ? null : local.toISOString();
+  return Number.isNaN(local.getTime()) ? null : { iso: local.toISOString(), allDay: false };
 }
 
 function parseIcsCalendar(text) {
@@ -45,7 +48,7 @@ function parseIcsCalendar(text) {
 
   for (const line of lines) {
     if (line === "BEGIN:VEVENT") {
-      current = { title: "Untitled", location: "", notes: "", id: "", start: null, end: null };
+      current = { title: "Untitled", location: "", notes: "", id: "", start: null, end: null, allDay: false };
       continue;
     }
     if (line === "END:VEVENT") {
@@ -58,6 +61,7 @@ function parseIcsCalendar(text) {
           location: current.location || undefined,
           notes: current.notes || undefined,
           calendarId: "ics-import",
+          allDay: Boolean(current.allDay),
         });
       }
       current = null;
@@ -79,8 +83,19 @@ function parseIcsCalendar(text) {
     else if (key === "UID") current.id = right.trim();
     else if (key === "URL" && right && !current.notes.includes(right)) {
       current.notes = current.notes ? `${current.notes}\n${right}` : right;
-    } else if (key === "DTSTART") current.start = parseIcsDate(right, params);
-    else if (key === "DTEND") current.end = parseIcsDate(right, params);
+    }     else if (key === "DTSTART") {
+      const parsed = parseIcsDate(right, params);
+      if (parsed) {
+        current.start = parsed.iso;
+        if (parsed.allDay) current.allDay = true;
+      }
+    } else if (key === "DTEND") {
+      const parsed = parseIcsDate(right, params);
+      if (parsed) {
+        current.end = parsed.iso;
+        if (parsed.allDay) current.allDay = true;
+      }
+    }
   }
 
   return events;

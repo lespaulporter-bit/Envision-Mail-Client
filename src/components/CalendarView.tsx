@@ -707,6 +707,36 @@ export function CalendarView() {
             {isToday(d) ? <span className="ml-1 text-[10px] font-normal">· today</span> : null}
           </button>
         ))}
+        <div className="contents">
+          <div className="border-b border-line bg-soft/40 px-1 py-2 text-[10px] font-medium text-muted">
+            All day
+          </div>
+          {dayList.map((d) => {
+            const allDayEvents = dayEvents(d).filter((e) => e.allDay);
+            return (
+              <div
+                key={`allday-${format(d, "yyyy-MM-dd")}`}
+                className="min-h-10 space-y-0.5 border-b border-l border-line bg-soft/20 p-1"
+              >
+                {allDayEvents.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    className="block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-medium text-white"
+                    style={{ background: colorFor(e.calendarId) }}
+                    title={e.title}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      beginEdit(e);
+                    }}
+                  >
+                    {e.title}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
         {HOURS.map((hour) => (
           <div key={`row-${hour}`} className="contents">
             <div className="border-b border-line px-1 py-3 text-[10px] text-muted">
@@ -716,7 +746,15 @@ export function CalendarView() {
               const key = `${format(d, "yyyy-MM-dd")}-${hour}`;
               const slotEvents = dayEvents(d).filter((e) => {
                 if (e.allDay) return false;
-                return parseISO(e.start).getHours() === hour;
+                const start = parseISO(e.start);
+                const end = parseISO(e.end || e.start);
+                const startH = start.getHours();
+                let endH = end.getHours();
+                // Exclusive end at :00 means the previous hour was the last occupied slot.
+                if (end.getMinutes() === 0 && end.getSeconds() === 0 && end > start) {
+                  endH = Math.max(startH, endH - 1);
+                }
+                return hour >= startH && hour <= endH;
               });
               return (
                 <button
@@ -732,7 +770,9 @@ export function CalendarView() {
                   }}
                 >
                   <ul className="space-y-0.5">
-                    {slotEvents.map((e) => (
+                    {slotEvents.map((e) => {
+                      const isStartHour = parseISO(e.start).getHours() === hour;
+                      return (
                       <li key={e.id}>
                         <span
                           role="button"
@@ -744,17 +784,20 @@ export function CalendarView() {
                           onKeyDown={(ev) => {
                             if (ev.key === "Enter") beginEdit(e);
                           }}
-                          className="block truncate rounded px-1 py-0.5 text-[10px] font-medium text-white"
+                          className={`block truncate rounded px-1 py-0.5 text-[10px] font-medium text-white ${
+                            isStartHour ? "" : "opacity-80"
+                          }`}
                           style={{ background: colorFor(e.calendarId) }}
                           title={e.title}
                         >
-                          {resolveMeetingLink(e) ? (
+                          {isStartHour && resolveMeetingLink(e) ? (
                             <Video className="mr-1 inline-block h-2.5 w-2.5 align-[-1px]" aria-label="Has a meeting link" />
                           ) : null}
-                          {format(parseISO(e.start), "h:mm")} {e.title}
+                          {isStartHour ? `${format(parseISO(e.start), "h:mm")} ${e.title}` : `↳ ${e.title}`}
                         </span>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 </button>
               );
@@ -995,6 +1038,7 @@ export function CalendarView() {
               const label = dayLabels.find((x) => x.date === key)?.label;
               const selected = isSameDay(d, date);
               const list = dayEvents(d);
+              const dismissedOnDay = eventsForDay(d).dismissed.length;
               const allDayCount = list.filter((e) => e.allDay).length;
               const overflow = Math.max(0, list.length - 3);
               const otherMonth = !isSameMonth(d, date);
@@ -1054,6 +1098,10 @@ export function CalendarView() {
                   </ul>
                   {overflow > 0 ? (
                     <div className="mt-1 text-[10px] font-medium text-teal">+{overflow} more · open day</div>
+                  ) : list.length === 0 && dismissedOnDay > 0 ? (
+                    <div className="mt-1 text-[10px] text-muted">
+                      {dismissedOnDay} dismissed · open day
+                    </div>
                   ) : list.length === 0 ? (
                     <div className="mt-1 text-[10px] text-muted">Click to add</div>
                   ) : (
@@ -1073,8 +1121,8 @@ export function CalendarView() {
       {calendarView === "agenda" ? (
         <div className="mb-6 space-y-3">
           {agendaDays.map((d) => {
-            const list = dayEvents(d);
-            if (!list.length && !isSameDay(d, date)) return null;
+            const { active, dismissed } = eventsForDay(d);
+            if (!active.length && !dismissed.length && !isSameDay(d, date)) return null;
             return (
               <section key={format(d, "yyyy-MM-dd")} className="rounded-2xl border border-line bg-white/90 p-4">
                 <button
@@ -1087,11 +1135,11 @@ export function CalendarView() {
                   {format(d, "EEEE, MMM d")}
                   {isToday(d) ? <span className="ml-2 text-sm font-sans text-teal">Today</span> : null}
                 </button>
-                {list.length === 0 ? (
+                {active.length === 0 && dismissed.length === 0 ? (
                   <p className="text-sm text-muted">Nothing scheduled.</p>
                 ) : (
                   <ul className="space-y-2">
-                    {list.map((e) => (
+                    {active.map((e) => (
                       <li key={e.id} className="rounded-xl border border-line p-3">
                         <div className="flex w-full items-start gap-3">
                           <button
@@ -1135,6 +1183,30 @@ export function CalendarView() {
                         ) : null}
                       </li>
                     ))}
+                    {dismissed.length > 0 ? (
+                      <li className="space-y-2 border-t border-dashed border-line pt-2">
+                        <p className="text-xs font-medium text-muted">
+                          Dismissed ({dismissed.length})
+                        </p>
+                        {dismissed.map((e) => (
+                          <div
+                            key={e.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-soft/60 px-3 py-2 text-sm text-muted"
+                          >
+                            <span>
+                              <span
+                                className="mr-2 inline-block h-2 w-2 rounded-full opacity-60"
+                                style={{ background: colorFor(e.calendarId) }}
+                              />
+                              {e.title}
+                            </span>
+                            <Button size="sm" variant="ghost" onClick={() => undismissEvent(e.id)}>
+                              Undo dismiss
+                            </Button>
+                          </div>
+                        ))}
+                      </li>
+                    ) : null}
                   </ul>
                 )}
               </section>
