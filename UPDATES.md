@@ -1,5 +1,8 @@
 # Envision Mail updates
 
+## 2.6.53
+- **Dismiss is always available** on calendar events (day list and day popup) — you no longer have to wait until the end time passes. Clears countdown and reminders; **Undo dismiss** brings it back.
+
 ## 2.6.52
 - **Dismiss past calendar events** without deleting them. Once an event’s end time has passed, **Dismiss** clears its countdown and any active calendar reminders, keeps the event on the calendar, and moves it to a dismissed section with **Undo dismiss**.
 - Works in the day list and the day popup, for local and synced (Mac / Outlook / .ics) events. Dismiss state survives calendar re-sync.

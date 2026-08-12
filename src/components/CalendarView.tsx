@@ -1199,11 +1199,9 @@ export function CalendarView() {
                       ) : null}
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {ended ? (
-                        <Button size="sm" variant="soft" onClick={() => dismissEvent(e.id)}>
-                          Dismiss
-                        </Button>
-                      ) : null}
+                      <Button size="sm" variant="soft" onClick={() => dismissEvent(e.id)}>
+                        Dismiss
+                      </Button>
                       <Button size="sm" variant="soft" onClick={() => beginEdit(e)}>
                         Edit
                       </Button>
@@ -1773,11 +1771,11 @@ export function CalendarView() {
                               <Button size="sm" variant="soft" onClick={() => undismissEvent(e.id)}>
                                 Undo dismiss
                               </Button>
-                            ) : ended ? (
+                            ) : (
                               <Button size="sm" variant="soft" onClick={() => dismissEvent(e.id)}>
                                 Dismiss
                               </Button>
-                            ) : null}
+                            )}
                             <Button
                               size="sm"
                               variant="soft"
