@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.64
+- **Dismiss from Edit event** (Mac + Windows). Save / Dismiss / Undo dismiss / Delete stay visible in the day popup — actions are pinned outside the scroll area so they are not cut off under Invitees.
+- Escape while editing returns to the day list first (instead of closing the whole sheet). Week/countdown edits scroll the page composer into view. Dismissed day-list items can be edited again.
+
 ## 2.6.63
 - **Mac + Windows hardening.** Static file server blocks path escapes on both OSes; Windows updater no longer looks under a fake `Library/Caches` folder; update dialog copy is platform-correct.
 - Hydration normalizes missing `messageIds` / `collectionIds` / `attachments` so opening threads and Attachments cannot crash on legacy data.
