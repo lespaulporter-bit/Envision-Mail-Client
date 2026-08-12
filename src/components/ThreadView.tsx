@@ -11,7 +11,7 @@ import { threadBelongsToAccount } from "@/lib/account-scope";
 import { resolveThreadBackView, useMailStore } from "@/lib/store";
 import { tagLabel } from "@/lib/thread-tags";
 import { cn, formatMailDateTime, previewText, relativeTime } from "@/lib/utils";
-import { desktopApi } from "@/lib/desktop";
+import { desktopApi, sendShortcutHint } from "@/lib/desktop";
 import { brandForEmail, loadAccountBrands } from "@/lib/account-brands";
 import {
   blockAllFromSenderSmart,
@@ -746,7 +746,7 @@ export function ThreadView() {
         ) : null}
         <Textarea
           rows={5}
-          placeholder="Write a reply… (⌘Enter to send)"
+          placeholder={`Write a reply… (${sendShortcutHint()})`}
           value={reply}
           onChange={(e) => setReply(e.target.value)}
           onKeyDown={(e) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { Avatar, Button, Input } from "@/components/ui";
-import { desktopApi, isDesktop } from "@/lib/desktop";
+import { desktopApi, isDesktop, thisComputerLabel } from "@/lib/desktop";
 import { invalidateAccountBrands } from "@/lib/account-brands";
 import { useMailStore } from "@/lib/store";
 import type { DesktopAccount } from "@/types/desktop";
@@ -434,7 +434,7 @@ export function AccountsPanel() {
                 <p className="font-medium">Re-enter app password</p>
                 <p className="mt-1 text-xs opacity-90">
                   This account needs a new app password (or the saved one can&apos;t be decrypted). Paste it below and Save —
-                  your mail data stays on this Mac.
+                  your mail data stays on {thisComputerLabel()}.
                 </p>
               </div>
             ) : null}

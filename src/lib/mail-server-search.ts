@@ -1,4 +1,4 @@
-import { desktopApi, isDesktop } from "@/lib/desktop";
+import { desktopApi, isDesktop, thisComputerLabel } from "@/lib/desktop";
 import { useMailStore } from "@/lib/store";
 
 /** Run IMAP search on the active account and import hits into MoneyBox. */
@@ -41,7 +41,7 @@ export async function searchAndImportOldMail(query: string, opts?: { limit?: num
   useMailStore.getState().setToast(
     imported > 0
       ? `Found on server · added ${imported} to your mailbox`
-      : `Found ${messages.length} on server (already on this Mac)`,
+      : `Found ${messages.length} on server (already on ${thisComputerLabel()})`,
   );
   return { ok: true as const, imported, matched: result.matched ?? messages.length };
 }

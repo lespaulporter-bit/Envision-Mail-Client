@@ -11,7 +11,7 @@ import { EmailTemplatesPanel } from "@/components/EmailTemplatesPanel";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { parseRecipientEmails } from "@/lib/recipient-suggest";
-import { desktopApi } from "@/lib/desktop";
+import { desktopApi, sendShortcutHint, thisComputerLabel } from "@/lib/desktop";
 import { selectAccountThreads, selectDockThreads, useMailStore } from "@/lib/store";
 import { clipBelongsToAccount } from "@/lib/account-scope";
 import { blockAllFromSenderSmart } from "@/lib/mail-delete";
@@ -1214,7 +1214,7 @@ export function SearchView() {
         setServerNote(
           res.imported
             ? `Pulled ${res.imported} message${res.imported === 1 ? "" : "s"} from the server into this account.`
-            : "Matches were already on this Mac — see the list below.",
+            : `Matches were already on ${thisComputerLabel()} — see the list below.`,
         );
       }
     } finally {
@@ -1528,7 +1528,7 @@ export function ComposeView() {
         />
         <Textarea
           rows={10}
-          placeholder="Write your email… (⌘Enter to send)"
+          placeholder={`Write your email… (${sendShortcutHint()})`}
           value={composeDraft.body}
           onChange={(e) => setCompose({ body: e.target.value })}
           onKeyDown={(e) => {

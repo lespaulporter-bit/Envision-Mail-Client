@@ -1,8 +1,12 @@
 # Envision Mail updates
 
+## 2.6.49
+- **Windows-first copy.** Shortcuts and labels now follow the OS: **Ctrl+Enter** on Windows/PC, **⌘Enter** on Mac. Phrases that said “this Mac” now say **this PC** on Windows (and **this computer** in the browser). Mac Calendar sync stays Mac-only; everything else is shared.
+
 ## 2.6.48
 - **Reply Queue actually sends.** *Send & next* now goes out over SMTP (same path as a normal reply) instead of only writing a local draft the recipient never sees.
-- **⌘Enter / Ctrl+Enter** sends from Compose, Thread reply, and Reply Queue.
+- **⌘Enter (Mac) / Ctrl+Enter (Windows)** sends from Compose, Thread reply, and Reply Queue — the hint matches the OS you're on.
+- Copy that said “this Mac” now says **this PC** on Windows (and **this computer** in the browser).
 - Mail lists show **pipeline · stage** and collection chips under the subject so board mail is visible without opening the thread.
 - Thread toolbar: one clear **Reply Queue** control (Shift-click removes); **Expand all / Collapse all** for long conversations.
 - Filter boxes on **Sent**, **Snooze**, **On Hold**, **The Receipts**, and **Attachments**.

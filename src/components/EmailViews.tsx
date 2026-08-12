@@ -6,7 +6,7 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { MailHtml } from "@/components/MailHtml";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Badge, Button, EmptyState, Input, SectionHeader } from "@/components/ui";
-import { desktopApi, isDesktop } from "@/lib/desktop";
+import { desktopApi, isDesktop, sendShortcutHint, thisComputerLabel } from "@/lib/desktop";
 import { bodyToHtml } from "@/lib/html-body";
 import { threadMatchesFilter } from "@/lib/list-filter";
 import {
@@ -183,8 +183,8 @@ export function MoneyBoxView() {
             Previously read <Badge tone="soft">{seen.length}</Badge>
           </h2>
           <p className="mb-3 text-xs text-muted">
-            Opened mail that&apos;s already on this Mac for this account. Sync keeps a recent window; use Old mail below
-            for older messages on any provider.
+            Opened mail that&apos;s already on {thisComputerLabel()} for this account. Sync keeps a recent window; use
+            Old mail below for older messages on any provider.
           </p>
           {seen.length === 0 ? (
             <EmptyState title="No previously read mail yet" body="After you open a message, it appears in this list." />
@@ -1309,7 +1309,7 @@ export function FocusReplyView() {
               void sendAndNext();
             }
           }}
-          placeholder="Your reply… (⌘Enter to send)"
+          placeholder={`Your reply… (${sendShortcutHint()})`}
         />
         <div className="mt-3 flex flex-wrap gap-2">
           <Button disabled={sending} onClick={() => void sendAndNext()}>
