@@ -4,7 +4,7 @@ import { Avatar, Badge, Button, EmptyState, Input, SectionHeader, Textarea } fro
 import { AttachmentList } from "@/components/AttachmentList";
 import { BrandLogo } from "@/components/BrandLogo";
 import { LinkifiedText } from "@/components/MeetingLink";
-import { bodyToHtml } from "@/lib/html-body";
+import { bodyToHtml, looksLikeHtmlDump, scrubComposerBody, signatureHtmlBlock } from "@/lib/html-body";
 import { AccountsPanel } from "@/components/AccountsPanel";
 import { SignaturesPanel } from "@/components/SignaturesPanel";
 import { EmailTemplatesPanel } from "@/components/EmailTemplatesPanel";
@@ -1331,15 +1331,21 @@ export function ComposeView() {
     if ((composeDraft.cc || composeDraft.bcc) && !showCcBcc) setShowCcBcc(true);
   }, [composeDraft.cc, composeDraft.bcc, showCcBcc]);
 
+  // Repair accidental signature HTML dumped into the plain-text composer.
+  useEffect(() => {
+    if (!looksLikeHtmlDump(composeDraft.body)) return;
+    const cleaned = scrubComposerBody(composeDraft.body);
+    if (cleaned === composeDraft.body) return;
+    setCompose({ body: cleaned });
+    setToast("Cleaned HTML out of the message box — your signature still attaches when you send");
+  }, [composeDraft.body, setCompose, setToast]);
+
   const buildHtml = () => {
     const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
-    const raw = String(composeDraft.body || "").trim();
+    const raw = scrubComposerBody(String(composeDraft.body || "")).trim();
     const body = raw ? bodyToHtml(raw) : "";
     if (!sig) return body || "<p></p>";
-    const img = sig.imageDataUrl
-      ? `<div style="margin-top:8px"><img src="${sig.imageDataUrl}" alt="" style="max-height:72px"/></div>`
-      : "";
-    return `${body}<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${img}</div>`;
+    return `${body}${signatureHtmlBlock(sig)}`;
   };
 
   const activeAccount =
@@ -1375,7 +1381,10 @@ export function ComposeView() {
         return;
       }
       const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
-      const bodyText = String(composeDraft.body || "").trim();
+      const bodyText = scrubComposerBody(String(composeDraft.body || "")).trim();
+      if (bodyText !== String(composeDraft.body || "").trim()) {
+        setCompose({ body: bodyText });
+      }
       if (!bodyText && !sig?.html) {
         setToast("Write a message or choose a signature");
         return;
@@ -1521,11 +1530,18 @@ export function ComposeView() {
         <EmailTemplatePickers
           showSubjectTemplates
           onInsertSubject={(subject) => setCompose({ subject })}
-          onInsertBody={(text, mode) =>
+          onSelectSignature={(id) => setSignatureId(id)}
+          onInsertBody={(text, mode) => {
+            const plain = scrubComposerBody(text);
             setCompose({
-              body: mode === "replace" ? text : composeDraft.body ? `${composeDraft.body}\n\n${text}` : text,
-            })
-          }
+              body:
+                mode === "replace"
+                  ? plain
+                  : composeDraft.body
+                    ? `${scrubComposerBody(composeDraft.body)}\n\n${plain}`
+                    : plain,
+            });
+          }}
         />
         <Textarea
           rows={10}
@@ -1551,9 +1567,13 @@ export function ComposeView() {
               {signatures.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
+                  {s.isDefault ? " (default)" : ""}
                 </option>
               ))}
             </select>
+            <span className="mt-1 block text-xs text-muted">
+              HTML signatures stay formatted for recipients — they are not pasted into this text box.
+            </span>
           </label>
         ) : null}
         <div className="flex flex-wrap gap-2">

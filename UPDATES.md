@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.60
+- **Signature fix.** Choosing a signature no longer dumps raw HTML into the Compose / Reply text box. Signatures attach as formatted HTML when you send (via **Signature for send** / **Signature (on send)**).
+- Compose auto-cleans any leftover markup already stuck in a draft. Templates and snippets insert plain text into the box.
+
 ## 2.6.59
 - **Strict account tenancy.** Calendar events, calendars, habits, journal, day labels, “Sometime this week,” reminders, pipelines, and collections are stamped with the active account and never show under another inbox.
 - Day Cover / Calendar / reminder pop-ups filter by the active account. Sync Mac / Outlook / .ics attaches to the account you synced under.

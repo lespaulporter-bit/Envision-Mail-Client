@@ -19,7 +19,7 @@ import {
   restoreThreadFromTrash,
 } from "@/lib/mail-delete";
 import { useEffect, useMemo, useState } from "react";
-import { bodyToHtml } from "@/lib/html-body";
+import { bodyToHtml, scrubComposerBody, signatureHtmlBlock } from "@/lib/html-body";
 import { boxLabel } from "@/lib/types";
 
 export function ThreadView() {
@@ -63,13 +63,13 @@ export function ThreadView() {
   const [accountId, setAccountId] = useState("");
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [signatureId, setSignatureId] = useState("");
   const [requestReceipt, setRequestReceipt] = useState(true);
   const [brandsTick, setBrandsTick] = useState(0);
   // Keyed "<threadId>:<messageId>" so switching threads restores default collapsing.
   const [collapseOverrides, setCollapseOverrides] = useState<Record<string, boolean>>({});
   const signatures = useMailStore((s) => s.signatures || []);
   const settings = useMailStore((s) => s.settings);
+  const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
   const threadReturnView = useMailStore((s) => s.threadReturnView);
   const openThread = useMailStore((s) => s.openThread);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
@@ -149,20 +149,13 @@ export function ThreadView() {
     try {
       const api = desktopApi();
       const sig = signatures.find((s) => s.id === signatureId) || signatures.find((s) => s.isDefault);
-      const bodyText = reply.trim();
+      const bodyText = scrubComposerBody(reply).trim();
+      if (bodyText !== reply.trim()) setReply(bodyText);
       if (!bodyText && !sig?.html) {
         setToast("Write a reply or choose a signature");
         return;
       }
-      const bodyHtml = `${bodyText ? bodyToHtml(bodyText) : ""}${
-        sig
-          ? `<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${
-              sig.imageDataUrl
-                ? `<div style="margin-top:8px"><img src="${sig.imageDataUrl}" alt="" style="max-height:72px"/></div>`
-                : ""
-            }</div>`
-          : ""
-      }`;
+      const bodyHtml = `${bodyText ? bodyToHtml(bodyText) : ""}${sig ? signatureHtmlBlock(sig) : ""}`;
       const { parseRecipientEmails } = await import("@/lib/recipient-suggest");
       const ccJoined = parseRecipientEmails(replyCc).join(", ") || undefined;
       const bccJoined = parseRecipientEmails(replyBcc).join(", ") || undefined;
@@ -763,9 +756,13 @@ export function ThreadView() {
       <div className="mt-8 space-y-4 rounded-2xl border border-line bg-white p-5">
         <EmailTemplatePickers
           showSubjectTemplates={false}
-          onInsertBody={(text, mode) =>
-            setReply((r) => (mode === "replace" ? text : r ? `${r}\n\n${text}` : text))
-          }
+          onSelectSignature={(id) => setSignatureId(id)}
+          onInsertBody={(text, mode) => {
+            const plain = scrubComposerBody(text);
+            setReply((r) =>
+              mode === "replace" ? plain : scrubComposerBody(r) ? `${scrubComposerBody(r)}\n\n${plain}` : plain,
+            );
+          }}
         />
         {signatures.length > 0 ? (
           <label className="block text-sm">
@@ -779,9 +776,13 @@ export function ThreadView() {
               {signatures.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
+                  {s.isDefault ? " (default)" : ""}
                 </option>
               ))}
             </select>
+            <span className="mt-1 block text-xs text-muted">
+              HTML signatures stay formatted for recipients — they are not pasted into this text box.
+            </span>
           </label>
         ) : null}
         <Textarea

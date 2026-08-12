@@ -8,7 +8,7 @@ import { MultiOpenBanner } from "@/components/MultiOpenBanner";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Badge, Button, EmptyState, Input, SectionHeader } from "@/components/ui";
 import { desktopApi, isDesktop, sendShortcutHint, thisComputerLabel } from "@/lib/desktop";
-import { bodyToHtml } from "@/lib/html-body";
+import { bodyToHtml, scrubComposerBody, signatureHtmlBlock } from "@/lib/html-body";
 import { threadMatchesFilter } from "@/lib/list-filter";
 import {
   selectBoxThreads,
@@ -1267,6 +1267,7 @@ export function FocusReplyView() {
   const [index, setIndex] = useState(0);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
   const current = queue[Math.min(index, Math.max(0, queue.length - 1))];
   const getThreadMessages = useMailStore((s) => s.getThreadMessages);
 
@@ -1283,7 +1284,8 @@ export function FocusReplyView() {
 
   const sendAndNext = async () => {
     if (sending) return;
-    const bodyText = body.trim();
+    const bodyText = scrubComposerBody(body).trim();
+    if (bodyText !== body.trim()) setBody(bodyText);
     if (!bodyText) {
       setToast("Write a reply first");
       return;
@@ -1293,17 +1295,10 @@ export function FocusReplyView() {
       const api = desktopApi();
       const sendAccountId = current.accountId || inboxAccountId || "";
       const sig =
+        signatures.find((s) => s.id === signatureId) ||
         signatures.find((s) => s.id === settings.defaultSignatureId) ||
         signatures.find((s) => s.isDefault);
-      const bodyHtml = `${bodyToHtml(bodyText)}${
-        sig
-          ? `<div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px">${sig.html}${
-              sig.imageDataUrl
-                ? `<div style="margin-top:8px"><img src="${sig.imageDataUrl}" alt="" style="max-height:72px"/></div>`
-                : ""
-            }</div>`
-          : ""
-      }`;
+      const bodyHtml = `${bodyToHtml(bodyText)}${sig ? signatureHtmlBlock(sig) : ""}`;
       if (!api) {
         setToast("Open the Envision Mail desktop app to send via SMTP");
         return;
@@ -1355,11 +1350,36 @@ export function FocusReplyView() {
         <div className="mt-4">
           <EmailTemplatePickers
             showSubjectTemplates={false}
-            onInsertBody={(text, mode) =>
-              setBody((b) => (mode === "replace" ? text : b ? `${b}\n\n${text}` : text))
-            }
+            onSelectSignature={(id) => setSignatureId(id)}
+            onInsertBody={(text, mode) => {
+              const plain = scrubComposerBody(text);
+              setBody((b) =>
+                mode === "replace" ? plain : scrubComposerBody(b) ? `${scrubComposerBody(b)}\n\n${plain}` : plain,
+              );
+            }}
           />
         </div>
+        {signatures.length > 0 ? (
+          <label className="mt-3 block text-sm">
+            Signature for send
+            <select
+              className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2"
+              value={signatureId || ""}
+              onChange={(e) => setSignatureId(e.target.value)}
+            >
+              <option value="">No signature</option>
+              {signatures.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                  {s.isDefault ? " (default)" : ""}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-muted">
+              HTML signatures stay formatted for recipients — they are not pasted into this text box.
+            </span>
+          </label>
+        ) : null}
         <textarea
           className="mt-4 w-full rounded-xl border border-line p-3 text-sm"
           rows={6}
