@@ -3,8 +3,8 @@
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Avatar, Badge, Button } from "@/components/ui";
 import { MailHtml } from "@/components/MailHtml";
-import { filterByActiveAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
+import { useAccountScoped } from "@/lib/use-account-scoped";
 import { tagLabel } from "@/lib/thread-tags";
 import type { Thread } from "@/lib/types";
 import { cn, formatThreadTime, previewText } from "@/lib/utils";
@@ -27,8 +27,8 @@ export function ThreadRow({
 }) {
   const messages = useMailStore((s) => s.messages);
   const contacts = useMailStore((s) => s.contacts);
-  const workflows = useMailStore((s) => filterByActiveAccount(s.workflows, s.inboxAccountId));
-  const collections = useMailStore((s) => filterByActiveAccount(s.collections, s.inboxAccountId));
+  const workflows = useAccountScoped((s) => s.workflows);
+  const collections = useAccountScoped((s) => s.collections);
   const multiOpenIds = useMailStore((s) => s.multiOpenIds);
   const openThread = useMailStore((s) => s.openThread);
   const toggleMultiOpen = useMailStore((s) => s.toggleMultiOpen);
@@ -43,7 +43,7 @@ export function ThreadRow({
   const selected = multiOpenIds.includes(thread.id);
   const workflow = workflows.find((w) => w.id === thread.workflowId);
   const stage = workflow?.stages.find((s) => s.id === thread.workflowStageId);
-  const threadCollections = collections.filter((c) => thread.collectionIds.includes(c.id));
+  const threadCollections = collections.filter((c) => (thread.collectionIds || []).includes(c.id));
 
   const outgoing = thread.messageIds
     .map((id) => messages[id])

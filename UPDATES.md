@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.62
+- **React “Something went wrong” / error #185 fixed.** Account-scoped lists were returning a new array on every store read, which triggered an infinite re-render loop on open (MoneyBox Day Cover, Calendar, thread rows, reminders).
+- Zustand selectors now use stable shallow compares / empty-array fallbacks. Persist hydration waits before showing the shell.
+
 ## 2.6.61
 - **Load crash fixed.** Oversized email HTML (10MB+ newsletters with embedded images) was ballooning local state to ~80MB and breaking the app on open with “This page couldn’t load.”
 - Message bodies are capped on sync and pruned on load; state moves over IPC as a string to avoid cloning a huge object graph.

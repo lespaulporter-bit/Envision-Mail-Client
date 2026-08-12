@@ -1,9 +1,10 @@
 "use client";
 
-import { threadBelongsToAccount, belongsToActiveAccount } from "@/lib/account-scope";
+import { belongsToActiveAccount, threadBelongsToAccount } from "@/lib/account-scope";
 import { ExternalLink } from "@/components/MeetingLink";
 import { detectMeetingProvider, meetingLinkLabel } from "@/lib/meeting-links";
 import { useMailStore } from "@/lib/store";
+import { asArray } from "@/lib/stable-empty";
 import type { Reminder } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Bell, CalendarDays, Mail, MapPin, Video } from "lucide-react";
@@ -144,7 +145,7 @@ function ReminderCard({
 
 /** Prestigious Outlook-style reminder stack — ticks the reminder engine. */
 export function ReminderOverlay() {
-  const reminders = useMailStore((s) => s.reminders || []);
+  const reminders = useMailStore((s) => asArray(s.reminders));
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);

@@ -3,12 +3,13 @@
 import { HtmlField } from "@/components/HtmlField";
 import { Button, Input } from "@/components/ui";
 import { useMailStore } from "@/lib/store";
+import { asArray } from "@/lib/stable-empty";
 import type { EmailTemplate } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { useState } from "react";
 
 export function EmailTemplatesPanel() {
-  const templates = useMailStore((s) => s.emailTemplates || []);
+  const templates = useMailStore((s) => asArray(s.emailTemplates));
   const upsertEmailTemplate = useMailStore((s) => s.upsertEmailTemplate);
   const deleteEmailTemplate = useMailStore((s) => s.deleteEmailTemplate);
   const [draft, setDraft] = useState<EmailTemplate>({

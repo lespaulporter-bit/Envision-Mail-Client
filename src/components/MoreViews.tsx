@@ -12,7 +12,8 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { parseRecipientEmails } from "@/lib/recipient-suggest";
 import { desktopApi, sendShortcutHint, thisComputerLabel } from "@/lib/desktop";
-import { filterByActiveAccount } from "@/lib/account-scope";
+import { useAccountScoped } from "@/lib/use-account-scoped";
+import { asArray } from "@/lib/stable-empty";
 import { selectAccountThreads, selectDockThreads, useMailStore } from "@/lib/store";
 import { clipBelongsToAccount } from "@/lib/account-scope";
 import { blockAllFromSenderSmart } from "@/lib/mail-delete";
@@ -388,7 +389,7 @@ function byNewest(a: Thread, b: Thread) {
 }
 
 export function CollectionsView() {
-  const collections = useMailStore((s) => filterByActiveAccount(s.collections, s.inboxAccountId));
+  const collections = useAccountScoped((s) => s.collections);
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
@@ -502,7 +503,7 @@ export function CollectionsView() {
 }
 
 export function WorkflowsView() {
-  const workflows = useMailStore((s) => filterByActiveAccount(s.workflows, s.inboxAccountId));
+  const workflows = useAccountScoped((s) => s.workflows);
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
@@ -1290,7 +1291,7 @@ export function ComposeView() {
   const setCompose = useMailStore((s) => s.setCompose);
   const startCompose = useMailStore((s) => s.startCompose);
   const sendNewEmail = useMailStore((s) => s.sendNewEmail);
-  const signatures = useMailStore((s) => s.signatures || []);
+  const signatures = useMailStore((s) => asArray(s.signatures));
   const settings = useMailStore((s) => s.settings);
   const replyToEveryone = useMailStore((s) => s.replyToEveryone);
   const threads = useMailStore((s) => s.threads);
@@ -1331,11 +1332,14 @@ export function ComposeView() {
     if ((composeDraft.cc || composeDraft.bcc) && !showCcBcc) setShowCcBcc(true);
   }, [composeDraft.cc, composeDraft.bcc, showCcBcc]);
 
-  // Repair accidental signature HTML dumped into the plain-text composer.
+  // Repair accidental signature HTML dumped into the plain-text composer (once per change).
   useEffect(() => {
-    if (!looksLikeHtmlDump(composeDraft.body)) return;
-    const cleaned = scrubComposerBody(composeDraft.body);
-    if (cleaned === composeDraft.body) return;
+    const body = composeDraft.body;
+    if (!looksLikeHtmlDump(body)) return;
+    const cleaned = scrubComposerBody(body);
+    if (cleaned === body) return;
+    // Avoid toast+setCompose feedback loops if scrub is imperfect.
+    if (scrubComposerBody(cleaned) !== cleaned) return;
     setCompose({ body: cleaned });
     setToast("Cleaned HTML out of the message box — your signature still attaches when you send");
   }, [composeDraft.body, setCompose, setToast]);

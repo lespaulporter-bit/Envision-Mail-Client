@@ -3,8 +3,8 @@
 import { CalendarTimezoneClocks } from "@/components/CalendarTimezoneClocks";
 import { Button, Input, Textarea } from "@/components/ui";
 import { desktopApi, isDesktop, isMacDesktop, isWindowsDesktop, thisComputerLabel } from "@/lib/desktop";
-import { filterByActiveAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
+import { useAccountScoped } from "@/lib/use-account-scoped";
 import type { CalendarEvent, CalendarInvitee } from "@/lib/types";
 import { eventHasEnded, externalCalendarLabel, isExternalCalendarSource } from "@/lib/types";
 import { formatLocalHhmmInZone, localTimezoneId } from "@/lib/timezones";
@@ -85,14 +85,12 @@ export function CalendarView() {
   const calendarView = useMailStore((s) => s.calendarView);
   const setCalendarDate = useMailStore((s) => s.setCalendarDate);
   const setCalendarView = useMailStore((s) => s.setCalendarView);
-  const events = useMailStore((s) => filterByActiveAccount(s.events, s.inboxAccountId));
-  const calendars = useMailStore((s) => filterByActiveAccount(s.calendars, s.inboxAccountId));
-  const habits = useMailStore((s) => filterByActiveAccount(s.habits, s.inboxAccountId));
-  const journal = useMailStore((s) => filterByActiveAccount(s.journal, s.inboxAccountId));
-  const dayLabels = useMailStore((s) => filterByActiveAccount(s.dayLabels, s.inboxAccountId));
-  const sometimeTasks = useMailStore((s) =>
-    filterByActiveAccount(s.sometimeTasks, s.inboxAccountId),
-  );
+  const events = useAccountScoped((s) => s.events);
+  const calendars = useAccountScoped((s) => s.calendars);
+  const habits = useAccountScoped((s) => s.habits);
+  const journal = useAccountScoped((s) => s.journal);
+  const dayLabels = useAccountScoped((s) => s.dayLabels);
+  const sometimeTasks = useAccountScoped((s) => s.sometimeTasks);
   const settings = useMailStore((s) => s.settings);
   const addEvent = useMailStore((s) => s.addEvent);
   const updateEvent = useMailStore((s) => s.updateEvent);

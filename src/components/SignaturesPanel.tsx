@@ -3,12 +3,13 @@
 import { HtmlField } from "@/components/HtmlField";
 import { Button, Input } from "@/components/ui";
 import { useMailStore } from "@/lib/store";
+import { asArray } from "@/lib/stable-empty";
 import { uid } from "@/lib/utils";
 import type { SignatureTemplate } from "@/lib/types";
 import { useState } from "react";
 
 export function SignaturesPanel() {
-  const signatures = useMailStore((s) => s.signatures || []);
+  const signatures = useMailStore((s) => asArray(s.signatures));
   const upsertSignature = useMailStore((s) => s.upsertSignature);
   const deleteSignature = useMailStore((s) => s.deleteSignature);
   const setDefaultSignature = useMailStore((s) => s.setDefaultSignature);

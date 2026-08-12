@@ -2,6 +2,7 @@
 
 import { Input } from "@/components/ui";
 import { useMailStore } from "@/lib/store";
+import { asArray } from "@/lib/stable-empty";
 import {
   applyRecipientSuggestion,
   buildRecipientSuggestions,
@@ -39,7 +40,7 @@ export function RecipientSuggestInput({
   const contacts = useMailStore((s) => s.contacts);
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
-  const recentRecipients = useMailStore((s) => s.recentRecipients || []);
+  const recentRecipients = useMailStore((s) => asArray(s.recentRecipients));
   const settings = useMailStore((s) => s.settings);
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);

@@ -7,8 +7,10 @@ import { MailHtml } from "@/components/MailHtml";
 import { PriorEmailsPanel } from "@/components/PriorEmailsPanel";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
-import { threadBelongsToAccount, filterByActiveAccount } from "@/lib/account-scope";
+import { threadBelongsToAccount } from "@/lib/account-scope";
 import { resolveThreadBackView, selectThreadNeighbors, useMailStore } from "@/lib/store";
+import { useAccountScoped } from "@/lib/use-account-scoped";
+import { asArray } from "@/lib/stable-empty";
 import { tagLabel } from "@/lib/thread-tags";
 import { cn, formatMailDateTime, previewText, relativeTime } from "@/lib/utils";
 import { desktopApi, sendShortcutHint } from "@/lib/desktop";
@@ -26,8 +28,8 @@ export function ThreadView() {
   const threadId = useMailStore((s) => s.selectedThreadId);
   const threads = useMailStore((s) => s.threads);
   const contacts = useMailStore((s) => s.contacts);
-  const workflows = useMailStore((s) => filterByActiveAccount(s.workflows, s.inboxAccountId));
-  const collections = useMailStore((s) => filterByActiveAccount(s.collections, s.inboxAccountId));
+  const workflows = useAccountScoped((s) => s.workflows);
+  const collections = useAccountScoped((s) => s.collections);
   const getThreadMessages = useMailStore((s) => s.getThreadMessages);
   const sendReply = useMailStore((s) => s.sendReply);
   const toggleReplyLater = useMailStore((s) => s.toggleReplyLater);
@@ -67,7 +69,7 @@ export function ThreadView() {
   const [brandsTick, setBrandsTick] = useState(0);
   // Keyed "<threadId>:<messageId>" so switching threads restores default collapsing.
   const [collapseOverrides, setCollapseOverrides] = useState<Record<string, boolean>>({});
-  const signatures = useMailStore((s) => s.signatures || []);
+  const signatures = useMailStore((s) => asArray(s.signatures));
   const settings = useMailStore((s) => s.settings);
   const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
   const threadReturnView = useMailStore((s) => s.threadReturnView);

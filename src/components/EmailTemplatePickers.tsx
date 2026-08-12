@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMailStore } from "@/lib/store";
+import { asArray } from "@/lib/stable-empty";
 import { stripHtml } from "@/lib/utils";
 
 type Props = {
@@ -21,9 +22,9 @@ export function EmailTemplatePickers({
   showSubjectTemplates = true,
   className = "",
 }: Props) {
-  const templates = useMailStore((s) => s.emailTemplates || []);
-  const snippets = useMailStore((s) => s.snippets || []);
-  const signatures = useMailStore((s) => s.signatures || []);
+  const templates = useMailStore((s) => asArray(s.emailTemplates));
+  const snippets = useMailStore((s) => asArray(s.snippets));
+  const signatures = useMailStore((s) => asArray(s.signatures));
   const setToast = useMailStore((s) => s.setToast);
   const [templateId, setTemplateId] = useState("");
   const [snippetId, setSnippetId] = useState("");

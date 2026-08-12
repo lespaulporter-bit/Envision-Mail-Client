@@ -9,6 +9,7 @@ import { UnsubscribeButton } from "@/components/UnsubscribeButton";
 import { Badge, Button, EmptyState, Input, SectionHeader } from "@/components/ui";
 import { desktopApi, isDesktop, sendShortcutHint, thisComputerLabel } from "@/lib/desktop";
 import { bodyToHtml, scrubComposerBody, signatureHtmlBlock } from "@/lib/html-body";
+import { asArray } from "@/lib/stable-empty";
 import { threadMatchesFilter } from "@/lib/list-filter";
 import {
   selectBoxThreads,
@@ -1258,7 +1259,7 @@ export function FocusReplyView() {
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const sendReply = useMailStore((s) => s.sendReply);
   const setToast = useMailStore((s) => s.setToast);
-  const signatures = useMailStore((s) => s.signatures || []);
+  const signatures = useMailStore((s) => asArray(s.signatures));
   const settings = useMailStore((s) => s.settings);
   const queue = selectDockThreads(threads, "reply_later", {
     accountId: inboxAccountId,

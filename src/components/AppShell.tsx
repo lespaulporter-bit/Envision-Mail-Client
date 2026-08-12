@@ -101,7 +101,20 @@ const nav: {
 function useHydrated() {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
-    setHydrated(true);
+    // Wait for zustand persist rehydration so selectors don't thrash on seed→disk swap.
+    const unsub = useMailStore.persist.onFinishHydration(() => setHydrated(true));
+    if (useMailStore.persist.hasHydrated()) setHydrated(true);
+    else {
+      // Fallback if onFinishHydration already fired before subscribe
+      const t = window.setTimeout(() => setHydrated(true), 0);
+      return () => {
+        unsub?.();
+        clearTimeout(t);
+      };
+    }
+    return () => {
+      unsub?.();
+    };
   }, []);
   return hydrated;
 }
