@@ -1,0 +1,17 @@
+{
+  "name": "Envision Mail",
+  "install": "npm ci",
+  "ports": [
+    {
+      "name": "Next.js",
+      "port": 3000
+    }
+  ],
+  "terminals": [
+    {
+      "name": "Next.js",
+      "command": "npm run dev",
+      "description": "Web UI at http://localhost:3000 for UI checks. Mac/Windows Electron packing stays on a desktop machine."
+    }
+  ]
+}
