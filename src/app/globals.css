@@ -136,6 +136,30 @@ a:not([class*="text-"]) {
   animation: cover-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Keep rendered email HTML inside its card. Marketing emails often use a
+   fixed-width table (e.g. width="600"/"720"), oversized buttons, long
+   unbreakable links, or wide images. Without these constraints that content
+   bled out of the message card and was clipped at the window edge. Long text
+   now wraps; genuinely fixed-width blocks scroll horizontally inside the card. */
+.prose-mail {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.prose-mail img,
+.prose-mail video {
+  max-width: 100%;
+  height: auto;
+}
+.prose-mail table {
+  max-width: 100%;
+}
+.prose-mail pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .prose-mail p {
   margin: 0 0 0.85em;
   line-height: 1.55;
