@@ -622,15 +622,39 @@ export function ThreadView() {
             className={`rounded-2xl border border-line p-5 ${m.isOutgoing ? "ml-8 bg-soft/80" : "bg-white"}`}
           >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setCollapsed(m.id, !isCollapsed(m.id))}
-                aria-expanded={!isCollapsed(m.id)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#a855f7] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.55)] transition hover:brightness-110 active:scale-[0.98]"
-              >
-                <span aria-hidden>{isCollapsed(m.id) ? "▸" : "▾"}</span>
-                {isCollapsed(m.id) ? "Expand" : "Collapse"}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCollapsed(m.id, !isCollapsed(m.id))}
+                  aria-expanded={!isCollapsed(m.id)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#a855f7] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.55)] transition hover:brightness-110 active:scale-[0.98]"
+                >
+                  <span aria-hidden>{isCollapsed(m.id) ? "▸" : "▾"}</span>
+                  {isCollapsed(m.id) ? "Expand" : "Collapse"}
+                </button>
+                {thread.box !== "trash" ? (
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    title="Move this conversation to Trash — you can restore it from Trash"
+                    onClick={() => {
+                      void (async () => {
+                        setDeleting(true);
+                        try {
+                          const { moveThreadToTrashSmart } = await import("@/lib/mail-delete");
+                          await moveThreadToTrashSmart(thread.id);
+                        } finally {
+                          setDeleting(false);
+                        }
+                      })();
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[#fee2e2] px-3.5 py-1.5 text-xs font-semibold text-[#b91c1c] ring-1 ring-[#fecaca] transition hover:bg-[#fecaca] disabled:opacity-50"
+                  >
+                    <span aria-hidden>🗑</span>
+                    Move to Trash
+                  </button>
+                ) : null}
+              </div>
               {m.trackersBlocked.length > 0 ? (
                 <Badge tone="salmon">
                   {m.trackersBlocked.length} tracker{m.trackersBlocked.length > 1 ? "s" : ""} blocked
