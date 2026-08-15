@@ -12,7 +12,7 @@
 | Bump | Done |
 | Day Cover (gradient / photo / calendar) | Done |
 | Clear New | Done |
-| Calendar + system calendar sync (Mac Calendar / Windows Outlook) + .ics import | Done |
+| Calendar + system calendar sync (Mac Calendar / Windows Outlook) + .ics import + Unsync / Hide other events | Done |
 | HTML signatures & templates | Done |
 | Account isolation | Done |
 | Spam / Trash / auto-purge | Done |

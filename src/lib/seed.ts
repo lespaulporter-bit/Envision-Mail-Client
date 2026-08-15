@@ -50,6 +50,7 @@ export function createEmptyState(): AppStateData {
       defaultSignatureId: null,
       defaultEventDurationMinutes: 45,
       defaultEventReminderMinutes: 15,
+      hideOtherCalendarEvents: false,
     },
   };
 }

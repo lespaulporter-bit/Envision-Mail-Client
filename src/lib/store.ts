@@ -32,6 +32,13 @@ import { localYmd, uid } from "./utils";
 import { parseMailtoUrl } from "./mailto";
 import { inferThreadAccountId, threadBelongsToAccount, stampMissingAccountId, rehomeOrphanedAccountRows, filterByActiveAccount, belongsToActiveAccount } from "./account-scope";
 import { withMeetingLink } from "./meeting-links";
+import {
+  ALL_EXTERNAL_CALENDAR_SOURCES,
+  applyHideOtherCalendars,
+  calendarEventIsVisible,
+  pruneStaleExternalCalendars,
+  unsyncExternalRows,
+} from "./calendar-sync";
 
 export type AppView =
   | "lesbox"
@@ -263,6 +270,10 @@ interface Actions {
   dismissEvent: (id: string) => void;
   undismissEvent: (id: string) => void;
   toggleCalendarVisible: (calendarId: string) => void;
+  /** Remove Mac / Outlook / .ics calendars and events for the active account. Re-sync to restore. */
+  unsyncExternalCalendars: (sources?: Array<"mac" | "windows" | "ics">) => void;
+  /** Hide or show every computer-synced / imported calendar for the active account. */
+  setHideOtherCalendarEvents: (hide: boolean) => void;
   duplicateEvent: (id: string) => void;
   importMacCalendarData: (payload: {
     calendars: Array<{ id: string; name: string; color?: string }>;
@@ -1801,12 +1812,63 @@ export const useMailStore = create<MailStore>()(
           toast: "Event restored to your active list",
         }),
 
-      toggleCalendarVisible: (calendarId) =>
+      toggleCalendarVisible: (calendarId) => {
+        const calendars = get().calendars.map((c) =>
+          c.id === calendarId ? { ...c, visible: !c.visible } : c,
+        );
+        const next = calendars.find((c) => c.id === calendarId);
+        const hideOther = get().settings.hideOtherCalendarEvents;
+        const showingExternal =
+          Boolean(next?.visible) && isExternalCalendarSource(next?.source) && hideOther;
         set({
-          calendars: get().calendars.map((c) =>
-            c.id === calendarId ? { ...c, visible: !c.visible } : c,
-          ),
-        }),
+          calendars,
+          settings: showingExternal
+            ? { ...get().settings, hideOtherCalendarEvents: false }
+            : get().settings,
+        });
+      },
+
+      unsyncExternalCalendars: (sources) => {
+        const accountId = get().inboxAccountId ?? null;
+        const drop = sources?.length ? sources : ALL_EXTERNAL_CALENDAR_SOURCES;
+        const dropSet = new Set(drop);
+        const removedEvents = get().events.filter(
+          (e) => dropSet.has(e.source as (typeof drop)[number]) && belongsToActiveAccount(e, accountId),
+        );
+        const removedIds = new Set(removedEvents.map((e) => e.id));
+        const calendars = unsyncExternalRows(get().calendars, accountId, drop);
+        const events = unsyncExternalRows(get().events, accountId, drop);
+        const reminders = (get().reminders || []).filter(
+          (r) => !(r.source === "calendar" && removedIds.has(r.sourceId)),
+        );
+        const count = removedEvents.length;
+        const noun =
+          drop.length === 1 && drop[0] === "ics"
+            ? "imported"
+            : drop.every((s) => s === "mac" || s === "windows")
+              ? "computer"
+              : "synced";
+        set({
+          calendars,
+          events,
+          reminders,
+          toast:
+            count === 0
+              ? "No synced calendars to remove"
+              : `Unsynced ${count} ${noun} event${count === 1 ? "" : "s"} — Sync or Import again to restore`,
+        });
+      },
+
+      setHideOtherCalendarEvents: (hide) => {
+        const accountId = get().inboxAccountId ?? null;
+        set({
+          settings: { ...get().settings, hideOtherCalendarEvents: hide },
+          calendars: applyHideOtherCalendars(get().calendars, accountId, hide),
+          toast: hide
+            ? "Hiding Mac / Outlook / imported events — your Envision events stay visible"
+            : "Showing other calendar events",
+        });
+      },
 
       duplicateEvent: (id) => {
         const src = get().events.find((e) => e.id === id);
@@ -1872,7 +1934,7 @@ export const useMailStore = create<MailStore>()(
               id,
               name: mc.name || defaultName,
               color: mc.color || pastelColors[i % pastelColors.length],
-              visible: true,
+              visible: !get().settings.hideOtherCalendarEvents,
               source,
               externalId,
               accountId,
@@ -1880,6 +1942,13 @@ export const useMailStore = create<MailStore>()(
             calIdByExternal.set(externalId, id);
           }
         });
+
+        calendars = pruneStaleExternalCalendars(
+          calendars,
+          source,
+          accountId,
+          incomingCals.map((mc) => String(mc.id)),
+        );
 
         // Replace only this account’s events from this external source.
         const keepOther = get().events.filter(
@@ -2044,7 +2113,11 @@ export const useMailStore = create<MailStore>()(
         const accountId = state.inboxAccountId;
         const existing = state.reminders || [];
         let reminders = activatePendingReminders(existing);
-        const scopedEvents = filterByActiveAccount(state.events || [], accountId);
+        const scopedCalendars = filterByActiveAccount(state.calendars || [], accountId);
+        const hideOther = Boolean(state.settings.hideOtherCalendarEvents);
+        const scopedEvents = filterByActiveAccount(state.events || [], accountId).filter((e) =>
+          calendarEventIsVisible(e, scopedCalendars, hideOther),
+        );
         const scopedThreads = accountId
           ? (state.threads || []).filter((t) =>
               threadBelongsToAccount(t, accountId, state.messages),
@@ -2326,6 +2399,9 @@ export const useMailStore = create<MailStore>()(
             "America/Los_Angeles",
           showDualCalendarTimezones: Boolean(
             p.settings?.showDualCalendarTimezones ?? current.settings.showDualCalendarTimezones,
+          ),
+          hideOtherCalendarEvents: Boolean(
+            p.settings?.hideOtherCalendarEvents ?? current.settings.hideOtherCalendarEvents,
           ),
         };
         delete (settings as { spamCorps?: boolean }).spamCorps;

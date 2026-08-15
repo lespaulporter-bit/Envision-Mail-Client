@@ -315,6 +315,11 @@ export interface Settings {
   defaultEventDurationMinutes?: number;
   /** Default reminder offset for new events (minutes before). -1 = none. */
   defaultEventReminderMinutes?: number;
+  /**
+   * Hide Mac / Outlook / .ics events while keeping Envision-created events.
+   * Survives re-sync so newly pulled computer calendars stay hidden until shown.
+   */
+  hideOtherCalendarEvents?: boolean;
 }
 
 export interface AppStateData {

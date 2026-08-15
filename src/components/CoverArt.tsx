@@ -5,6 +5,7 @@ import { ExternalLink } from "@/components/MeetingLink";
 import { resolveMeetingLink } from "@/lib/meeting-links";
 import { useMailStore } from "@/lib/store";
 import { useAccountScoped } from "@/lib/use-account-scoped";
+import { calendarEventIsVisible } from "@/lib/calendar-sync";
 import { formatCountdown, localYmd } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
@@ -12,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 export function CoverArt() {
   const settings = useMailStore((s) => s.settings);
   const events = useAccountScoped((s) => s.events);
+  const calendars = useAccountScoped((s) => s.calendars);
   const habits = useAccountScoped((s) => s.habits);
   const sometimeTasks = useAccountScoped((s) => s.sometimeTasks);
   const toggleHabit = useMailStore((s) => s.toggleHabit);
@@ -28,22 +30,28 @@ export function CoverArt() {
     return () => window.clearInterval(id);
   }, []);
 
+  const hideOther = Boolean(settings.hideOtherCalendarEvents);
+  const visibleEvents = useMemo(
+    () => events.filter((e) => calendarEventIsVisible(e, calendars, hideOther)),
+    [events, calendars, hideOther],
+  );
+
   const upcoming = useMemo(
     () =>
-      events
+      visibleEvents
         .filter((e) => !e.dismissedAt && +new Date(e.end) >= nowMs)
         .sort((a, b) => +new Date(a.start) - +new Date(b.start))
         .slice(0, 5),
-    [events, nowMs],
+    [visibleEvents, nowMs],
   );
 
   const countdowns = useMemo(
     () =>
-      events
+      visibleEvents
         .filter((e) => !e.dismissedAt && e.countdown && +new Date(e.start) >= nowMs)
         .sort((a, b) => +new Date(a.start) - +new Date(b.start))
         .slice(0, 5),
-    [events, nowMs],
+    [visibleEvents, nowMs],
   );
   const joinableEvent = upcoming.find(
     (e) =>

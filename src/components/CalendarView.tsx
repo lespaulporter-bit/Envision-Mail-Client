@@ -7,6 +7,7 @@ import { useMailStore } from "@/lib/store";
 import { useAccountScoped } from "@/lib/use-account-scoped";
 import type { CalendarEvent, CalendarInvitee } from "@/lib/types";
 import { eventHasEnded, externalCalendarLabel, isExternalCalendarSource } from "@/lib/types";
+import { calendarEventIsVisible, externalSourcesPresent } from "@/lib/calendar-sync";
 import { formatLocalHhmmInZone, localTimezoneId } from "@/lib/timezones";
 import {
   addDays,
@@ -99,6 +100,9 @@ export function CalendarView() {
   const undismissEvent = useMailStore((s) => s.undismissEvent);
   const duplicateEvent = useMailStore((s) => s.duplicateEvent);
   const toggleCalendarVisible = useMailStore((s) => s.toggleCalendarVisible);
+  const unsyncExternalCalendars = useMailStore((s) => s.unsyncExternalCalendars);
+  const setHideOtherCalendarEvents = useMailStore((s) => s.setHideOtherCalendarEvents);
+  const hideOtherCalendarEvents = useMailStore((s) => Boolean(s.settings.hideOtherCalendarEvents));
   const importSystemCalendarData = useMailStore((s) => s.importSystemCalendarData);
   const toggleHabit = useMailStore((s) => s.toggleHabit);
   const setJournal = useMailStore((s) => s.setJournal);
@@ -194,15 +198,16 @@ export function CalendarView() {
     });
   }, []);
 
-  const visibleCalIds = useMemo(
-    () => new Set(calendars.filter((c) => c.visible).map((c) => c.id)),
-    [calendars],
-  );
+  const syncedSources = useMemo(() => externalSourcesPresent(calendars, null), [calendars]);
+  const hasSyncedCalendars = syncedSources.length > 0;
+  const otherEventsHidden =
+    hideOtherCalendarEvents ||
+    (hasSyncedCalendars && calendars.filter((c) => isExternalCalendarSource(c.source)).every((c) => !c.visible));
 
   const filteredEvents = useMemo(() => {
     const q = query.trim().toLowerCase();
     return events
-      .filter((e) => visibleCalIds.has(e.calendarId))
+      .filter((e) => calendarEventIsVisible(e, calendars, hideOtherCalendarEvents))
       .filter((e) => {
         if (!q) return true;
         return (
@@ -213,7 +218,7 @@ export function CalendarView() {
         );
       })
       .sort((a, b) => +new Date(a.start) - +new Date(b.start));
-  }, [events, visibleCalIds, query]);
+  }, [events, calendars, hideOtherCalendarEvents, query]);
 
   const days = useMemo(() => {
     if (calendarView === "day" || calendarView === "agenda") return [date];
@@ -259,12 +264,13 @@ export function CalendarView() {
         (opts?.includeDismissed ? true : !e.dismissedAt),
     );
 
-  // The popup is a complete day view: search text and hidden-calendar filters
-  // must not conceal an appointment that is already scheduled.
+  // Day sheet follows the same visibility rules as the grid so Unsync / Hide
+  // other calendar events actually remove computer-synced appointments from view.
   const daySheetEvents = useMemo(() => {
     if (!daySheetDate) return [];
     const sheetDate = parseISO(daySheetDate);
     return events
+      .filter((event) => calendarEventIsVisible(event, calendars, hideOtherCalendarEvents))
       .filter((event) => isSameDay(parseISO(event.start), sheetDate))
       .sort((a, b) => {
         const aDismissed = a.dismissedAt ? 1 : 0;
@@ -272,7 +278,7 @@ export function CalendarView() {
         if (aDismissed !== bDismissed) return aDismissed - bDismissed;
         return +new Date(a.start) - +new Date(b.start);
       });
-  }, [daySheetDate, events]);
+  }, [daySheetDate, events, calendars, hideOtherCalendarEvents]);
 
   const daySheetActiveCount = useMemo(
     () => daySheetEvents.filter((e) => !e.dismissedAt).length,
@@ -974,6 +980,31 @@ export function CalendarView() {
                 }}
               >
                 {importingIcs ? "Importing…" : "Import .ics"}
+              </Button>
+            </>
+          ) : null}
+          {onDesktop || hasSyncedCalendars ? (
+            <>
+              <Button
+                size="sm"
+                variant="soft"
+                disabled={!hasSyncedCalendars}
+                title="Remove Mac / Outlook / imported calendars from this account. Your Envision events stay. Sync or Import again to restore."
+                onClick={() => unsyncExternalCalendars()}
+              >
+                Unsync
+              </Button>
+              <Button
+                size="sm"
+                variant="soft"
+                title={
+                  otherEventsHidden
+                    ? "Show Mac / Outlook / imported events again"
+                    : "Hide Mac / Outlook / imported events. Events you created in Envision stay visible."
+                }
+                onClick={() => setHideOtherCalendarEvents(!otherEventsHidden)}
+              >
+                {otherEventsHidden ? "Show other calendar events" : "Hide other calendar events"}
               </Button>
             </>
           ) : null}

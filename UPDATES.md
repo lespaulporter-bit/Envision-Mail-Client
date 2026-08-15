@@ -1,5 +1,10 @@
 # Envision Mail updates
 
+## 2.6.66
+- **Unsync computer calendars.** After Sync Mac Calendars / Sync Outlook Calendar or Import .ics, **Unsync** removes those calendars and events from the active account. Events you created in Envision stay. Sync or Import again to restore — nothing is deleted from Apple Calendar or Outlook.
+- **Hide other calendar events.** One click hides Mac / Outlook / imported events across Calendar, the day popup, Day Cover, and reminders. **Show other calendar events** brings them back. New syncs stay hidden while this is on.
+- Stale Mac / Outlook calendar chips (calendars deleted on the computer) are cleaned up on the next sync.
+
 ## 2.6.65
 - **Email bodies render clean.** Messages that start with an HTML `<!DOCTYPE …>` no longer leak the declaration line (e.g. `…/loose.dtd">`) into the body, and collapsed previews no longer show raw CSS from `<style>` blocks.
 - **Wide emails stay inside the card.** Marketing emails with fixed-width tables, big buttons, long links, or large images no longer overflow and get cut off — long links wrap and oversized layouts scroll within the message.
