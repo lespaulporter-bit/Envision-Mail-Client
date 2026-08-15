@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.67
+- **Day Cover opens the event.** Clicking Labor Day, Columbus Day, or any Up next / Countdown item takes you to that calendar day and opens the event (Mac and Windows). Previously it only switched to Calendar and left you on the wrong day.
+- **+ Event from Day Cover** opens today’s calendar with a blank new-event form ready to save — no leftover “New event” placeholder.
+
 ## 2.6.66
 - **Unsync computer calendars.** After Sync Mac Calendars / Sync Outlook Calendar or Import .ics, **Unsync** removes those calendars and events from the active account. Events you created in Envision stay. Sync or Import again to restore — nothing is deleted from Apple Calendar or Outlook.
 - **Hide other calendar events.** One click hides Mac / Outlook / imported events across Calendar, the day popup, Day Cover, and reminders. **Show other calendar events** brings them back. New syncs stay hidden while this is on.

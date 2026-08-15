@@ -19,8 +19,8 @@ export function CoverArt() {
   const toggleHabit = useMailStore((s) => s.toggleHabit);
   const toggleSometimeTask = useMailStore((s) => s.toggleSometimeTask);
   const addSometimeTask = useMailStore((s) => s.addSometimeTask);
-  const addEvent = useMailStore((s) => s.addEvent);
-  const setView = useMailStore((s) => s.setView);
+  const openCalendarEvent = useMailStore((s) => s.openCalendarEvent);
+  const composeNewCalendarEvent = useMailStore((s) => s.composeNewCalendarEvent);
   const [task, setTask] = useState("");
   const [nowMs, setNowMs] = useState(() => Date.now());
   const today = localYmd();
@@ -85,19 +85,7 @@ export function CoverArt() {
             size="sm"
             variant="soft"
             className="!bg-white/15 !text-white hover:!bg-white/25"
-            onClick={() => {
-              const start = new Date();
-              start.setHours(start.getHours() + 2, 0, 0, 0);
-              const end = new Date(start);
-              end.setHours(end.getHours() + 1);
-              addEvent({
-                title: "New event",
-                start: start.toISOString(),
-                end: end.toISOString(),
-                calendarId: "cal_default",
-              });
-              setView("calendar");
-            }}
+            onClick={() => composeNewCalendarEvent()}
           >
             + Event
           </Button>
@@ -120,7 +108,11 @@ export function CoverArt() {
               <ul className="space-y-2 text-sm">
                 {upcoming.map((e) => (
                   <li key={e.id}>
-                    <button type="button" className="text-left hover:underline" onClick={() => setView("calendar")}>
+                    <button
+                      type="button"
+                      className="text-left hover:underline"
+                      onClick={() => openCalendarEvent(e.id)}
+                    >
                       <div className="font-medium">{e.title}</div>
                       <div className="text-white/70">
                         {(() => {
@@ -144,6 +136,11 @@ export function CoverArt() {
                   const cd = formatCountdown(e.start, nowMs);
                   return (
                     <li key={e.id} className={cd.urgent ? "text-amber-200" : ""}>
+                      <button
+                        type="button"
+                        className="w-full text-left hover:underline"
+                        onClick={() => openCalendarEvent(e.id)}
+                      >
                       <div className="font-mono text-base font-semibold tracking-tight">{cd.label}</div>
                       <div className="text-white/80">{e.title}</div>
                       <div className="text-[11px] text-white/55">
@@ -155,6 +152,7 @@ export function CoverArt() {
                           }
                         })()}
                       </div>
+                      </button>
                     </li>
                   );
                 })}

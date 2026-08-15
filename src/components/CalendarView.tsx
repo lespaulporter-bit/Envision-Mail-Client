@@ -86,6 +86,8 @@ export function CalendarView() {
   const calendarView = useMailStore((s) => s.calendarView);
   const setCalendarDate = useMailStore((s) => s.setCalendarDate);
   const setCalendarView = useMailStore((s) => s.setCalendarView);
+  const pendingCalendarOpen = useMailStore((s) => s.pendingCalendarOpen);
+  const clearPendingCalendarOpen = useMailStore((s) => s.clearPendingCalendarOpen);
   const events = useAccountScoped((s) => s.events);
   const calendars = useAccountScoped((s) => s.calendars);
   const habits = useAccountScoped((s) => s.habits);
@@ -437,6 +439,28 @@ export function CalendarView() {
       });
     }
   };
+
+  // Day Cover / reminders ask Calendar to land on a specific event or a blank compose.
+  useEffect(() => {
+    if (!pendingCalendarOpen) return;
+    const pending = pendingCalendarOpen;
+    clearPendingCalendarOpen();
+    const ymd = pending.ymd || calendarDate;
+    if (pending.eventId) {
+      const ev = events.find((e) => e.id === pending.eventId);
+      if (ev) {
+        openDaySheet(format(parseISO(ev.start), "yyyy-MM-dd"), { edit: ev });
+        return;
+      }
+    }
+    if (pending.compose) {
+      openDaySheet(ymd, { compose: true });
+      return;
+    }
+    openDaySheet(ymd);
+    // openDaySheet / beginEdit are stable enough for this one-shot handoff.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCalendarOpen]);
 
   const resetForm = () => {
     setEditingId(null);

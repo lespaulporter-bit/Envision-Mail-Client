@@ -111,6 +111,15 @@ interface UiState {
   };
   calendarDate: string;
   calendarView: "day" | "week" | "month" | "agenda";
+  /**
+   * One-shot handoff from Day Cover / reminders → Calendar.
+   * CalendarView consumes this on mount and clears it. Not persisted.
+   */
+  pendingCalendarOpen: {
+    eventId?: string | null;
+    compose?: boolean;
+    ymd?: string;
+  } | null;
   /** Settings sub-tab — survives remounts so edits aren't lost after background sync */
   settingsTab: "accounts" | "general" | "mail" | "appearance" | "templates" | "about";
   toast: string | null;
@@ -149,6 +158,11 @@ interface Actions {
   ) => void;
   setCalendarDate: (isoDate: string) => void;
   setCalendarView: (v: UiState["calendarView"]) => void;
+  /** Open Calendar on this event (day view + day sheet edit). Used by Day Cover. */
+  openCalendarEvent: (eventId: string) => void;
+  /** Open Calendar on a blank new-event form for today (or `ymd`). */
+  composeNewCalendarEvent: (ymd?: string) => void;
+  clearPendingCalendarOpen: () => void;
   setSettingsTab: (tab: UiState["settingsTab"]) => void;
 
   screenContact: (
@@ -463,6 +477,7 @@ export const useMailStore = create<MailStore>()(
       composeDraft: { to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null },
       calendarDate: localYmd(),
       calendarView: "week",
+      pendingCalendarOpen: null,
       settingsTab: "accounts",
       toast: null,
 
@@ -617,6 +632,30 @@ export const useMailStore = create<MailStore>()(
         });
       },
       setCalendarDate: (calendarDate) => set({ calendarDate }),
+      openCalendarEvent: (eventId) => {
+        const ev = get().events.find((e) => e.id === eventId);
+        if (!ev) {
+          set({ view: "calendar", toast: "That event is no longer on your calendar" });
+          return;
+        }
+        const ymd = localYmd(ev.start);
+        set({
+          view: "calendar",
+          calendarDate: ymd,
+          calendarView: "day",
+          pendingCalendarOpen: { eventId: ev.id, ymd },
+        });
+      },
+      composeNewCalendarEvent: (ymd) => {
+        const day = ymd || localYmd();
+        set({
+          view: "calendar",
+          calendarDate: day,
+          calendarView: "day",
+          pendingCalendarOpen: { compose: true, ymd: day },
+        });
+      },
+      clearPendingCalendarOpen: () => set({ pendingCalendarOpen: null }),
       setCalendarView: (calendarView) => set({ calendarView }),
       setSettingsTab: (settingsTab) => set({ settingsTab }),
 
@@ -2199,8 +2238,7 @@ export const useMailStore = create<MailStore>()(
         const r = (get().reminders || []).find((x) => x.id === id);
         if (!r) return;
         if (r.source === "calendar") {
-          const ev = get().events.find((e) => e.id === r.sourceId);
-          if (ev) set({ view: "calendar", calendarDate: localYmd(ev.start) });
+          if (r.sourceId) get().openCalendarEvent(r.sourceId);
           else set({ view: "calendar" });
         } else if (r.source === "mail") {
           get().openThread(r.sourceId);
