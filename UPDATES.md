@@ -1,5 +1,13 @@
 # Envision Mail updates
 
+## 2.6.65
+- **Email bodies render clean.** Messages that start with an HTML `<!DOCTYPE …>` no longer leak the declaration line (e.g. `…/loose.dtd">`) into the body, and collapsed previews no longer show raw CSS from `<style>` blocks.
+- **Wide emails stay inside the card.** Marketing emails with fixed-width tables, big buttons, long links, or large images no longer overflow and get cut off — long links wrap and oversized layouts scroll within the message.
+- **Recipient suggestions respect the active account.** The To / Cc / Bcc autocomplete only suggests people the active account has actually emailed or heard from — no more addresses bleeding in from other accounts.
+- **Schedule recovery.** Day Cover / calendar events, countdowns, habits, and tasks that disappeared after switching or re-adding an account (orphaned to an old account id) are re-homed to the active account. Nothing is deleted, and other accounts' data stays isolated.
+- **Check for updates now installs immediately.** After a manual check finds a newer version, the app waits for the download to finish and then offers **Restart & install** right away (previously it could leave you on “downloading” with no way to install).
+- **Move to Trash on each email.** Every message in a thread has a Move to Trash action next to Expand / Collapse (restorable from Trash).
+
 ## 2.6.64
 - **Dismiss from Edit event** (Mac + Windows). Save / Dismiss / Undo dismiss / Delete stay visible in the day popup — actions are pinned outside the scroll area so they are not cut off under Invitees.
 - Escape while editing returns to the day list first (instead of closing the whole sheet). Week/countdown edits scroll the page composer into view. Dismissed day-list items can be edited again.
