@@ -1,8 +1,10 @@
 "use client";
 
 import { Input } from "@/components/ui";
+import { filterContactsByAccount, filterThreadsByAccount } from "@/lib/account-scope";
 import { useMailStore } from "@/lib/store";
 import { asArray } from "@/lib/stable-empty";
+import type { Message } from "@/lib/types";
 import {
   applyRecipientSuggestion,
   buildRecipientSuggestions,
@@ -41,6 +43,7 @@ export function RecipientSuggestInput({
   const threads = useMailStore((s) => s.threads);
   const messages = useMailStore((s) => s.messages);
   const recentRecipients = useMailStore((s) => asArray(s.recentRecipients));
+  const inboxAccountId = useMailStore((s) => s.inboxAccountId);
   const settings = useMailStore((s) => s.settings);
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -50,24 +53,55 @@ export function RecipientSuggestInput({
 
   const { query } = useMemo(() => currentRecipientQuery(value), [value]);
   const already = useMemo(() => parseRecipientEmails(value), [value]);
+
+  // Strict account isolation: only suggest people the ACTIVE account has
+  // actually corresponded with, plus its own address book. The store's
+  // contacts / recentRecipients lists are global, so without this the "To"
+  // autocomplete leaked recipients from other accounts that had never sent to
+  // or received from that address.
+  const scoped = useMemo(() => {
+    const scopedThreads = filterThreadsByAccount(threads, inboxAccountId, messages);
+    const scopedContacts = filterContactsByAccount(contacts, threads, inboxAccountId, messages);
+    const scopedMessages: Record<string, Message | undefined> = {};
+    const addressSet = new Set<string>();
+    const ownSet = new Set<string>();
+    for (const t of scopedThreads) {
+      if (t.contactEmail) addressSet.add(t.contactEmail.toLowerCase());
+      if (t.accountEmail) ownSet.add(t.accountEmail.toLowerCase());
+      for (const mid of t.messageIds || []) {
+        const m = messages[mid];
+        if (!m) continue;
+        scopedMessages[mid] = m;
+        if (m.from) addressSet.add(m.from.toLowerCase());
+        for (const to of m.to || []) addressSet.add(to.toLowerCase());
+        for (const cc of m.cc || []) addressSet.add(cc.toLowerCase());
+        for (const bcc of m.bcc || []) addressSet.add(bcc.toLowerCase());
+      }
+    }
+    const scopedRecents = inboxAccountId
+      ? recentRecipients.filter((r) => addressSet.has(String(r.email || "").toLowerCase()))
+      : recentRecipients;
+    return { scopedThreads, scopedContacts, scopedMessages, scopedRecents, ownSet };
+  }, [threads, contacts, messages, recentRecipients, inboxAccountId]);
+
   const ownEmails = useMemo(
-    () => [settings.email, settings.workEmail].filter(Boolean) as string[],
-    [settings.email, settings.workEmail],
+    () => [settings.email, settings.workEmail, ...scoped.ownSet].filter(Boolean) as string[],
+    [settings.email, settings.workEmail, scoped.ownSet],
   );
 
   const suggestions = useMemo(
     () =>
       buildRecipientSuggestions({
         query,
-        contacts,
-        threads,
-        messages,
-        recent: recentRecipients,
+        contacts: scoped.scopedContacts,
+        threads: scoped.scopedThreads,
+        messages: scoped.scopedMessages,
+        recent: scoped.scopedRecents,
         exclude: already,
         ownEmails,
         limit: 8,
       }),
-    [query, contacts, threads, messages, recentRecipients, already, ownEmails],
+    [query, scoped, already, ownEmails],
   );
 
   useEffect(() => {
