@@ -5,6 +5,9 @@
   "description": "Envision Mail \u2014 email + calendar for Envision DMS",
   "author": "Envision Mail",
   "main": "electron/main.cjs",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:desktop": "npm run build:web && electron .",
