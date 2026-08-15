@@ -100,7 +100,26 @@ export function initials(name: string) {
 }
 
 export function stripHtml(html: string) {
-  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return String(html || "")
+    // Drop markup whose *contents* must never surface as text. Without this a
+    // message that carries a <style> block (or <head>/<script>) leaked raw CSS
+    // like "@media only screen and (max-width: 600px) { ... }" into previews.
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, " ")
+    .replace(/<(script|style|head|title|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
+    // A malformed, never-closed <style>/<script> would otherwise dump its body.
+    .replace(/<(?:script|style)\b[^>]*>[\s\S]*$/gi, " ")
+    // Remaining tags and stray declarations (e.g. <!DOCTYPE ...>).
+    .replace(/<[^>]+>/g, " ")
+    // Decode the handful of entities common in mail so previews read cleanly.
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0*39;|&apos;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function previewText(html: string, max = 120) {
