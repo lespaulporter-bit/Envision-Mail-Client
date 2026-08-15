@@ -1080,7 +1080,13 @@ export function SettingsView() {
                       // the signal that an update is actually available.
                       const remote = res.updateInfo?.version || null;
                       if (!remote) {
-                        alert("You're up to date.");
+                        const latestPublished = st?.lastVersion;
+                        alert(
+                          `You're on the latest version (v${appVersion}).` +
+                            (latestPublished
+                              ? `\n\nNewest published release: v${latestPublished}.`
+                              : ""),
+                        );
                         return;
                       }
                       // Wait for the download to finish so the user can install right away
