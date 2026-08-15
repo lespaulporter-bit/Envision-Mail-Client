@@ -667,6 +667,7 @@ export function SettingsView() {
   const resetDemo = useMailStore((s) => s.resetDemo);
   const tab = useMailStore((s) => s.settingsTab);
   const setTab = useMailStore((s) => s.setSettingsTab);
+  const setToast = useMailStore((s) => s.setToast);
   const [appVersion, setAppVersion] = useState("2.6.65");
   const [updateStatus, setUpdateStatus] = useState<{
     feedUrl: string;
@@ -1059,20 +1060,24 @@ export function SettingsView() {
                   void (async () => {
                     const api = desktopApi();
                     if (!api?.checkForUpdates) {
-                      alert("Update checks are available in the desktop app.");
+                      setToast("Update checks are available in the desktop app.");
                       return;
                     }
                     setUpdateBusy(true);
+                    // Use the in-app toast + status panel for every outcome. Electron can
+                    // suppress or hide native window.alert/confirm, which made the button
+                    // look dead ("nothing happens"); the app's own UI always renders.
                     try {
                       const refreshStatus = async () => {
                         const next = (await api.getUpdateStatus?.()) as typeof updateStatus;
                         if (next) setUpdateStatus(next);
                         return next;
                       };
+                      setToast("Checking for updates…");
                       const res = await api.checkForUpdates({ force: true });
                       let st = await refreshStatus();
                       if (!res.ok) {
-                        alert(res.error || st?.lastError || "Update check failed");
+                        setToast(res.error || st?.lastError || "Update check failed");
                         return;
                       }
                       // `updateInfo` is only set when a strictly newer version exists,
@@ -1081,17 +1086,17 @@ export function SettingsView() {
                       const remote = res.updateInfo?.version || null;
                       if (!remote) {
                         const latestPublished = st?.lastVersion;
-                        alert(
-                          `You're on the latest version (v${appVersion}).` +
-                            (latestPublished
-                              ? `\n\nNewest published release: v${latestPublished}.`
-                              : ""),
+                        setToast(
+                          latestPublished && latestPublished !== appVersion
+                            ? `Latest published is v${latestPublished} — you're on v${appVersion}.`
+                            : `You're on the latest version (v${appVersion}).`,
                         );
                         return;
                       }
-                      // Wait for the download to finish so the user can install right away
-                      // instead of being told to come back later (Windows downloads in the
-                      // background; macOS has usually finished by the time the check returns).
+                      // Wait for the download to finish, then install right away — a manual
+                      // check is an explicit request to update now (Windows downloads in the
+                      // background; macOS usually finishes by the time the check returns).
+                      setToast(`Update v${remote} found — downloading…`);
                       const deadline = Date.now() + 120_000;
                       let result = String(st?.lastResult || "");
                       while (
@@ -1104,26 +1109,28 @@ export function SettingsView() {
                         result = String(st?.lastResult || "");
                       }
                       if (result === "error") {
-                        alert(st?.lastError || "Update download failed — please try again.");
+                        setToast(st?.lastError || "Update download failed — please try again.");
                         return;
                       }
-                      if (result === "downloaded") {
-                        const install = confirm(
-                          `Version ${remote} is ready.\n\nRestart Envision Mail now to install?`,
-                        );
-                        if (install && api.installUpdate) {
-                          const r = await api.installUpdate();
-                          if (!r.ok) alert(r.error || "Install failed");
-                        }
+                      if (result === "downloaded" && api.installUpdate) {
+                        setToast(`Installing v${remote} — Envision Mail will restart…`);
+                        const r = await api.installUpdate();
+                        if (!r.ok) setToast(r.error || "Install failed");
                       } else {
-                        alert(
-                          `Update ${remote} is still downloading. It will prompt to restart & install as soon as it finishes — or use the “Restart & install” button.`,
+                        setToast(
+                          `Update v${remote} is downloading — use “Restart & install” when it appears.`,
                         );
                       }
+                    } catch (err) {
+                      setToast(err instanceof Error ? err.message : "Update check failed");
                     } finally {
                       setUpdateBusy(false);
-                      const st = await api.getUpdateStatus?.();
-                      if (st) setUpdateStatus(st as typeof updateStatus);
+                      try {
+                        const st = await api.getUpdateStatus?.();
+                        if (st) setUpdateStatus(st as typeof updateStatus);
+                      } catch {
+                        /* ignore status refresh errors */
+                      }
                     }
                   })();
                 }}
@@ -1140,15 +1147,16 @@ export function SettingsView() {
                     void (async () => {
                       const api = desktopApi();
                       if (!api?.installUpdate) {
-                        alert("Restart to install is available in the desktop app.");
+                        setToast("Restart to install is available in the desktop app.");
                         return;
                       }
                       setUpdateBusy(true);
+                      setToast("Installing update — Envision Mail will restart…");
                       try {
                         const res = await api.installUpdate();
-                        if (!res.ok) alert(res.error || "Install failed");
+                        if (!res.ok) setToast(res.error || "Install failed");
                       } catch (err) {
-                        alert(err instanceof Error ? err.message : String(err));
+                        setToast(err instanceof Error ? err.message : String(err));
                         setUpdateBusy(false);
                       }
                     })();
