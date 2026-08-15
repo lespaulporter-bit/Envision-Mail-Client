@@ -30,7 +30,7 @@ import { normalizeSometimeTasks, weekStartKey } from "./sometime-tasks";
 import { mergeRecentRecipients } from "./recipient-suggest";
 import { localYmd, uid } from "./utils";
 import { parseMailtoUrl } from "./mailto";
-import { inferThreadAccountId, threadBelongsToAccount, stampMissingAccountId, filterByActiveAccount, belongsToActiveAccount } from "./account-scope";
+import { inferThreadAccountId, threadBelongsToAccount, stampMissingAccountId, rehomeOrphanedAccountRows, filterByActiveAccount, belongsToActiveAccount } from "./account-scope";
 import { withMeetingLink } from "./meeting-links";
 
 export type AppView =
@@ -123,6 +123,13 @@ interface Actions {
     accountId: string | null,
     meta?: { email?: string; name?: string; silent?: boolean },
   ) => void;
+  /**
+   * Recover personal workspace rows (events, calendars, habits, journal, day
+   * labels, sometime tasks, reminders) orphaned to an account id that no longer
+   * exists among `knownAccountIds`, moving them to the active account. Rows
+   * owned by a still-present account are left untouched (isolation preserved).
+   */
+  reconcileOrphanedTenancy: (knownAccountIds: string[]) => void;
   setCompose: (draft: Partial<UiState["composeDraft"]>) => void;
   /**
    * Open a brand-new compose. Always clears body.
@@ -537,6 +544,30 @@ export const useMailStore = create<MailStore>()(
                 ? "Account switched"
                 : null,
         });
+      },
+      reconcileOrphanedTenancy: (knownAccountIds) => {
+        const s = get();
+        const activeId = s.inboxAccountId;
+        if (!activeId) return;
+        const events = rehomeOrphanedAccountRows(s.events, knownAccountIds, activeId);
+        const calendars = rehomeOrphanedAccountRows(s.calendars, knownAccountIds, activeId);
+        const habits = rehomeOrphanedAccountRows(s.habits, knownAccountIds, activeId);
+        const journal = rehomeOrphanedAccountRows(s.journal, knownAccountIds, activeId);
+        const dayLabels = rehomeOrphanedAccountRows(s.dayLabels, knownAccountIds, activeId);
+        const sometimeTasks = rehomeOrphanedAccountRows(s.sometimeTasks, knownAccountIds, activeId);
+        const remindersIn = s.reminders || [];
+        const reminders = rehomeOrphanedAccountRows(remindersIn, knownAccountIds, activeId);
+        if (
+          events !== s.events ||
+          calendars !== s.calendars ||
+          habits !== s.habits ||
+          journal !== s.journal ||
+          dayLabels !== s.dayLabels ||
+          sometimeTasks !== s.sometimeTasks ||
+          reminders !== remindersIn
+        ) {
+          set({ events, calendars, habits, journal, dayLabels, sometimeTasks, reminders });
+        }
       },
       setCompose: (draft) => set({ composeDraft: { ...get().composeDraft, ...draft } }),
       startCompose: (mailtoOrFields) => {

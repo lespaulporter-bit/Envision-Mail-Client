@@ -107,3 +107,38 @@ export function stampMissingAccountId<T extends { accountId?: string | null }>(
   if (!accountId) return list;
   return list.map((item) => (item.accountId ? item : { ...item, accountId }));
 }
+
+/**
+ * Recover rows that are orphaned to an account id which no longer exists.
+ *
+ * `stampMissingAccountId` only claims rows with NO owner, so a row tagged to a
+ * removed/changed account id stays invisible forever (its Day Cover / calendar
+ * data appears to "vanish"). This re-homes ONLY those true orphans to the
+ * active account. Rows owned by a still-present account are never touched, so
+ * account isolation is preserved. Non-destructive: returns the same array
+ * reference when nothing changed, and only mutates the `accountId` field.
+ */
+export function rehomeOrphanedAccountRows<T extends { accountId?: string | null }>(
+  items: T[] | null | undefined,
+  knownAccountIds: Iterable<string>,
+  activeAccountId: string | null | undefined,
+): T[] {
+  const list = items || [];
+  if (!activeAccountId) return list;
+  const known = new Set<string>();
+  for (const id of knownAccountIds) if (id) known.add(id);
+  // Only run once accounts are actually loaded and include the active one, so a
+  // transient/empty list can never re-home a live account's data by mistake.
+  if (!known.size || !known.has(activeAccountId)) return list;
+
+  let changed = false;
+  const next = list.map((item) => {
+    const owner = item.accountId;
+    if (owner && !known.has(owner)) {
+      changed = true;
+      return { ...item, accountId: activeAccountId };
+    }
+    return item;
+  });
+  return changed ? next : list;
+}

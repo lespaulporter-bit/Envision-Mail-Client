@@ -178,6 +178,8 @@ export function AppShell() {
             silent: true,
           });
         }
+        // Recover schedule/personal rows orphaned to a removed/changed account id.
+        useMailStore.getState().reconcileOrphanedTenancy(mapped.map((a) => a.id));
       });
     };
     loadAccounts();
@@ -216,9 +218,11 @@ export function AppShell() {
       void syncActiveDesktopAccount().then(() => {
         const api = desktopApi();
         if (!api) return;
-        void api.listAccounts().then((list) =>
-          setAccounts(list.map((a) => ({ id: a.id, email: a.email, name: a.name }))),
-        );
+        void api.listAccounts().then((list) => {
+          const mapped = list.map((a) => ({ id: a.id, email: a.email, name: a.name }));
+          setAccounts(mapped);
+          useMailStore.getState().reconcileOrphanedTenancy(mapped.map((a) => a.id));
+        });
         void purgeOldTrash();
       });
     };
