@@ -1064,34 +1064,60 @@ export function SettingsView() {
                     }
                     setUpdateBusy(true);
                     try {
+                      const refreshStatus = async () => {
+                        const next = (await api.getUpdateStatus?.()) as typeof updateStatus;
+                        if (next) setUpdateStatus(next);
+                        return next;
+                      };
                       const res = await api.checkForUpdates({ force: true });
-                      const st = (await api.getUpdateStatus()) as typeof updateStatus;
-                      if (st) setUpdateStatus(st);
+                      let st = await refreshStatus();
                       if (!res.ok) {
-                        alert(res.error || "Update check failed");
+                        alert(res.error || st?.lastError || "Update check failed");
                         return;
                       }
-                      const remote = res.updateInfo?.version;
-                      const result = String((st as { lastResult?: string } | null)?.lastResult || "");
-                      if (result === "downloaded" && remote) {
+                      // `updateInfo` is only set when a strictly newer version exists,
+                      // so it (not lastVersion, which is also set when up to date) is
+                      // the signal that an update is actually available.
+                      const remote = res.updateInfo?.version || null;
+                      if (!remote) {
+                        alert("You're up to date.");
+                        return;
+                      }
+                      // Wait for the download to finish so the user can install right away
+                      // instead of being told to come back later (Windows downloads in the
+                      // background; macOS has usually finished by the time the check returns).
+                      const deadline = Date.now() + 120_000;
+                      let result = String(st?.lastResult || "");
+                      while (
+                        result !== "downloaded" &&
+                        result !== "error" &&
+                        Date.now() < deadline
+                      ) {
+                        await new Promise((r) => setTimeout(r, 1500));
+                        st = await refreshStatus();
+                        result = String(st?.lastResult || "");
+                      }
+                      if (result === "error") {
+                        alert(st?.lastError || "Update download failed — please try again.");
+                        return;
+                      }
+                      if (result === "downloaded") {
                         const install = confirm(
-                          `Version ${remote} is downloaded.\n\nRestart Envision Mail now to install?`,
+                          `Version ${remote} is ready.\n\nRestart Envision Mail now to install?`,
                         );
                         if (install && api.installUpdate) {
                           const r = await api.installUpdate();
                           if (!r.ok) alert(r.error || "Install failed");
                         }
-                      } else if (remote) {
-                        alert(`Update ${remote} is downloading or ready — use Restart & install when it appears.`);
-                        const again = await api.getUpdateStatus();
-                        setUpdateStatus(again);
                       } else {
-                        alert("You're up to date.");
+                        alert(
+                          `Update ${remote} is still downloading. It will prompt to restart & install as soon as it finishes — or use the “Restart & install” button.`,
+                        );
                       }
                     } finally {
                       setUpdateBusy(false);
                       const st = await api.getUpdateStatus?.();
-                      if (st) setUpdateStatus(st);
+                      if (st) setUpdateStatus(st as typeof updateStatus);
                     }
                   })();
                 }}
