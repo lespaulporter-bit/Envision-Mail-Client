@@ -147,7 +147,33 @@ export interface LesMailDesktopApi {
     inReplyTo?: string;
     references?: string;
     requestReadReceipt?: boolean;
+    attachments?: Array<{
+      id?: string;
+      filename?: string;
+      name?: string;
+      contentType?: string;
+      mimeType?: string;
+      contentBase64?: string;
+      path?: string;
+    }>;
   }) => Promise<{ ok: boolean; error?: string; messageId?: string }>;
+  pickAttachments: () => Promise<{
+    ok: boolean;
+    cancelled?: boolean;
+    error?: string;
+    files?: Array<{ id: string; name: string; size: number; mimeType: string }>;
+  }>;
+  stageAttachment: (payload: {
+    name?: string;
+    filename?: string;
+    mimeType?: string;
+    contentType?: string;
+    contentBase64: string;
+  }) => Promise<{
+    ok: boolean;
+    error?: string;
+    file?: { id: string; name: string; size: number; mimeType: string };
+  }>;
   /** Silent List-Unsubscribe (one-click POST, HTTP GET, or mailto). */
   unsubscribeMail: (payload: {
     accountId?: string | null;

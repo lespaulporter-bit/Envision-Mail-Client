@@ -1,5 +1,9 @@
 # Envision Mail updates
 
+## 2.6.68
+- **Attach files when you write.** Compose, Reply, and Reply Queue have **Attach files**. Pick one or more documents (Mac and Windows). They send with the email and show on the Sent copy. Incoming attachments still open and save as before.
+- Attachment cap is 25 MB total (typical SMTP limit) so send does not fail silently.
+
 ## 2.6.67
 - **Day Cover opens the event.** Clicking Labor Day, Columbus Day, or any Up next / Countdown item takes you to that calendar day and opens the event (Mac and Windows). Previously it only switched to Calendar and left you on the wrong day.
 - **+ Event from Day Cover** opens today’s calendar with a blank new-event form ready to save — no leftover “New event” placeholder.

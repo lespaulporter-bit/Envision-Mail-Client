@@ -1,12 +1,13 @@
+import { isOutgoingAttachmentId } from "@/lib/compose-attachments";
 import type { Attachment } from "@/lib/types";
 
-/** Sync mints ids as att_<folder>_<uid>_<index>; anything else has no bytes on the server. */
+/** Sync mints ids as att_<folder>_<uid>_<index>; outgoing compose files use out_*. */
 const SERVER_ATTACHMENT_ID = /^att_[a-z]+_\d+_\d+$/i;
 
 export type AttachmentKind = "image" | "pdf" | "text" | "other";
 
 export function isServerAttachment(attachment: Pick<Attachment, "id">): boolean {
-  return SERVER_ATTACHMENT_ID.test(attachment.id || "");
+  return SERVER_ATTACHMENT_ID.test(attachment.id || "") || isOutgoingAttachmentId(attachment.id);
 }
 
 function extensionOf(name: string): string {

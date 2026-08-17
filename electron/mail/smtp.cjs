@@ -151,6 +151,8 @@ async function sendMail(
   }
   const brandHtml = buildBrandHeaderHtml(account, useCid);
   const finalHtml = `${brandHtml}${bodyHtml}`;
+  const { resolveSendAttachments } = require("./attachments.cjs");
+  const userAttachments = resolveSendAttachments(attachments);
 
   const mail = {
     from: `"${account.name || account.email}" <${account.email}>`,
@@ -163,7 +165,7 @@ async function sendMail(
     inReplyTo: inReplyTo || undefined,
     references: references || undefined,
     headers,
-    attachments: [...(attachments || []), ...brandAttachments],
+    attachments: [...userAttachments, ...brandAttachments],
   };
 
   if (icalEvent) {

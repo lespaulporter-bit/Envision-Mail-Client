@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("lesMail", {
   loadAppState: () => ipcRenderer.invoke("app:loadState"),
   saveAppState: (payload) => ipcRenderer.invoke("app:saveState", payload),
   sendMail: (payload) => ipcRenderer.invoke("mail:send", payload),
+  pickAttachments: () => ipcRenderer.invoke("mail:pickAttachments"),
+  stageAttachment: (payload) => ipcRenderer.invoke("mail:stageAttachment", payload),
   unsubscribeMail: (payload) => ipcRenderer.invoke("mail:unsubscribe", payload),
   moveMessages: (payload) => ipcRenderer.invoke("mail:moveMessages", payload),
   deleteMessages: (payload) => ipcRenderer.invoke("mail:deleteMessages", payload),

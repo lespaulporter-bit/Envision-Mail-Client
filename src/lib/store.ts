@@ -219,7 +219,7 @@ interface Actions {
   updateSettings: (patch: Partial<Settings>) => void;
   setCoverArt: (mode: CoverArtMode) => void;
 
-  sendReply: (threadId: string, body: string) => void;
+  sendReply: (threadId: string, body: string, opts?: { attachments?: Message["attachments"] }) => void;
   sendNewEmail: (
     to: string,
     subject: string,
@@ -231,6 +231,7 @@ interface Actions {
       bcc?: string[];
       accountId?: string | null;
       accountEmail?: string | null;
+      attachments?: Array<{ id: string; name: string; size: number; mimeType: string }>;
     },
   ) => void;
   rememberRecipients: (emails: string[], names?: Record<string, string>) => void;
@@ -1295,10 +1296,11 @@ export const useMailStore = create<MailStore>()(
       updateSettings: (patch) => set({ settings: { ...get().settings, ...patch } }),
       setCoverArt: (coverArt) => set({ settings: { ...get().settings, coverArt } }),
 
-      sendReply: (threadId, body) => {
+      sendReply: (threadId, body, opts) => {
         const thread = get().threads.find((t) => t.id === threadId);
         if (!thread || !body.trim()) return;
         const id = uid("m");
+        const sentAt = new Date().toISOString();
         const message: Message = {
           id,
           threadId,
@@ -1309,8 +1311,13 @@ export const useMailStore = create<MailStore>()(
           subject: `Re: ${thread.customSubject || thread.subject}`,
           bodyHtml: `<p>${body.replace(/\n/g, "<br/>")}</p>`,
           bodyText: body,
-          sentAt: new Date().toISOString(),
-          attachments: [],
+          sentAt,
+          attachments: (opts?.attachments || []).map((a) => ({
+            ...a,
+            messageId: id,
+            threadId,
+            receivedAt: sentAt,
+          })),
           trackersBlocked: [],
           isOutgoing: true,
         };
@@ -1368,7 +1375,15 @@ export const useMailStore = create<MailStore>()(
           bodyHtml: `<p>${body.replace(/\n/g, "<br/>")}</p>`,
           bodyText: body,
           sentAt: new Date().toISOString(),
-          attachments: [],
+          attachments: (opts?.attachments || []).map((a) => ({
+            id: a.id,
+            name: a.name,
+            size: a.size,
+            mimeType: a.mimeType,
+            messageId,
+            threadId,
+            receivedAt: new Date().toISOString(),
+          })),
           trackersBlocked: [],
           isOutgoing: true,
           requestReadReceipt: opts?.requestReadReceipt,

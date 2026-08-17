@@ -3,6 +3,9 @@
 import { CoverArt } from "@/components/CoverArt";
 import { ThreadRow } from "@/components/ThreadRow";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
+import { ComposeAttachments } from "@/components/ComposeAttachments";
+import type { DraftAttachment } from "@/lib/compose-attachments";
+import { toSendAttachments } from "@/lib/compose-attachments";
 import { MailHtml } from "@/components/MailHtml";
 import { MultiOpenBanner } from "@/components/MultiOpenBanner";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
@@ -1267,6 +1270,7 @@ export function FocusReplyView() {
   });
   const [index, setIndex] = useState(0);
   const [body, setBody] = useState("");
+  const [queueFiles, setQueueFiles] = useState<DraftAttachment[]>([]);
   const [sending, setSending] = useState(false);
   const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
   const current = queue[Math.min(index, Math.max(0, queue.length - 1))];
@@ -1315,6 +1319,7 @@ export function FocusReplyView() {
         text: bodyText,
         html: bodyHtml,
         requestReadReceipt: settings.requestReadReceiptsByDefault ?? false,
+        attachments: toSendAttachments(queueFiles),
       });
       if (!result.ok) {
         const err = result.error || "SMTP send failed";
@@ -1325,8 +1330,19 @@ export function FocusReplyView() {
         setToast(err + authHint);
         return;
       }
-      sendReply(current.id, bodyText);
+      sendReply(current.id, bodyText, {
+        attachments: queueFiles.map((f) => ({
+          id: f.id,
+          name: f.name,
+          size: f.size,
+          mimeType: f.mimeType,
+          messageId: "",
+          threadId: current.id,
+          receivedAt: new Date().toISOString(),
+        })),
+      });
       setBody("");
+      setQueueFiles([]);
       setIndex((i) => Math.min(i, Math.max(0, queue.length - 2)));
       setToast("Reply sent via SMTP");
     } catch (err) {
@@ -1394,6 +1410,14 @@ export function FocusReplyView() {
           }}
           placeholder={`Your reply… (${sendShortcutHint()})`}
         />
+        <div className="mt-3">
+          <ComposeAttachments
+            files={queueFiles}
+            onChange={setQueueFiles}
+            disabled={sending}
+            onError={setToast}
+          />
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button disabled={sending} onClick={() => void sendAndNext()}>
             {sending ? "Sending…" : "Send & next"}

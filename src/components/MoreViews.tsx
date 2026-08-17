@@ -9,7 +9,10 @@ import { AccountsPanel } from "@/components/AccountsPanel";
 import { SignaturesPanel } from "@/components/SignaturesPanel";
 import { EmailTemplatesPanel } from "@/components/EmailTemplatesPanel";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
+import { ComposeAttachments } from "@/components/ComposeAttachments";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
+import type { DraftAttachment } from "@/lib/compose-attachments";
+import { toSendAttachments } from "@/lib/compose-attachments";
 import { parseRecipientEmails } from "@/lib/recipient-suggest";
 import { desktopApi, sendShortcutHint, thisComputerLabel } from "@/lib/desktop";
 import { useAccountScoped } from "@/lib/use-account-scoped";
@@ -668,7 +671,7 @@ export function SettingsView() {
   const tab = useMailStore((s) => s.settingsTab);
   const setTab = useMailStore((s) => s.setSettingsTab);
   const setToast = useMailStore((s) => s.setToast);
-  const [appVersion, setAppVersion] = useState("2.6.67");
+  const [appVersion, setAppVersion] = useState("2.6.68");
   const [updateStatus, setUpdateStatus] = useState<{
     feedUrl: string;
     lastCheckAt: string | null;
@@ -1351,6 +1354,7 @@ export function ComposeView() {
   const [accountId, setAccountId] = useState("");
   const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
   const [requestReceipt, setRequestReceipt] = useState(settings.requestReadReceiptsByDefault ?? true);
+  const [composeFiles, setComposeFiles] = useState<DraftAttachment[]>([]);
 
   useEffect(() => {
     const api = desktopApi();
@@ -1455,6 +1459,7 @@ export function ComposeView() {
         text: bodyText || "(see HTML signature)",
         html,
         requestReadReceipt: requestReceipt,
+        attachments: toSendAttachments(composeFiles),
       });
       if (!result.ok) {
         const err = result.error || "Send failed";
@@ -1482,8 +1487,15 @@ export function ComposeView() {
         bcc: bccList,
         accountId: sendAccountId,
         accountEmail: accounts.find((a) => a.id === sendAccountId)?.email,
+        attachments: composeFiles.map((f) => ({
+          id: f.id,
+          name: f.name,
+          size: f.size,
+          mimeType: f.mimeType,
+        })),
       });
       setCompose({ to: "", cc: "", bcc: "", subject: "", body: "", replyToThreadId: null });
+      setComposeFiles([]);
       setView("sent");
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Send failed");
@@ -1508,6 +1520,7 @@ export function ComposeView() {
           disabled={sending}
           onClick={() => {
             startCompose();
+            setComposeFiles([]);
             setToast("Draft cleared");
           }}
         >
@@ -1586,6 +1599,12 @@ export function ComposeView() {
                     : plain,
             });
           }}
+        />
+        <ComposeAttachments
+          files={composeFiles}
+          onChange={setComposeFiles}
+          disabled={sending}
+          onError={setToast}
         />
         <Textarea
           rows={10}

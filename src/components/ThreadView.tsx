@@ -3,6 +3,9 @@
 import { Avatar, Badge, Button, Input, Textarea } from "@/components/ui";
 import { AttachmentList } from "@/components/AttachmentList";
 import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
+import { ComposeAttachments } from "@/components/ComposeAttachments";
+import type { DraftAttachment } from "@/lib/compose-attachments";
+import { toSendAttachments } from "@/lib/compose-attachments";
 import { MailHtml } from "@/components/MailHtml";
 import { PriorEmailsPanel } from "@/components/PriorEmailsPanel";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
@@ -55,6 +58,7 @@ export function ThreadView() {
   const setToast = useMailStore((s) => s.setToast);
 
   const [reply, setReply] = useState("");
+  const [replyFiles, setReplyFiles] = useState<DraftAttachment[]>([]);
   const [replyCc, setReplyCc] = useState("");
   const [replyBcc, setReplyBcc] = useState("");
   const [showReplyCcBcc, setShowReplyCcBcc] = useState(false);
@@ -179,6 +183,7 @@ export function ThreadView() {
         text: bodyText || "(see HTML signature)",
         html: bodyHtml,
         requestReadReceipt: requestReceipt,
+        attachments: toSendAttachments(replyFiles),
       });
       if (!result.ok) {
         const err = result.error || "SMTP send failed";
@@ -190,8 +195,19 @@ export function ThreadView() {
         return;
       }
       setToast(requestReceipt ? "Reply sent · read receipt requested" : "Reply sent via SMTP");
-      sendReply(thread.id, bodyText || " ");
+      sendReply(thread.id, bodyText || " ", {
+        attachments: replyFiles.map((f) => ({
+          id: f.id,
+          name: f.name,
+          size: f.size,
+          mimeType: f.mimeType,
+          messageId: "",
+          threadId: thread.id,
+          receivedAt: new Date().toISOString(),
+        })),
+      });
       setReply("");
+      setReplyFiles([]);
       setReplyCc("");
       setReplyBcc("");
     } catch (err) {
@@ -811,6 +827,12 @@ export function ThreadView() {
             </span>
           </label>
         ) : null}
+        <ComposeAttachments
+          files={replyFiles}
+          onChange={setReplyFiles}
+          disabled={sending}
+          onError={setToast}
+        />
         <Textarea
           rows={5}
           placeholder={`Write a reply… (${sendShortcutHint()})`}

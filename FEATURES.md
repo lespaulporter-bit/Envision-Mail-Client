@@ -17,3 +17,4 @@
 | Account isolation | Done |
 | Spam / Trash / auto-purge | Done |
 | Native Mac + Windows installers | Done |
+| Send and receive email attachments | Done |
