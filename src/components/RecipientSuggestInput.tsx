@@ -60,6 +60,15 @@ export function RecipientSuggestInput({
   // autocomplete leaked recipients from other accounts that had never sent to
   // or received from that address.
   const scoped = useMemo(() => {
+    if (!inboxAccountId) {
+      return {
+        scopedThreads: [] as typeof threads,
+        scopedContacts: [] as typeof contacts,
+        scopedMessages: {} as Record<string, Message | undefined>,
+        scopedRecents: [] as typeof recentRecipients,
+        ownSet: new Set<string>(),
+      };
+    }
     const scopedThreads = filterThreadsByAccount(threads, inboxAccountId, messages);
     const scopedContacts = filterContactsByAccount(contacts, threads, inboxAccountId, messages);
     const scopedMessages: Record<string, Message | undefined> = {};

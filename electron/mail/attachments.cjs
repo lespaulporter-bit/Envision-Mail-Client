@@ -174,7 +174,10 @@ function resolveSendAttachments(list) {
         content: Buffer.from(item.contentBase64, "base64"),
         contentType: item.contentType || item.mimeType || "application/octet-stream",
       });
+      continue;
     }
+    const label = item.filename || item.name || item.id || "An attachment";
+    throw new Error(`${label} could not be attached — pick the file again`);
   }
   const total = resolved.reduce((sum, file) => {
     if (file.content) return sum + file.content.length;

@@ -1,5 +1,13 @@
 # Envision Mail updates
 
+## 2.6.69
+- **Replies actually send.** Prior Emails “Send reply” now goes out over SMTP (same as thread reply). Signature-only replies are recorded in Sent instead of disappearing after the toast.
+- **Replies stay in the same conversation.** Thread reply, Reply Queue, and Prior Emails now send `In-Reply-To` / `References` so recipients do not get a new thread.
+- **Sent copies match what you sent.** Local Sent mail keeps the HTML signature, the sending account’s From name, Cc/Bcc, and the SMTP Message-ID so read receipts can match.
+- **Attachments fail loudly.** If a picked file is gone before send, you get “pick the file again” instead of a silent drop.
+- **Calendar open stays on this account.** Clicking an event that belongs to another inbox shows a toast instead of switching you into the wrong calendar.
+- Removed the unused Compose “Reply to N Snooze emails” path that only wrote local replies and never hit SMTP.
+
 ## 2.6.68
 - **Attach files when you write.** Compose, Reply, and Reply Queue have **Attach files**. Pick one or more documents (Mac and Windows). They send with the email and show on the Sent copy. Incoming attachments still open and save as before.
 - Attachment cap is 25 MB total (typical SMTP limit) so send does not fail silently.

@@ -6,6 +6,7 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { ComposeAttachments } from "@/components/ComposeAttachments";
 import type { DraftAttachment } from "@/lib/compose-attachments";
 import { toSendAttachments } from "@/lib/compose-attachments";
+import { replyThreadingHeaders } from "@/lib/reply-headers";
 import { MailHtml } from "@/components/MailHtml";
 import { PriorEmailsPanel } from "@/components/PriorEmailsPanel";
 import { RecipientSuggestInput } from "@/components/RecipientSuggestInput";
@@ -184,6 +185,7 @@ export function ThreadView() {
         html: bodyHtml,
         requestReadReceipt: requestReceipt,
         attachments: toSendAttachments(replyFiles),
+        ...replyThreadingHeaders(messages),
       });
       if (!result.ok) {
         const err = result.error || "SMTP send failed";
@@ -195,7 +197,7 @@ export function ThreadView() {
         return;
       }
       setToast(requestReceipt ? "Reply sent · read receipt requested" : "Reply sent via SMTP");
-      sendReply(thread.id, bodyText || " ", {
+      sendReply(thread.id, bodyText, {
         attachments: replyFiles.map((f) => ({
           id: f.id,
           name: f.name,
@@ -205,6 +207,13 @@ export function ThreadView() {
           threadId: thread.id,
           receivedAt: new Date().toISOString(),
         })),
+        cc: parseRecipientEmails(replyCc),
+        bcc: parseRecipientEmails(replyBcc),
+        fromEmail: thread.accountEmail || settings.email,
+        fromName: settings.displayName,
+        smtpMessageId: result.messageId,
+        requestReadReceipt: requestReceipt,
+        bodyHtml,
       });
       setReply("");
       setReplyFiles([]);

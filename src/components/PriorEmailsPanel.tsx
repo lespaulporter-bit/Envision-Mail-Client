@@ -3,6 +3,9 @@
 import { Avatar, Button } from "@/components/ui";
 import { MailHtml } from "@/components/MailHtml";
 import { threadBelongsToAccount } from "@/lib/account-scope";
+import { desktopApi } from "@/lib/desktop";
+import { bodyToHtml, scrubComposerBody } from "@/lib/html-body";
+import { replyThreadingHeaders } from "@/lib/reply-headers";
 import { useMailStore } from "@/lib/store";
 import type { Thread } from "@/lib/types";
 import { cn, formatThreadTime, formatMailDateTime, previewText, relativeTime } from "@/lib/utils";
@@ -24,10 +27,12 @@ export function PriorEmailsPanel({ thread }: Props) {
   const mergeThreads = useMailStore((s) => s.mergeThreads);
   const sendReply = useMailStore((s) => s.sendReply);
   const setToast = useMailStore((s) => s.setToast);
+  const settings = useMailStore((s) => s.settings);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [replyOpen, setReplyOpen] = useState<Record<string, boolean>>({});
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const prior = useMemo(() => {
     const email = thread.contactEmail.toLowerCase();
@@ -152,15 +157,53 @@ export function PriorEmailsPanel({ thread }: Props) {
                       className="mt-3 space-y-2"
                       onSubmit={(e) => {
                         e.preventDefault();
-                        const body = (replyDrafts[t.id] || "").trim();
-                        if (!body) {
-                          setToast("Write a reply first");
-                          return;
-                        }
-                        sendReply(t.id, body);
-                        setReplyDrafts((m) => ({ ...m, [t.id]: "" }));
-                        setReplyOpen((m) => ({ ...m, [t.id]: false }));
-                        setToast("Reply sent");
+                        void (async () => {
+                          const body = (replyDrafts[t.id] || "").trim();
+                          if (!body) {
+                            setToast("Write a reply first");
+                            return;
+                          }
+                          if (sendingId) return;
+                          const api = desktopApi();
+                          if (!api) {
+                            setToast("Open the Envision Mail desktop app to send via SMTP");
+                            return;
+                          }
+                          const sendAccountId = inboxAccountId || t.accountId || "";
+                          if (!sendAccountId) {
+                            setToast("Select an account before sending");
+                            return;
+                          }
+                          setSendingId(t.id);
+                          try {
+                            const bodyHtml = bodyToHtml(scrubComposerBody(body));
+                            const result = await api.sendMail({
+                              accountId: sendAccountId,
+                              to: t.contactEmail,
+                              subject: `Re: ${t.customSubject || t.subject}`,
+                              text: body,
+                              html: bodyHtml,
+                              ...replyThreadingHeaders(getThreadMessages(t.id)),
+                            });
+                            if (!result.ok) {
+                              setToast(result.error || "Send failed");
+                              return;
+                            }
+                            sendReply(t.id, body, {
+                              fromEmail: t.accountEmail || settings.email,
+                              fromName: settings.displayName,
+                              smtpMessageId: result.messageId,
+                              bodyHtml,
+                            });
+                            setReplyDrafts((m) => ({ ...m, [t.id]: "" }));
+                            setReplyOpen((m) => ({ ...m, [t.id]: false }));
+                            setToast("Reply sent");
+                          } catch (err) {
+                            setToast(err instanceof Error ? err.message : "Send failed");
+                          } finally {
+                            setSendingId(null);
+                          }
+                        })();
                       }}
                     >
                       <textarea
@@ -170,8 +213,8 @@ export function PriorEmailsPanel({ thread }: Props) {
                         value={replyDrafts[t.id] || ""}
                         onChange={(e) => setReplyDrafts((m) => ({ ...m, [t.id]: e.target.value }))}
                       />
-                      <Button type="submit" size="sm">
-                        Send reply
+                      <Button type="submit" size="sm" disabled={sendingId === t.id}>
+                        {sendingId === t.id ? "Sending…" : "Send reply"}
                       </Button>
                     </form>
                   ) : null}

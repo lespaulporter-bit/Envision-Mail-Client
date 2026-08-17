@@ -6,6 +6,7 @@ import { EmailTemplatePickers } from "@/components/EmailTemplatePickers";
 import { ComposeAttachments } from "@/components/ComposeAttachments";
 import type { DraftAttachment } from "@/lib/compose-attachments";
 import { toSendAttachments } from "@/lib/compose-attachments";
+import { replyThreadingHeaders } from "@/lib/reply-headers";
 import { MailHtml } from "@/components/MailHtml";
 import { MultiOpenBanner } from "@/components/MultiOpenBanner";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
@@ -1320,6 +1321,7 @@ export function FocusReplyView() {
         html: bodyHtml,
         requestReadReceipt: settings.requestReadReceiptsByDefault ?? false,
         attachments: toSendAttachments(queueFiles),
+        ...replyThreadingHeaders(messages),
       });
       if (!result.ok) {
         const err = result.error || "SMTP send failed";
@@ -1340,6 +1342,11 @@ export function FocusReplyView() {
           threadId: current.id,
           receivedAt: new Date().toISOString(),
         })),
+        fromEmail: current.accountEmail || settings.email,
+        fromName: settings.displayName,
+        smtpMessageId: result.messageId,
+        requestReadReceipt: settings.requestReadReceiptsByDefault ?? false,
+        bodyHtml,
       });
       setBody("");
       setQueueFiles([]);

@@ -31,6 +31,7 @@ import { mergeRecentRecipients } from "./recipient-suggest";
 import { localYmd, uid } from "./utils";
 import { parseMailtoUrl } from "./mailto";
 import { inferThreadAccountId, threadBelongsToAccount, stampMissingAccountId, rehomeOrphanedAccountRows, filterByActiveAccount, belongsToActiveAccount } from "./account-scope";
+import { shouldRecordOutgoingReply } from "./reply-headers";
 import { withMeetingLink } from "./meeting-links";
 import {
   ALL_EXTERNAL_CALENDAR_SOURCES,
@@ -219,7 +220,20 @@ interface Actions {
   updateSettings: (patch: Partial<Settings>) => void;
   setCoverArt: (mode: CoverArtMode) => void;
 
-  sendReply: (threadId: string, body: string, opts?: { attachments?: Message["attachments"] }) => void;
+  sendReply: (
+    threadId: string,
+    body: string,
+    opts?: {
+      attachments?: Message["attachments"];
+      cc?: string[];
+      bcc?: string[];
+      fromEmail?: string | null;
+      fromName?: string | null;
+      smtpMessageId?: string | null;
+      requestReadReceipt?: boolean;
+      bodyHtml?: string;
+    },
+  ) => void;
   sendNewEmail: (
     to: string,
     subject: string,
@@ -231,11 +245,12 @@ interface Actions {
       bcc?: string[];
       accountId?: string | null;
       accountEmail?: string | null;
+      fromName?: string | null;
       attachments?: Array<{ id: string; name: string; size: number; mimeType: string }>;
+      bodyHtml?: string;
     },
   ) => void;
   rememberRecipients: (emails: string[], names?: Record<string, string>) => void;
-  replyToEveryone: (threadIds: string[], body: string) => void;
   importSyncedMail: (
     payload: {
       accountId: string;
@@ -637,6 +652,10 @@ export const useMailStore = create<MailStore>()(
         const ev = get().events.find((e) => e.id === eventId);
         if (!ev) {
           set({ view: "calendar", toast: "That event is no longer on your calendar" });
+          return;
+        }
+        if (!belongsToActiveAccount(ev, get().inboxAccountId)) {
+          set({ toast: "That event belongs to another account" });
           return;
         }
         const ymd = localYmd(ev.start);
@@ -1298,19 +1317,21 @@ export const useMailStore = create<MailStore>()(
 
       sendReply: (threadId, body, opts) => {
         const thread = get().threads.find((t) => t.id === threadId);
-        if (!thread || !body.trim()) return;
+        if (!thread || !shouldRecordOutgoingReply(body, opts)) return;
         const id = uid("m");
         const sentAt = new Date().toISOString();
+        const text = String(body || "").trim();
         const message: Message = {
           id,
           threadId,
-          from: get().settings.email,
-          fromName: get().settings.displayName,
+          from: opts?.fromEmail || thread.accountEmail || get().settings.email,
+          fromName: opts?.fromName || get().settings.displayName,
           to: [thread.contactEmail],
-          cc: [],
+          cc: opts?.cc || [],
+          bcc: opts?.bcc || [],
           subject: `Re: ${thread.customSubject || thread.subject}`,
-          bodyHtml: `<p>${body.replace(/\n/g, "<br/>")}</p>`,
-          bodyText: body,
+          bodyHtml: opts?.bodyHtml || `<p>${text.replace(/\n/g, "<br/>")}</p>`,
+          bodyText: text,
           sentAt,
           attachments: (opts?.attachments || []).map((a) => ({
             ...a,
@@ -1320,6 +1341,9 @@ export const useMailStore = create<MailStore>()(
           })),
           trackersBlocked: [],
           isOutgoing: true,
+          requestReadReceipt: opts?.requestReadReceipt,
+          smtpMessageId: opts?.smtpMessageId || null,
+          messageIdHeader: opts?.smtpMessageId || null,
         };
         set({
           messages: { ...get().messages, [id]: message },
@@ -1336,7 +1360,6 @@ export const useMailStore = create<MailStore>()(
           recentRecipients: mergeRecentRecipients(get().recentRecipients || [], [thread.contactEmail], {
             [thread.contactEmail.toLowerCase()]: thread.contactName,
           }),
-          toast: "Reply sent",
         });
       },
 
@@ -1366,13 +1389,13 @@ export const useMailStore = create<MailStore>()(
         const message: Message = {
           id: messageId,
           threadId,
-          from: get().settings.email,
-          fromName: get().settings.displayName,
+          from: opts?.accountEmail || get().settings.email,
+          fromName: opts?.fromName || get().settings.displayName,
           to: [to],
           cc: ccList,
           bcc: bccList,
           subject,
-          bodyHtml: `<p>${body.replace(/\n/g, "<br/>")}</p>`,
+          bodyHtml: opts?.bodyHtml || `<p>${body.replace(/\n/g, "<br/>")}</p>`,
           bodyText: body,
           sentAt: new Date().toISOString(),
           attachments: (opts?.attachments || []).map((a) => ({
@@ -1431,11 +1454,6 @@ export const useMailStore = create<MailStore>()(
         set({
           recentRecipients: mergeRecentRecipients(get().recentRecipients || [], emails, names),
         }),
-
-      replyToEveryone: (threadIds, body) => {
-        threadIds.forEach((id) => get().sendReply(id, body));
-        set({ toast: `Replied to ${threadIds.length} emails` });
-      },
 
       importSyncedMail: ({ accountId, email, messages: incoming }, opts) => {
         let imported = 0;

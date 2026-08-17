@@ -17,7 +17,7 @@ import { parseRecipientEmails } from "@/lib/recipient-suggest";
 import { desktopApi, sendShortcutHint, thisComputerLabel } from "@/lib/desktop";
 import { useAccountScoped } from "@/lib/use-account-scoped";
 import { asArray } from "@/lib/stable-empty";
-import { selectAccountThreads, selectDockThreads, useMailStore } from "@/lib/store";
+import { selectAccountThreads, useMailStore } from "@/lib/store";
 import { clipBelongsToAccount } from "@/lib/account-scope";
 import { blockAllFromSenderSmart } from "@/lib/mail-delete";
 import { CALENDAR_TIMEZONE_OPTIONS, localTimezoneId } from "@/lib/timezones";
@@ -671,7 +671,7 @@ export function SettingsView() {
   const tab = useMailStore((s) => s.settingsTab);
   const setTab = useMailStore((s) => s.setSettingsTab);
   const setToast = useMailStore((s) => s.setToast);
-  const [appVersion, setAppVersion] = useState("2.6.68");
+  const [appVersion, setAppVersion] = useState("2.6.69");
   const [updateStatus, setUpdateStatus] = useState<{
     feedUrl: string;
     lastCheckAt: string | null;
@@ -1336,21 +1336,13 @@ export function ComposeView() {
   const sendNewEmail = useMailStore((s) => s.sendNewEmail);
   const signatures = useMailStore((s) => asArray(s.signatures));
   const settings = useMailStore((s) => s.settings);
-  const replyToEveryone = useMailStore((s) => s.replyToEveryone);
-  const threads = useMailStore((s) => s.threads);
-  const messages = useMailStore((s) => s.messages);
   const setToast = useMailStore((s) => s.setToast);
   const setView = useMailStore((s) => s.setView);
   const rememberRecipients = useMailStore((s) => s.rememberRecipients);
-  const [bulk, setBulk] = useState(false);
   const [sending, setSending] = useState(false);
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; name: string }>>([]);
   const inboxAccountId = useMailStore((s) => s.inboxAccountId);
-  const snoozeQueue = selectDockThreads(threads, "reply_later", {
-    accountId: inboxAccountId,
-    messages,
-  });
   const [accountId, setAccountId] = useState("");
   const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
   const [requestReceipt, setRequestReceipt] = useState(settings.requestReadReceiptsByDefault ?? true);
@@ -1487,6 +1479,8 @@ export function ComposeView() {
         bcc: bccList,
         accountId: sendAccountId,
         accountEmail: accounts.find((a) => a.id === sendAccountId)?.email,
+        fromName: activeAccount?.name || settings.displayName,
+        bodyHtml: html,
         attachments: composeFiles.map((f) => ({
           id: f.id,
           name: f.name,
@@ -1655,21 +1649,6 @@ export function ComposeView() {
             Reply to Everyone
           </Button>
         </div>
-        {bulk ? (
-          <div className="rounded-xl bg-soft p-3 text-sm">
-            <Button
-              size="sm"
-              onClick={() =>
-                replyToEveryone(
-                  snoozeQueue.map((t) => t.id),
-                  composeDraft.body || "Thanks — looping back here.",
-                )
-              }
-            >
-              Reply to {snoozeQueue.length} Snooze emails
-            </Button>
-          </div>
-        ) : null}
       </div>
     </div>
   );
