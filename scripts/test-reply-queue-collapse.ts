@@ -9,6 +9,7 @@ assert.match(view, /collapseOverrides/);
 assert.match(view, /\?\? true/);
 assert.match(view, /Expand all/);
 assert.match(view, /Collapse all/);
+assert.match(view, /previewText\(m\.bodyHtml \|\| m\.bodyText \|\| "", 100\)/);
 assert.match(view, /Send & next/);
 assert.match(view, /Skip/);
 assert.match(view, /ComposeAttachments/);

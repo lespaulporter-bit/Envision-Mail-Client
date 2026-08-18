@@ -1446,8 +1446,8 @@ export function FocusReplyView() {
                   className="w-full rounded-lg bg-white px-3 py-2 text-left text-sm text-ink transition hover:bg-[#f3e8ff]/60"
                   onClick={() => setCollapsed(m.id, false)}
                 >
-                  <p className="line-clamp-3 whitespace-pre-wrap">
-                    {previewText(m.bodyHtml || m.bodyText || "", 220)}
+                  <p className="line-clamp-2 whitespace-pre-wrap">
+                    {previewText(m.bodyHtml || m.bodyText || "", 100)}
                   </p>
                   {m.attachments.length > 0 ? (
                     <span className="mt-1 block text-xs text-muted">
