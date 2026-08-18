@@ -7,6 +7,7 @@ import { ComposeAttachments } from "@/components/ComposeAttachments";
 import type { DraftAttachment } from "@/lib/compose-attachments";
 import { toSendAttachments } from "@/lib/compose-attachments";
 import { replyThreadingHeaders } from "@/lib/reply-headers";
+import { AttachmentList } from "@/components/AttachmentList";
 import { MailHtml } from "@/components/MailHtml";
 import { MultiOpenBanner } from "@/components/MultiOpenBanner";
 import { UnsubscribeButton } from "@/components/UnsubscribeButton";
@@ -24,7 +25,7 @@ import {
   useMailStore,
 } from "@/lib/store";
 import { boxLabel, type Message, type Thread } from "@/lib/types";
-import { formatThreadTime, previewText } from "@/lib/utils";
+import { formatMailDateTime, formatThreadTime, previewText } from "@/lib/utils";
 import { useMemo, useState } from "react";
 
 export function MoneyBoxView() {
@@ -1274,6 +1275,7 @@ export function FocusReplyView() {
   const [queueFiles, setQueueFiles] = useState<DraftAttachment[]>([]);
   const [sending, setSending] = useState(false);
   const [signatureId, setSignatureId] = useState(settings.defaultSignatureId || "");
+  const [collapseOverrides, setCollapseOverrides] = useState<Record<string, boolean>>({});
   const current = queue[Math.min(index, Math.max(0, queue.length - 1))];
   const getThreadMessages = useMailStore((s) => s.getThreadMessages);
 
@@ -1286,7 +1288,9 @@ export function FocusReplyView() {
   }
 
   const messages = getThreadMessages(current.id);
-  const last = messages[messages.length - 1];
+  const isCollapsed = (messageId: string) => collapseOverrides[`${current.id}:${messageId}`] ?? true;
+  const setCollapsed = (messageId: string, collapsed: boolean) =>
+    setCollapseOverrides((cur) => ({ ...cur, [`${current.id}:${messageId}`]: collapsed }));
 
   const sendAndNext = async () => {
     if (sending) return;
@@ -1370,7 +1374,94 @@ export function FocusReplyView() {
         <p className="mt-1 text-sm text-muted">
           {current.contactName} · {current.contactEmail}
         </p>
-        {last ? <MailHtml className="mt-4 rounded-xl bg-soft p-4" html={last.bodyHtml} /> : null}
+        {messages.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#f3e8ff] px-3 py-1.5 text-xs font-semibold text-[#6d28d9] ring-1 ring-[#ddd6fe] transition hover:bg-[#ede9fe]"
+              onClick={() => {
+                const next: Record<string, boolean> = {};
+                for (const m of messages) next[`${current.id}:${m.id}`] = false;
+                setCollapseOverrides((cur) => ({ ...cur, ...next }));
+              }}
+            >
+              Expand all
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#a855f7] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.45)] transition hover:brightness-110"
+              onClick={() => {
+                const next: Record<string, boolean> = {};
+                for (const m of messages) next[`${current.id}:${m.id}`] = true;
+                setCollapseOverrides((cur) => ({ ...cur, ...next }));
+              }}
+            >
+              Collapse all
+            </button>
+          </div>
+        ) : null}
+        <div className="mt-3 space-y-3">
+          {messages.map((m) => (
+            <article
+              key={m.id}
+              className={`rounded-xl border border-line p-3 ${m.isOutgoing ? "ml-6 bg-soft/80" : "bg-soft"}`}
+            >
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCollapsed(m.id, !isCollapsed(m.id))}
+                  aria-expanded={!isCollapsed(m.id)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#a855f7] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.55)] transition hover:brightness-110 active:scale-[0.98]"
+                >
+                  <span aria-hidden>{isCollapsed(m.id) ? "▸" : "▾"}</span>
+                  {isCollapsed(m.id) ? "Expand" : "Collapse"}
+                </button>
+                <div className="min-w-0 text-right">
+                  <div className="truncate text-sm font-medium">{m.fromName}</div>
+                  <div className="text-[11px] text-muted">{formatMailDateTime(m.sentAt)}</div>
+                </div>
+              </div>
+              {!isCollapsed(m.id) ? (
+                <>
+                  <MailHtml className="text-sm" html={m.bodyHtml} />
+                  {m.attachments.length > 0 ? (
+                    <AttachmentList
+                      className="mt-3"
+                      attachments={m.attachments}
+                      accountId={current.accountId || inboxAccountId}
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed(m.id, true)}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#f3e8ff] px-3 py-1.5 text-xs font-semibold text-[#6d28d9] ring-1 ring-[#ddd6fe] transition hover:bg-[#ede9fe]"
+                  >
+                    <span aria-hidden>▴</span>
+                    Collapse
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full rounded-lg bg-white px-3 py-2 text-left text-sm text-ink transition hover:bg-[#f3e8ff]/60"
+                  onClick={() => setCollapsed(m.id, false)}
+                >
+                  <p className="line-clamp-3 whitespace-pre-wrap">
+                    {previewText(m.bodyHtml || m.bodyText || "", 220)}
+                  </p>
+                  {m.attachments.length > 0 ? (
+                    <span className="mt-1 block text-xs text-muted">
+                      📎 {m.attachments.length} attachment{m.attachments.length > 1 ? "s" : ""}
+                    </span>
+                  ) : null}
+                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#7c3aed]">
+                    <span aria-hidden>▸</span> Expand
+                  </span>
+                </button>
+              )}
+            </article>
+          ))}
+        </div>
         <div className="mt-4">
           <EmailTemplatePickers
             showSubjectTemplates={false}

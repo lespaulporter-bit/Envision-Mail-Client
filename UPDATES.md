@@ -1,5 +1,8 @@
 # Envision Mail updates
 
+## 2.6.70
+- **Reply Queue loads collapsed.** Each email in the queue starts collapsed with a preview. Use **Expand** / **Collapse** (or Expand all / Collapse all) to read the full body — Send & next, Skip, signatures, and attachments stay the same (Mac and Windows).
+
 ## 2.6.69
 - **Replies actually send.** Prior Emails “Send reply” now goes out over SMTP (same as thread reply). Signature-only replies are recorded in Sent instead of disappearing after the toast.
 - **Replies stay in the same conversation.** Thread reply, Reply Queue, and Prior Emails now send `In-Reply-To` / `References` so recipients do not get a new thread.

@@ -671,7 +671,7 @@ export function SettingsView() {
   const tab = useMailStore((s) => s.settingsTab);
   const setTab = useMailStore((s) => s.setSettingsTab);
   const setToast = useMailStore((s) => s.setToast);
-  const [appVersion, setAppVersion] = useState("2.6.69");
+  const [appVersion, setAppVersion] = useState("2.6.70");
   const [updateStatus, setUpdateStatus] = useState<{
     feedUrl: string;
     lastCheckAt: string | null;
